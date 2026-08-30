@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="FuelGap fuel station monitoring and reconciliation platform."
+    >
+
+    <title>FuelGap | Fuel Station Monitoring</title>
+
+    <link rel="stylesheet" href="./css/global.css">
+    <link rel="stylesheet" href="./css/navbar.css">
+    <link rel="stylesheet" href="./css/responsive.css">
+
+    <style>
+
+        .hero {
+            min-height: calc(100vh - 72px);
+
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            align-items: center;
+
+            gap: 60px;
+
+            padding: 70px 0;
+        }
+
+        .hero-content {
+            max-width: 620px;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+
+            padding: 7px 12px;
+
+            border-radius: 50px;
+
+            background: var(--yellow-light);
+            color: #735c00;
+
+            font-size: 0.85rem;
+            font-weight: 700;
+
+            margin-bottom: 20px;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 5vw, 4.7rem);
+            line-height: 1.05;
+
+            letter-spacing: -2px;
+
+            margin-bottom: 24px;
+        }
+
+        .hero h1 span {
+            color: var(--yellow-dark);
+        }
+
+        .hero p {
+            max-width: 560px;
+
+            color: var(--text-secondary);
+
+            font-size: 1.1rem;
+
+            margin-bottom: 30px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .hero-image {
+            min-height: 500px;
+
+            border-radius: var(--radius-xl);
+
+            overflow: hidden;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    rgba(245, 196, 0, 0.9),
+                    rgba(245, 196, 0, 0.25)
+                ),
+                url("./assets/images/fuel-station-hero.jpg")
+                center / cover no-repeat;
+
+            box-shadow: var(--shadow-lg);
+
+            position: relative;
+        }
+
+        .hero-card {
+            position: absolute;
+
+            bottom: 25px;
+            left: 25px;
+            right: 25px;
+
+            padding: 20px;
+
+            background: rgba(255, 255, 255, 0.94);
+
+            border-radius: var(--radius-lg);
+
+            box-shadow: var(--shadow-md);
+        }
+
+        .hero-card-title {
+            font-weight: 800;
+            margin-bottom: 5px;
+        }
+
+        .hero-card-text {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 850px) {
+
+            .hero {
+                grid-template-columns: 1fr;
+                padding: 50px 0;
+            }
+
+            .hero-image {
+                min-height: 380px;
+            }
+
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+    <header class="navbar">
+
+        <div class="nav-container">
+
+            <a href="./index.html" class="logo">
+                <span class="logo-mark">F</span>
+                <span>Fuel<span class="text-yellow">Gap</span></span>
+            </a>
+
+            <nav class="nav-links">
+
+                <a href="./index.html" class="active">
+                    Home
+                </a>
+
+                <a href="#features">
+                    Features
+                </a>
+
+                <a href="#about">
+                    About
+                </a>
+
+                <a href="#contact">
+                    Contact
+                </a>
+
+            </nav>
+
+            <div class="nav-actions">
+
+                <a
+                    href="./login.html"
+                    class="btn btn-outline"
+                >
+                    Login
+                </a>
+
+                <a
+                    href="./register.html"
+                    class="btn btn-primary"
+                >
+                    Get Started
+                </a>
+
+            </div>
+
+            <button
+                class="mobile-menu-btn"
+                aria-label="Open menu"
+                aria-expanded="false"
+            >
+                ☰
+            </button>
+
+        </div>
+
+        <div class="mobile-menu">
+
+            <a href="./index.html">
+                Home
+            </a>
+
+            <a href="#features">
+                Features
+            </a>
+
+            <a href="#about">
+                About
+            </a>
+
+            <a href="#contact">
+                Contact
+            </a>
+
+            <a href="./login.html">
+                Login
+            </a>
+
+            <a
+                href="./register.html"
+                class="btn btn-primary"
+            >
+                Get Started
+            </a>
+
+        </div>
+
+    </header>
+
+
+    <!-- HERO -->
+    <main>
+
+        <section class="container hero">
+
+            <div class="hero-content">
+
+                <div class="hero-badge">
+                    Fuel Station Monitoring Platform
+                </div>
+
+                <h1>
+                    Know what is happening at
+                    <span>every station.</span>
+                </h1>
+
+                <p>
+                    FuelGap helps fuel companies monitor
+                    station operations, meter readings,
+                    sales, payments and gaps from one
+                    centralized platform.
+                </p>
+
+                <div class="hero-actions">
+
+                    <a
+                        href="./register.html"
+                        class="btn btn-primary"
+                    >
+                        Start Monitoring
+                    </a>
+
+                    <a
+                        href="./login.html"
+                        class="btn btn-outline"
+                    >
+                        Sign In
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <div class="hero-image">
+                <img src="./image/fuel.jpg" alt="">
+
+                <div class="hero-card">
+
+                    <div class="hero-card-title">
+                        Real-time operational visibility
+                    </div>
+
+                    <div class="hero-card-text">
+                        Monitor stations, pumps, readings,
+                        sales and variances from one place.
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <script src="./js/navbar.js"></script>
+
+</body>
+
+</html>

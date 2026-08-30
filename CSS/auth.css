@@ -1,0 +1,236 @@
+.auth-page {
+    min-height: 100vh;
+    background: var(--bg-secondary);
+}
+
+.auth-container {
+    width: min(1200px, 92%);
+    margin: 0 auto;
+
+    min-height: calc(100vh - 72px);
+
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+
+    align-items: center;
+
+    gap: 60px;
+
+    padding: 60px 0;
+}
+
+
+/* ==========================================
+   FORM SIDE
+========================================== */
+
+.auth-content {
+    max-width: 520px;
+}
+
+.auth-badge {
+    display: inline-flex;
+
+    padding: 7px 12px;
+
+    border-radius: 50px;
+
+    background: var(--yellow-light);
+
+    color: #735c00;
+
+    font-size: 0.82rem;
+
+    font-weight: 700;
+
+    margin-bottom: 18px;
+}
+
+.auth-content h1 {
+    font-size: clamp(2rem, 4vw, 3.2rem);
+
+    line-height: 1.1;
+
+    margin-bottom: 12px;
+}
+
+.auth-content > p {
+    color: var(--text-secondary);
+
+    margin-bottom: 28px;
+}
+
+
+/* ==========================================
+   FORM
+========================================== */
+
+.auth-form {
+    background: var(--white);
+
+    border: 1px solid var(--border);
+
+    border-radius: var(--radius-xl);
+
+    padding: 30px;
+
+    box-shadow: var(--shadow-md);
+}
+
+.form-group {
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    display: block;
+
+    margin-bottom: 7px;
+
+    font-size: 0.9rem;
+
+    font-weight: 600;
+}
+
+.form-group input {
+    width: 100%;
+
+    padding: 13px 14px;
+
+    border: 1px solid var(--border);
+
+    border-radius: var(--radius-md);
+
+    outline: none;
+
+    background: var(--white);
+
+    transition: var(--transition);
+}
+
+.form-group input:focus {
+    border-color: var(--yellow-dark);
+
+    box-shadow:
+        0 0 0 3px
+        rgba(245, 196, 0, 0.15);
+}
+
+.auth-submit {
+    width: 100%;
+
+    margin-top: 5px;
+
+    padding: 14px;
+
+    font-size: 1rem;
+}
+
+.auth-footer {
+    text-align: center;
+
+    margin-top: 20px;
+
+    color: var(--text-secondary);
+
+    font-size: 0.9rem;
+}
+
+.auth-footer a {
+    color: var(--yellow-dark);
+
+    font-weight: 700;
+}
+
+
+/* ==========================================
+   MESSAGE
+========================================== */
+
+.form-message {
+    padding: 12px 14px;
+
+    border-radius: var(--radius-md);
+
+    margin-bottom: 18px;
+
+    font-size: 0.9rem;
+}
+
+.form-message.error {
+    background: var(--danger-light);
+    color: var(--danger);
+}
+
+.form-message.success {
+    background: var(--success-light);
+    color: var(--success);
+}
+
+.form-message.hidden {
+    display: none;
+}
+
+
+/* ==========================================
+   HERO IMAGE
+========================================== */
+
+.auth-visual {
+    min-height: 600px;
+
+    border-radius: var(--radius-xl);
+
+    overflow: hidden;
+
+    position: relative;
+
+    background:
+        /* linear-gradient(
+            135deg,
+            rgba(245, 196, 0, 0.86),
+            rgba(17, 17, 17, 0.35)
+        ), */
+        url("../image/fuel.jpg")
+        center / cover no-repeat;
+
+    box-shadow: var(--shadow-lg);
+}
+
+.auth-visual-content {
+    position: absolute;
+
+    left: 35px;
+    right: 35px;
+    bottom: 35px;
+
+    padding: 25px;
+
+    border-radius: var(--radius-lg);
+
+    background: rgba(255, 255, 255, 0.94);
+
+    box-shadow: var(--shadow-md);
+}
+
+.auth-visual-content h2 {
+    margin-bottom: 8px;
+}
+
+.auth-visual-content p {
+    color: var(--text-secondary);
+
+    font-size: 0.92rem;
+}
+
+
+/* ==========================================
+   PASSWORD HINT
+========================================== */
+
+.password-hint {
+    color: var(--text-light);
+
+    font-size: 0.78rem;
+
+    margin-top: 5px;
+}

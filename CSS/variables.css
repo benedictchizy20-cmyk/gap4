@@ -1,0 +1,75 @@
+:root {
+    /* =========================
+       FUELGAP BRAND
+    ========================== */
+
+    --yellow: #f5c400;
+    --yellow-dark: #d9a900;
+    --yellow-light: #fff7cc;
+
+    --white: #ffffff;
+    --black: #111111;
+
+    /* =========================
+       BACKGROUNDS
+    ========================== */
+
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f8f6;
+    --bg-card: #ffffff;
+
+    /* =========================
+       TEXT
+    ========================== */
+
+    --text-primary: #171717;
+    --text-secondary: #666666;
+    --text-light: #999999;
+
+    /* =========================
+       STATUS
+    ========================== */
+
+    --success: #16a34a;
+    --success-light: #dcfce7;
+
+    --warning: #f59e0b;
+    --warning-light: #fef3c7;
+
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+
+    --info: #2563eb;
+    --info-light: #dbeafe;
+
+    /* =========================
+       BORDERS
+    ========================== */
+
+    --border: #e7e7e7;
+
+    /* =========================
+       SHADOWS
+    ========================== */
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+
+    --shadow-lg: 0 15px 40px rgba(0, 0, 0, 0.12);
+
+    /* =========================
+       RADIUS
+    ========================== */
+
+    --radius-sm: 6px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --radius-xl: 24px;
+
+    /* =========================
+       TRANSITIONS
+    ========================== */
+
+    --transition: 0.25s ease;
+}

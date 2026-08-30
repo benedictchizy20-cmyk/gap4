@@ -1,0 +1,176 @@
+/* ==========================================
+   FUELGAP - REPORTS
+========================================== */
+
+.reports-page {
+    width: 100%;
+}
+
+
+.report-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+
+.report-summary-card {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 14px;
+    padding: 1.25rem;
+}
+
+
+.report-summary-card span {
+    display: block;
+    font-size: 0.85rem;
+    color: #777777;
+    margin-bottom: 0.5rem;
+}
+
+
+.report-summary-card strong {
+    font-size: 1.5rem;
+}
+
+
+.report-filters {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+
+.report-filters select,
+.report-filters input {
+    width: 100%;
+}
+
+
+.report-card {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 14px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+
+.report-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+
+.report-card h3 {
+    margin: 0;
+}
+
+
+.report-card p {
+    margin: 0.35rem 0 0;
+    color: #777777;
+}
+
+
+.report-status-normal {
+    border-left: 4px solid #22c55e;
+}
+
+
+.report-status-variance {
+    border-left: 4px solid #f59e0b;
+}
+
+
+.report-status-critical {
+    border-left: 4px solid #ef4444;
+}
+
+
+.report-status-surplus {
+    border-left: 4px solid #3b82f6;
+}
+
+
+.report-details-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+
+.report-detail {
+    border: 1px solid #eeeeee;
+    border-radius: 10px;
+    padding: 1rem;
+}
+
+
+.report-detail span {
+    display: block;
+    font-size: 0.8rem;
+    color: #777777;
+    margin-bottom: 0.4rem;
+}
+
+
+.report-detail strong {
+    font-size: 1rem;
+}
+
+
+.report-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+
+@media (max-width: 1024px) {
+
+    .report-summary {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+
+    .report-details-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+
+    .report-filters {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+}
+
+
+@media (max-width: 768px) {
+
+    .report-summary {
+        grid-template-columns: 1fr;
+    }
+
+
+    .report-details-grid {
+        grid-template-columns: 1fr;
+    }
+
+
+    .report-filters {
+        grid-template-columns: 1fr;
+    }
+
+
+    .report-card-header {
+        flex-direction: column;
+    }
+
+}
