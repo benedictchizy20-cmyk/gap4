@@ -1,0 +1,1745 @@
+/* =========================================================
+   FUELGAP - SALES MANAGEMENT
+   PROFESSIONAL PREMIUM UI
+========================================================= */
+
+:root {
+
+    --sales-yellow: #f5c400;
+    --sales-yellow-dark: #d9aa00;
+    --sales-yellow-light: #fff8d6;
+
+    --sales-black: #111827;
+    --sales-dark: #1f2937;
+
+    --sales-gray: #6b7280;
+    --sales-muted: #9ca3af;
+
+    --sales-border: #e5e7eb;
+    --sales-border-light: #f1f3f5;
+
+    --sales-background: #f7f8fa;
+    --sales-white: #ffffff;
+
+    --sales-green: #15803d;
+    --sales-green-bg: #ecfdf3;
+
+    --sales-shadow:
+        0 8px 30px rgba(17, 24, 39, 0.06);
+
+    --sales-shadow-hover:
+        0 14px 40px rgba(17, 24, 39, 0.10);
+
+    --sales-radius: 18px;
+}
+
+
+/* =========================================================
+   PAGE
+========================================================= */
+
+.sales-page {
+
+    width: 100%;
+
+    min-height: 100%;
+
+    padding-bottom: 40px;
+
+}
+
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+.sales-page-header {
+
+    display: flex;
+
+    align-items: flex-end;
+
+    justify-content: space-between;
+
+    gap: 30px;
+
+    margin-bottom: 24px;
+
+    padding: 28px;
+
+    background: var(--sales-white);
+
+    border:
+        1px solid var(--sales-border);
+
+    border-radius: 22px;
+
+    box-shadow: var(--sales-shadow);
+
+}
+
+
+.sales-header-left {
+
+    min-width: 0;
+
+}
+
+
+.sales-eyebrow {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 9px;
+
+    margin-bottom: 10px;
+
+    color: var(--sales-yellow-dark);
+
+    font-size: 11px;
+
+    font-weight: 800;
+
+    letter-spacing: .14em;
+
+    text-transform: uppercase;
+
+}
+
+
+.sales-eyebrow-dot {
+
+    width: 8px;
+
+    height: 8px;
+
+    flex-shrink: 0;
+
+    border-radius: 50%;
+
+    background:
+        var(--sales-yellow);
+
+    box-shadow:
+        0 0 0 5px
+        var(--sales-yellow-light);
+
+}
+
+
+.sales-page-header h1 {
+
+    margin: 0;
+
+    color: var(--sales-black);
+
+    font-size:
+        clamp(26px, 3vw, 36px);
+
+    line-height: 1.15;
+
+    font-weight: 800;
+
+    letter-spacing: -.035em;
+
+}
+
+
+.sales-page-header p {
+
+    max-width: 680px;
+
+    margin: 10px 0 0;
+
+    color: var(--sales-gray);
+
+    font-size: 14px;
+
+    line-height: 1.7;
+
+}
+
+
+.sales-header-actions {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    flex-shrink: 0;
+
+}
+
+
+/* =========================================================
+   BUTTONS
+========================================================= */
+
+.sales-btn {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 9px;
+
+    min-height: 42px;
+
+    padding: 0 16px;
+
+    border-radius: 11px;
+
+    font-size: 13px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        transform .2s ease,
+        box-shadow .2s ease,
+        background .2s ease;
+
+}
+
+
+.sales-btn:hover {
+
+    transform: translateY(-1px);
+
+}
+
+
+.sales-btn:active {
+
+    transform: translateY(0);
+
+}
+
+
+.sales-btn-primary {
+
+    color: #111;
+
+    background:
+        var(--sales-yellow);
+
+    border:
+        1px solid var(--sales-yellow);
+
+    box-shadow:
+        0 5px 14px
+        rgba(245, 196, 0, .20);
+
+}
+
+
+.sales-btn-primary:hover {
+
+    background: #ffd21a;
+
+    box-shadow:
+        0 8px 20px
+        rgba(245, 196, 0, .28);
+
+}
+
+
+.sales-btn-secondary {
+
+    color: var(--sales-dark);
+
+    background:
+        var(--sales-white);
+
+    border:
+        1px solid var(--sales-border);
+
+}
+
+
+.sales-btn-secondary:hover {
+
+    background: #fafafa;
+
+    border-color: #d1d5db;
+
+}
+
+
+.sales-btn:disabled {
+
+    opacity: .55;
+
+    cursor: not-allowed;
+
+    transform: none;
+
+}
+
+
+/* =========================================================
+   KPI GRID
+========================================================= */
+
+.sales-kpi-grid {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    gap: 16px;
+
+    margin-bottom: 16px;
+
+}
+
+
+.sales-kpi-card {
+
+    position: relative;
+
+    min-width: 0;
+
+    padding: 21px;
+
+    background:
+        var(--sales-white);
+
+    border:
+        1px solid var(--sales-border);
+
+    border-radius:
+        var(--sales-radius);
+
+    box-shadow:
+        var(--sales-shadow);
+
+    overflow: hidden;
+
+    transition:
+        transform .2s ease,
+        box-shadow .2s ease;
+
+}
+
+
+.sales-kpi-card:hover {
+
+    transform: translateY(-2px);
+
+    box-shadow:
+        var(--sales-shadow-hover);
+
+}
+
+
+.sales-kpi-card::after {
+
+    content: "";
+
+    position: absolute;
+
+    right: -35px;
+
+    bottom: -45px;
+
+    width: 105px;
+
+    height: 105px;
+
+    border-radius: 50%;
+
+    background:
+        var(--sales-yellow-light);
+
+    opacity: .75;
+
+}
+
+
+.sales-kpi-top {
+
+    position: relative;
+
+    z-index: 2;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 10px;
+
+    margin-bottom: 18px;
+
+}
+
+
+.sales-kpi-icon {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 42px;
+
+    height: 42px;
+
+    border-radius: 12px;
+
+    color: #111;
+
+    background:
+        var(--sales-yellow-light);
+
+    font-size: 19px;
+
+    font-weight: 800;
+
+}
+
+
+.sales-kpi-label {
+
+    color: var(--sales-gray);
+
+    font-size: 11px;
+
+    font-weight: 800;
+
+    text-transform: uppercase;
+
+    letter-spacing: .055em;
+
+    text-align: right;
+
+}
+
+
+.sales-kpi-value {
+
+    position: relative;
+
+    z-index: 2;
+
+    display: block;
+
+    color: var(--sales-black);
+
+    font-size:
+        clamp(21px, 2.2vw, 28px);
+
+    line-height: 1.2;
+
+    font-weight: 800;
+
+    letter-spacing: -.035em;
+
+    white-space: nowrap;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+}
+
+
+.sales-kpi-description {
+
+    position: relative;
+
+    z-index: 2;
+
+    display: block;
+
+    margin-top: 8px;
+
+    color: var(--sales-muted);
+
+    font-size: 11px;
+
+}
+
+
+/* =========================================================
+   INSIGHT STRIP
+========================================================= */
+
+.sales-insight-strip {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    margin-bottom: 22px;
+
+    background:
+        var(--sales-white);
+
+    border:
+        1px solid var(--sales-border);
+
+    border-radius: 16px;
+
+    overflow: hidden;
+
+    box-shadow:
+        0 4px 20px
+        rgba(17, 24, 39, .035);
+
+}
+
+
+.sales-insight-item {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 5px;
+
+    padding: 16px 20px;
+
+    border-right:
+        1px solid
+        var(--sales-border-light);
+
+}
+
+
+.sales-insight-item:last-child {
+
+    border-right: 0;
+
+}
+
+
+.sales-insight-label {
+
+    color: var(--sales-muted);
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    text-transform: uppercase;
+
+    letter-spacing: .06em;
+
+}
+
+
+.sales-insight-value {
+
+    color: var(--sales-dark);
+
+    font-size: 14px;
+
+    font-weight: 800;
+
+}
+
+
+/* =========================================================
+   MAIN CARD
+========================================================= */
+
+.sales-main-card {
+
+    background:
+        var(--sales-white);
+
+    border:
+        1px solid var(--sales-border);
+
+    border-radius: 20px;
+
+    box-shadow:
+        var(--sales-shadow);
+
+    overflow: hidden;
+
+}
+
+
+/* =========================================================
+   SECTION HEADER
+========================================================= */
+
+.sales-section-header {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 20px;
+
+    padding: 22px 24px;
+
+    border-bottom:
+        1px solid
+        var(--sales-border-light);
+
+}
+
+
+.sales-section-title {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+}
+
+
+.sales-section-title-icon {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 40px;
+
+    height: 40px;
+
+    border-radius: 11px;
+
+    color: #111;
+
+    background:
+        var(--sales-yellow-light);
+
+    font-size: 17px;
+
+}
+
+
+.sales-section-title h2 {
+
+    margin: 0;
+
+    color: var(--sales-black);
+
+    font-size: 18px;
+
+    font-weight: 800;
+
+    letter-spacing: -.02em;
+
+}
+
+
+.sales-section-title p {
+
+    margin: 4px 0 0;
+
+    color: var(--sales-gray);
+
+    font-size: 11px;
+
+}
+
+
+.sales-record-badge {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    padding: 7px 11px;
+
+    border-radius: 999px;
+
+    color: var(--sales-dark);
+
+    background: #f3f4f6;
+
+    font-size: 11px;
+
+    font-weight: 800;
+
+}
+
+
+/* =========================================================
+   FILTER BAR
+========================================================= */
+
+.sales-filter-bar {
+
+    display: flex;
+
+    align-items: flex-end;
+
+    gap: 12px;
+
+    padding: 18px 24px;
+
+    background: #fafafa;
+
+    border-bottom:
+        1px solid
+        var(--sales-border-light);
+
+}
+
+
+.sales-filter-field {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 7px;
+
+    min-width: 155px;
+
+}
+
+
+.sales-filter-field.search {
+
+    flex: 1;
+
+    min-width: 220px;
+
+}
+
+
+.sales-filter-field label {
+
+    color: var(--sales-gray);
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    text-transform: uppercase;
+
+    letter-spacing: .055em;
+
+}
+
+
+.sales-filter-field select,
+.sales-filter-field input {
+
+    width: 100%;
+
+    height: 42px;
+
+    padding: 0 12px;
+
+    color: var(--sales-dark);
+
+    background:
+        var(--sales-white);
+
+    border:
+        1px solid
+        var(--sales-border);
+
+    border-radius: 10px;
+
+    outline: none;
+
+    font-size: 12px;
+
+    transition:
+        border-color .2s ease,
+        box-shadow .2s ease;
+
+}
+
+
+.sales-filter-field select:focus,
+.sales-filter-field input:focus {
+
+    border-color:
+        var(--sales-yellow-dark);
+
+    box-shadow:
+        0 0 0 3px
+        var(--sales-yellow-light);
+
+}
+
+
+.sales-search {
+
+    position: relative;
+
+}
+
+
+.sales-search-icon {
+
+    position: absolute;
+
+    left: 13px;
+
+    top: 50%;
+
+    transform:
+        translateY(-50%);
+
+    color: var(--sales-muted);
+
+    font-size: 16px;
+
+    pointer-events: none;
+
+}
+
+
+.sales-search input {
+
+    padding-left: 38px;
+
+}
+
+
+.sales-clear-btn {
+
+    height: 42px;
+
+    padding: 0 14px;
+
+    border:
+        1px solid
+        var(--sales-border);
+
+    border-radius: 10px;
+
+    color: var(--sales-gray);
+
+    background:
+        var(--sales-white);
+
+    font-size: 11px;
+
+    font-weight: 800;
+
+    cursor: pointer;
+
+}
+
+
+.sales-clear-btn:hover {
+
+    color: var(--sales-dark);
+
+    border-color: #d1d5db;
+
+}
+
+
+/* =========================================================
+   TABLE
+========================================================= */
+
+.sales-table-container {
+
+    width: 100%;
+
+    overflow-x: auto;
+
+}
+
+
+.sales-table {
+
+    width: 100%;
+
+    min-width: 1050px;
+
+    border-collapse:
+        separate;
+
+    border-spacing: 0;
+
+}
+
+
+.sales-table thead th {
+
+    position: sticky;
+
+    top: 0;
+
+    z-index: 3;
+
+    padding: 13px 18px;
+
+    color: #6b7280;
+
+    background: #fafafa;
+
+    border-bottom:
+        1px solid
+        var(--sales-border);
+
+    font-size: 9px;
+
+    font-weight: 800;
+
+    text-transform: uppercase;
+
+    letter-spacing: .065em;
+
+    text-align: left;
+
+    white-space: nowrap;
+
+}
+
+
+.sales-table tbody td {
+
+    padding: 16px 18px;
+
+    color: var(--sales-dark);
+
+    background:
+        var(--sales-white);
+
+    border-bottom:
+        1px solid
+        var(--sales-border-light);
+
+    font-size: 12px;
+
+    vertical-align: middle;
+
+}
+
+
+.sales-table tbody tr {
+
+    transition:
+        background .15s ease;
+
+}
+
+
+.sales-table tbody tr:hover td {
+
+    background:
+        #fffdf2;
+
+}
+
+
+.sales-table tbody tr:last-child td {
+
+    border-bottom: 0;
+
+}
+
+
+/* =========================================================
+   SORT
+========================================================= */
+
+.sales-sortable {
+
+    cursor: pointer;
+
+    user-select: none;
+
+}
+
+
+.sales-sortable:hover {
+
+    color: var(--sales-dark);
+
+}
+
+
+.sales-sort-icon {
+
+    margin-left: 4px;
+
+    color: #9ca3af;
+
+    font-size: 9px;
+
+}
+
+
+/* =========================================================
+   STATION
+========================================================= */
+
+.sales-station {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    min-width: 190px;
+
+}
+
+
+.sales-station-avatar {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 36px;
+
+    height: 36px;
+
+    flex-shrink: 0;
+
+    border-radius: 10px;
+
+    color: #111;
+
+    background:
+        var(--sales-yellow-light);
+
+    font-size: 11px;
+
+    font-weight: 900;
+
+}
+
+
+.sales-station-info {
+
+    min-width: 0;
+
+}
+
+
+.sales-station-name {
+
+    display: block;
+
+    max-width: 170px;
+
+    color: var(--sales-dark);
+
+    font-size: 12px;
+
+    font-weight: 800;
+
+    white-space: nowrap;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+}
+
+
+.sales-station-subtitle {
+
+    display: block;
+
+    margin-top: 3px;
+
+    color: var(--sales-muted);
+
+    font-size: 9px;
+
+}
+
+
+/* =========================================================
+   SHIFT
+========================================================= */
+
+.sales-shift {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    padding: 7px 10px;
+
+    border-radius: 8px;
+
+    color: var(--sales-dark);
+
+    background: #f5f6f7;
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+}
+
+
+/* =========================================================
+   PUMP / NOZZLE
+========================================================= */
+
+.sales-pump {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 3px;
+
+}
+
+
+.sales-pump-name {
+
+    color: var(--sales-dark);
+
+    font-size: 12px;
+
+    font-weight: 800;
+
+}
+
+
+.sales-nozzle-name {
+
+    color: var(--sales-muted);
+
+    font-size: 10px;
+
+}
+
+
+/* =========================================================
+   METER
+========================================================= */
+
+.sales-meter {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    color: var(--sales-dark);
+
+    font-size: 11px;
+
+    font-weight: 700;
+
+    white-space: nowrap;
+
+}
+
+
+.sales-meter-arrow {
+
+    color: var(--sales-muted);
+
+    font-size: 12px;
+
+}
+
+
+/* =========================================================
+   VOLUME
+========================================================= */
+
+.sales-volume {
+
+    color: var(--sales-dark);
+
+    font-size: 13px;
+
+    font-weight: 900;
+
+}
+
+
+.sales-volume-unit {
+
+    margin-left: 2px;
+
+    color: var(--sales-muted);
+
+    font-size: 9px;
+
+    font-weight: 700;
+
+}
+
+
+/* =========================================================
+   MONEY
+========================================================= */
+
+.sales-money {
+
+    color: var(--sales-dark);
+
+    font-weight: 800;
+
+}
+
+
+.sales-money-primary {
+
+    color: #111;
+
+    font-size: 12px;
+
+    font-weight: 900;
+
+}
+
+
+/* =========================================================
+   STATUS
+========================================================= */
+
+.sales-status {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    padding: 7px 10px;
+
+    border-radius: 999px;
+
+    font-size: 9px;
+
+    font-weight: 800;
+
+}
+
+
+.sales-status-dot {
+
+    width: 6px;
+
+    height: 6px;
+
+    border-radius: 50%;
+
+    background:
+        currentColor;
+
+}
+
+
+.sales-status-active {
+
+    color:
+        var(--sales-green);
+
+    background:
+        var(--sales-green-bg);
+
+}
+
+
+.sales-status-closed {
+
+    color: #6b7280;
+
+    background: #f3f4f6;
+
+}
+
+
+/* =========================================================
+   EMPTY STATE
+========================================================= */
+
+.sales-empty {
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    min-height: 300px;
+
+    padding: 45px 25px;
+
+    text-align: center;
+
+}
+
+
+.sales-empty-icon {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 64px;
+
+    height: 64px;
+
+    margin-bottom: 17px;
+
+    border-radius: 18px;
+
+    color: #111;
+
+    background:
+        var(--sales-yellow-light);
+
+    font-size: 26px;
+
+}
+
+
+.sales-empty h3 {
+
+    margin: 0;
+
+    color: var(--sales-dark);
+
+    font-size: 17px;
+
+    font-weight: 800;
+
+}
+
+
+.sales-empty p {
+
+    max-width: 450px;
+
+    margin: 8px 0 20px;
+
+    color: var(--sales-gray);
+
+    font-size: 12px;
+
+    line-height: 1.6;
+
+}
+
+
+/* =========================================================
+   PAGINATION
+========================================================= */
+
+.sales-pagination {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 15px;
+
+    padding: 17px 24px;
+
+    border-top:
+        1px solid
+        var(--sales-border-light);
+
+    background:
+        var(--sales-white);
+
+}
+
+
+.sales-pagination-info {
+
+    color: var(--sales-gray);
+
+    font-size: 10px;
+
+    font-weight: 600;
+
+}
+
+
+.sales-pagination-controls {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 5px;
+
+}
+
+
+.sales-page-btn {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    min-width: 34px;
+
+    height: 34px;
+
+    padding: 0 9px;
+
+    border:
+        1px solid
+        var(--sales-border);
+
+    border-radius: 8px;
+
+    color: var(--sales-gray);
+
+    background:
+        var(--sales-white);
+
+    font-size: 10px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+}
+
+
+.sales-page-btn:hover {
+
+    color: var(--sales-dark);
+
+    border-color: #d1d5db;
+
+}
+
+
+.sales-page-btn.active {
+
+    color: #111;
+
+    background:
+        var(--sales-yellow);
+
+    border-color:
+        var(--sales-yellow);
+
+    font-weight: 900;
+
+}
+
+
+.sales-page-btn:disabled {
+
+    opacity: .45;
+
+    cursor: not-allowed;
+
+}
+
+
+/* =========================================================
+   REFRESH
+========================================================= */
+
+.sales-refresh-spin {
+
+    display: inline-block;
+
+    animation:
+        salesSpin .7s linear infinite;
+
+}
+
+
+@keyframes salesSpin {
+
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+
+}
+
+
+/* =========================================================
+   HIDDEN
+========================================================= */
+
+.hidden {
+
+    display: none !important;
+
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 1200px) {
+
+    .sales-kpi-grid {
+
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+
+    }
+
+
+    .sales-insight-strip {
+
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+
+    }
+
+
+    .sales-insight-item:nth-child(2) {
+
+        border-right: 0;
+
+    }
+
+
+    .sales-insight-item:nth-child(-n + 2) {
+
+        border-bottom:
+            1px solid
+            var(--sales-border-light);
+
+    }
+
+}
+
+
+@media (max-width: 900px) {
+
+    .sales-page-header {
+
+        flex-direction: column;
+
+        align-items: flex-start;
+
+    }
+
+
+    .sales-header-actions {
+
+        width: 100%;
+
+    }
+
+
+    .sales-header-actions .sales-btn {
+
+        flex: 1;
+
+    }
+
+
+    .sales-filter-bar {
+
+        display: grid;
+
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+
+    }
+
+
+    .sales-filter-field.search {
+
+        min-width: 0;
+
+    }
+
+}
+
+
+@media (max-width: 640px) {
+
+    .sales-page {
+
+        padding-bottom: 25px;
+
+    }
+
+
+    .sales-page-header {
+
+        padding: 20px;
+
+        margin-bottom: 16px;
+
+        border-radius: 16px;
+
+    }
+
+
+    .sales-page-header h1 {
+
+        font-size: 25px;
+
+    }
+
+
+    .sales-page-header p {
+
+        font-size: 12px;
+
+    }
+
+
+    .sales-header-actions {
+
+        flex-direction: column;
+
+    }
+
+
+    .sales-header-actions .sales-btn {
+
+        width: 100%;
+
+    }
+
+
+    .sales-kpi-grid {
+
+        grid-template-columns: 1fr;
+
+        gap: 10px;
+
+    }
+
+
+    .sales-kpi-card {
+
+        padding: 18px;
+
+    }
+
+
+    .sales-insight-strip {
+
+        grid-template-columns: 1fr;
+
+    }
+
+
+    .sales-insight-item {
+
+        border-right: 0;
+
+        border-bottom:
+            1px solid
+            var(--sales-border-light);
+
+    }
+
+
+    .sales-insight-item:last-child {
+
+        border-bottom: 0;
+
+    }
+
+
+    .sales-section-header {
+
+        align-items: flex-start;
+
+        flex-direction: column;
+
+        padding: 18px;
+
+    }
+
+
+    .sales-filter-bar {
+
+        grid-template-columns: 1fr;
+
+        padding: 16px;
+
+    }
+
+
+    .sales-filter-field,
+    .sales-filter-field.search {
+
+        min-width: 0;
+
+    }
+
+
+    .sales-pagination {
+
+        align-items: flex-start;
+
+        flex-direction: column;
+
+        padding: 16px;
+
+    }
+
+
+    .sales-pagination-controls {
+
+        width: 100%;
+
+        overflow-x: auto;
+
+    }
+
+}
+
+
+/* =========================================================
+   ACCESSIBILITY
+========================================================= */
+
+.sales-btn:focus-visible,
+.sales-clear-btn:focus-visible,
+.sales-page-btn:focus-visible,
+.sales-filter-field select:focus-visible,
+.sales-filter-field input:focus-visible {
+
+    outline:
+        3px solid
+        rgba(245, 196, 0, .35);
+
+    outline-offset: 2px;
+
+}

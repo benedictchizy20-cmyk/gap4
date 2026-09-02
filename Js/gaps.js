@@ -1,5 +1,6 @@
 /* ==========================================
    FUELGAP - GAPS & VARIANCE
+   PREMIUM RECONCILIATION SYSTEM
 ========================================== */
 
 
@@ -10,22 +11,17 @@
 const GAPS_SALES_STORAGE_KEY =
     "fuelgap_sales";
 
-
 const GAPS_PAYMENTS_STORAGE_KEY =
     "fuelgap_payments";
-
 
 const GAPS_STATIONS_STORAGE_KEY =
     "fuelgap_stations";
 
-
 const GAPS_SHIFTS_STORAGE_KEY =
     "fuelgap_shifts";
 
-
 const GAPS_STAFF_STORAGE_KEY =
     "fuelgap_staff";
-
 
 const GAPS_ALERTS_STORAGE_KEY =
     "fuelgap_alerts";
@@ -123,7 +119,6 @@ function getGapStorageData(
             error
         );
 
-
         return [];
 
     }
@@ -140,10 +135,21 @@ function saveGapStorageData(
     data
 ) {
 
-    localStorage.setItem(
-        storageKey,
-        JSON.stringify(data)
-    );
+    try {
+
+        localStorage.setItem(
+            storageKey,
+            JSON.stringify(data)
+        );
+
+    } catch (error) {
+
+        console.error(
+            `Unable to save ${storageKey}:`,
+            error
+        );
+
+    }
 
 }
 
@@ -240,7 +246,6 @@ function getGapVisibleStations() {
 
     /*
        ADMIN
-       CAN SEE EVERYTHING
     */
 
     if (
@@ -255,7 +260,6 @@ function getGapVisibleStations() {
 
     /*
        OWNER
-       CAN SEE ORGANIZATION STATIONS
     */
 
     if (
@@ -274,7 +278,6 @@ function getGapVisibleStations() {
 
     /*
        MANAGER
-       CAN SEE ASSIGNED STATION
     */
 
     if (
@@ -305,16 +308,15 @@ function getGapVisibleStations() {
 
 
     /*
-       STAFF / ATTENDANT
-       CAN SEE ASSIGNED STATION
+       ATTENDANT
     */
 
     if (
         currentUser.role ===
-            "staff" ||
+            "attendant" ||
 
         currentUser.role ===
-            "attendant"
+            "staff"
     ) {
 
         if (
@@ -395,7 +397,7 @@ function getGapVisiblePayments() {
 
 
 /* ==========================================
-   RENDER GAPS PAGE
+   RENDER PAGE
 ========================================== */
 
 function renderGapsPage() {
@@ -434,8 +436,9 @@ function renderGapsPage() {
 
 
                 <p>
-                    Compare expected fuel sales
-                    with actual payments received.
+                    Monitor expected sales, recorded
+                    payments and financial variances
+                    across your fuel stations.
                 </p>
 
             </div>
@@ -454,11 +457,13 @@ function renderGapsPage() {
 
 
         <!-- =====================================
-             GAP STATS
+             PREMIUM STAT CARDS
         ====================================== -->
 
         <section class="pump-stats">
 
+
+            <!-- EXPECTED SALES -->
 
             <div class="pump-stat-card">
 
@@ -466,15 +471,26 @@ function renderGapsPage() {
                     Expected Sales
                 </span>
 
+
                 <strong
                     id="totalExpectedSales"
                 >
                     ₦0.00
                 </strong>
 
+
+                <small
+                    class="stat-subtext"
+                    id="expectedSalesSubtext"
+                >
+                    Sales recorded across shifts
+                </small>
+
             </div>
 
 
+
+            <!-- PAYMENTS -->
 
             <div class="pump-stat-card">
 
@@ -482,15 +498,26 @@ function renderGapsPage() {
                     Payments Received
                 </span>
 
+
                 <strong
                     id="totalPaymentsReceived"
                 >
                     ₦0.00
                 </strong>
 
+
+                <small
+                    class="stat-subtext"
+                    id="paymentsReceivedSubtext"
+                >
+                    No payment records yet
+                </small>
+
             </div>
 
 
+
+            <!-- GAP -->
 
             <div class="pump-stat-card">
 
@@ -498,15 +525,26 @@ function renderGapsPage() {
                     Total Gap
                 </span>
 
+
                 <strong
                     id="totalGapAmount"
                 >
                     ₦0.00
                 </strong>
 
+
+                <small
+                    class="stat-subtext"
+                    id="totalGapSubtext"
+                >
+                    No financial gap detected
+                </small>
+
             </div>
 
 
+
+            <!-- CRITICAL -->
 
             <div class="pump-stat-card">
 
@@ -514,11 +552,20 @@ function renderGapsPage() {
                     Critical Variances
                 </span>
 
+
                 <strong
                     id="criticalVarianceCount"
                 >
                     0
                 </strong>
+
+
+                <small
+                    class="stat-subtext"
+                    id="criticalVarianceSubtext"
+                >
+                    No critical issues detected
+                </small>
 
             </div>
 
@@ -528,7 +575,7 @@ function renderGapsPage() {
 
 
         <!-- =====================================
-             FILTERS
+             RECONCILIATION SECTION
         ====================================== -->
 
         <section class="pump-section">
@@ -544,8 +591,8 @@ function renderGapsPage() {
 
 
                     <p>
-                        Review differences between
-                        recorded sales and payments.
+                        Compare expected fuel sales
+                        against recorded payments.
                     </p>
 
                 </div>
@@ -553,6 +600,10 @@ function renderGapsPage() {
             </div>
 
 
+
+            <!-- =====================================
+                 FILTERS
+            ====================================== -->
 
             <div class="sales-filters">
 
@@ -625,7 +676,7 @@ function renderGapsPage() {
 
 
             <!-- =====================================
-                 GAPS TABLE
+                 RECONCILIATION TABLE
             ====================================== -->
 
             <div class="table-wrapper">
@@ -644,33 +695,41 @@ function renderGapsPage() {
                                 Station
                             </th>
 
+
                             <th>
                                 Shift
                             </th>
+
 
                             <th>
                                 Attendant
                             </th>
 
+
                             <th>
                                 Expected Sales
                             </th>
+
 
                             <th>
                                 Payments
                             </th>
 
+
                             <th>
                                 Difference
                             </th>
+
 
                             <th>
                                 Variance
                             </th>
 
+
                             <th>
                                 Status
                             </th>
+
 
                             <th>
                                 Action
@@ -709,7 +768,8 @@ function renderGapsPage() {
 
                 <p>
                     Add sales and payment records
-                    to begin gap analysis.
+                    to begin analysing gaps and
+                    variances.
                 </p>
 
             </div>
@@ -745,7 +805,8 @@ function renderGapsPage() {
 
 
                         <p>
-                            Sales and payment reconciliation.
+                            Complete sales and payment
+                            reconciliation information.
                         </p>
 
                     </div>
@@ -798,7 +859,7 @@ function renderGapsPage() {
 
 
 /* ==========================================
-   SETUP GAP EVENTS
+   SETUP EVENTS
 ========================================== */
 
 function setupGapEvents() {
@@ -909,7 +970,7 @@ function setupGapEvents() {
 
 
 /* ==========================================
-   LOAD GAP FILTERS
+   LOAD FILTERS
 ========================================== */
 
 function loadGapFilters() {
@@ -1026,11 +1087,6 @@ function buildGapRecords() {
         getGapStations();
 
 
-    /*
-       STORE ALL UNIQUE
-       STATION + SHIFT COMBINATIONS
-    */
-
     const combinations =
         {};
 
@@ -1042,21 +1098,26 @@ function buildGapRecords() {
     sales.forEach(
         sale => {
 
+            const stationId =
+                sale.stationId;
+
+
+            const shiftId =
+                sale.shiftId ||
+                "NO_SHIFT";
+
+
             const key =
-                `${sale.stationId}_${sale.shiftId}`;
+                `${stationId}_${shiftId}`;
 
 
-            if (
-                !combinations[key]
-            ) {
+            if (!combinations[key]) {
 
                 combinations[key] = {
 
-                    stationId:
-                        sale.stationId,
+                    stationId,
 
-                    shiftId:
-                        sale.shiftId,
+                    shiftId,
 
                     staffId:
                         sale.staffId ||
@@ -1073,11 +1134,6 @@ function buildGapRecords() {
             }
 
 
-            /*
-               SUPPORT DIFFERENT
-               SALES DATA STRUCTURES
-            */
-
             const saleAmount =
                 Number(
                     sale.amount ||
@@ -1088,24 +1144,15 @@ function buildGapRecords() {
                 );
 
 
-            combinations[
-                key
-            ].expectedSales +=
+            combinations[key]
+                .expectedSales +=
                 saleAmount;
 
 
-            /*
-               SAVE STAFF ID
-               IF AVAILABLE
-            */
+            if (sale.staffId) {
 
-            if (
-                sale.staffId
-            ) {
-
-                combinations[
-                    key
-                ].staffId =
+                combinations[key]
+                    .staffId =
                     sale.staffId;
 
             }
@@ -1121,21 +1168,26 @@ function buildGapRecords() {
     payments.forEach(
         payment => {
 
+            const stationId =
+                payment.stationId;
+
+
+            const shiftId =
+                payment.shiftId ||
+                "NO_SHIFT";
+
+
             const key =
-                `${payment.stationId}_${payment.shiftId}`;
+                `${stationId}_${shiftId}`;
 
 
-            if (
-                !combinations[key]
-            ) {
+            if (!combinations[key]) {
 
                 combinations[key] = {
 
-                    stationId:
-                        payment.stationId,
+                    stationId,
 
-                    shiftId:
-                        payment.shiftId,
+                    shiftId,
 
                     staffId:
                         payment.staffId ||
@@ -1152,22 +1204,24 @@ function buildGapRecords() {
             }
 
 
-            combinations[
-                key
-            ].payments +=
+            const paymentAmount =
                 Number(
                     payment.amount ||
+                    payment.totalAmount ||
+                    payment.total ||
                     0
                 );
 
 
-            if (
-                payment.staffId
-            ) {
+            combinations[key]
+                .payments +=
+                paymentAmount;
 
-                combinations[
-                    key
-                ].staffId =
+
+            if (payment.staffId) {
+
+                combinations[key]
+                    .staffId =
                     payment.staffId;
 
             }
@@ -1177,7 +1231,7 @@ function buildGapRecords() {
 
 
     /*
-       CONVERT TO ARRAY
+       CONVERT TO RECORDS
     */
 
     const records =
@@ -1205,15 +1259,13 @@ function buildGapRecords() {
 
                     const staffMember =
                         staff.find(
-                            staffItem =>
-                                staffItem.id ===
+                            member =>
+                                member.id ===
                                 item.staffId
                         );
 
 
                     /*
-                       DIFFERENCE
-
                        POSITIVE = GAP
                        NEGATIVE = SURPLUS
                     */
@@ -1223,17 +1275,12 @@ function buildGapRecords() {
                         item.payments;
 
 
-                    /*
-                       VARIANCE PERCENTAGE
-                    */
-
                     let variancePercentage =
                         0;
 
 
                     if (
-                        item.expectedSales >
-                        0
+                        item.expectedSales > 0
                     ) {
 
                         variancePercentage =
@@ -1241,17 +1288,12 @@ function buildGapRecords() {
                                 Math.abs(
                                     difference
                                 ) /
-
                                 item.expectedSales
                             ) *
                             100;
 
                     }
 
-
-                    /*
-                       STATUS
-                    */
 
                     const status =
                         calculateGapStatus(
@@ -1277,9 +1319,14 @@ function buildGapRecords() {
                             item.shiftId,
 
                         shiftName:
-                            shift
-                                ? shift.name
-                                : "Unknown Shift",
+                            item.shiftId ===
+                            "NO_SHIFT"
+
+                                ? "No Shift"
+
+                                : shift
+                                    ? shift.name
+                                    : "Unknown Shift",
 
                         staffId:
                             item.staffId,
@@ -1288,7 +1335,8 @@ function buildGapRecords() {
                             staffMember
                                 ? (
                                     staffMember.fullName ||
-                                    staffMember.name
+                                    staffMember.name ||
+                                    "Unknown Staff"
                                 )
                                 : "Not Assigned",
 
@@ -1311,8 +1359,7 @@ function buildGapRecords() {
 
 
     /*
-       AUTOMATICALLY
-       CREATE ALERTS
+       CREATE CRITICAL ALERTS
     */
 
     records.forEach(
@@ -1339,7 +1386,7 @@ function buildGapRecords() {
 
 
 /* ==========================================
-   CALCULATE GAP STATUS
+   CALCULATE STATUS
 ========================================== */
 
 function calculateGapStatus(
@@ -1348,7 +1395,7 @@ function calculateGapStatus(
 ) {
 
     /*
-       SURPLUS
+       PAYMENT HIGHER THAN SALES
     */
 
     if (
@@ -1361,7 +1408,7 @@ function calculateGapStatus(
 
 
     /*
-       NORMAL
+       PERFECT RECONCILIATION
     */
 
     if (
@@ -1374,14 +1421,11 @@ function calculateGapStatus(
 
 
     /*
-       SMALL VARIANCE
-
-       LESS THAN OR EQUAL TO 2%
+       SMALL GAP
     */
 
     if (
-        variancePercentage <=
-        2
+        variancePercentage <= 2
     ) {
 
         return "variance";
@@ -1391,8 +1435,6 @@ function calculateGapStatus(
 
     /*
        CRITICAL GAP
-
-       ABOVE 2%
     */
 
     return "critical";
@@ -1401,7 +1443,7 @@ function calculateGapStatus(
 
 
 /* ==========================================
-   CREATE CRITICAL GAP ALERT
+   CREATE CRITICAL ALERT
 ========================================== */
 
 function createCriticalGapAlert(
@@ -1411,11 +1453,6 @@ function createCriticalGapAlert(
     const alerts =
         getGapAlerts();
 
-
-    /*
-       CHECK IF ALERT
-       ALREADY EXISTS
-    */
 
     const existingAlert =
         alerts.find(
@@ -1428,13 +1465,14 @@ function createCriticalGapAlert(
                     record.stationId &&
 
                 alert.shiftId ===
-                    record.shiftId
+                    record.shiftId &&
+
+                alert.status ===
+                    "unresolved"
         );
 
 
-    if (
-        existingAlert
-    ) {
+    if (existingAlert) {
 
         return;
 
@@ -1446,7 +1484,7 @@ function createCriticalGapAlert(
         id:
             `ALERT-${Date.now()}-${Math.floor(
                 Math.random() *
-                1000
+                100000
             )}`,
 
         type:
@@ -1567,7 +1605,7 @@ function getGapFilters() {
 
 
 /* ==========================================
-   FILTER GAP RECORDS
+   FILTER RECORDS
 ========================================== */
 
 function filterGapRecords(
@@ -1580,7 +1618,6 @@ function filterGapRecords(
 
             if (
                 filters.stationId &&
-
                 record.stationId !==
                 filters.stationId
             ) {
@@ -1592,7 +1629,6 @@ function filterGapRecords(
 
             if (
                 filters.shiftId &&
-
                 record.shiftId !==
                 filters.shiftId
             ) {
@@ -1604,7 +1640,6 @@ function filterGapRecords(
 
             if (
                 filters.status &&
-
                 record.status !==
                 filters.status
             ) {
@@ -1693,8 +1728,7 @@ function renderGaps() {
 
 
     if (
-        filteredRecords.length ===
-        0
+        filteredRecords.length === 0
     ) {
 
         if (emptyState) {
@@ -1718,22 +1752,15 @@ function renderGaps() {
 
         filteredRecords
             .sort(
-                (
-                    a,
-                    b
-                ) => {
+                (a, b) =>
 
-                    return (
-                        Math.abs(
-                            b.difference
-                        ) -
+                    Math.abs(
+                        b.difference
+                    ) -
 
-                        Math.abs(
-                            a.difference
-                        )
-                    );
-
-                }
+                    Math.abs(
+                        a.difference
+                    )
             )
             .forEach(
                 record => {
@@ -1785,7 +1812,7 @@ function renderGaps() {
 
                         <td>
                             <strong>
-                                ${formatGapCurrency(
+                                ${formatGapDifference(
                                     record.difference
                                 )}
                             </strong>
@@ -1793,9 +1820,8 @@ function renderGaps() {
 
 
                         <td>
-                            ${record.variancePercentage.toFixed(
-                                2
-                            )}%
+                            ${record.variancePercentage
+                                .toFixed(2)}%
                         </td>
 
 
@@ -1838,6 +1864,10 @@ function renderGaps() {
     }
 
 
+    /*
+       UPDATE PREMIUM CARDS
+    */
+
     updateGapStats(
         records
     );
@@ -1846,7 +1876,7 @@ function renderGaps() {
 
 
 /* ==========================================
-   RENDER GAP STATUS
+   STATUS BADGE
 ========================================== */
 
 function renderGapStatus(
@@ -1876,9 +1906,7 @@ function renderGapStatus(
             class="status-badge gap-status-${status}"
         >
 
-            ${labels[
-                status
-            ]}
+            ${labels[status]}
 
         </span>
 
@@ -1888,7 +1916,7 @@ function renderGapStatus(
 
 
 /* ==========================================
-   SETUP GAP DETAILS BUTTONS
+   DETAILS BUTTONS
 ========================================== */
 
 function setupGapDetailButtons(
@@ -1922,9 +1950,7 @@ function setupGapDetailButtons(
                         );
 
 
-                    if (
-                        record
-                    ) {
+                    if (record) {
 
                         openGapDetails(
                             record
@@ -1942,7 +1968,7 @@ function setupGapDetailButtons(
 
 
 /* ==========================================
-   GAP MODAL EVENTS
+   MODAL EVENTS
 ========================================== */
 
 function setupGapModalEvents() {
@@ -1965,9 +1991,7 @@ function setupGapModalEvents() {
         );
 
 
-    if (
-        closeButton
-    ) {
+    if (closeButton) {
 
         closeButton.addEventListener(
             "click",
@@ -1977,9 +2001,7 @@ function setupGapModalEvents() {
     }
 
 
-    if (
-        closeBottomButton
-    ) {
+    if (closeBottomButton) {
 
         closeBottomButton.addEventListener(
             "click",
@@ -1989,9 +2011,7 @@ function setupGapModalEvents() {
     }
 
 
-    if (
-        modal
-    ) {
+    if (modal) {
 
         modal.addEventListener(
             "click",
@@ -2015,7 +2035,7 @@ function setupGapModalEvents() {
 
 
 /* ==========================================
-   OPEN GAP DETAILS
+   OPEN DETAILS
 ========================================== */
 
 function openGapDetails(
@@ -2051,9 +2071,7 @@ function openGapDetails(
         >
 
 
-            <div
-                class="gap-detail-item"
-            >
+            <div class="gap-detail-item">
 
                 <span>
                     Station
@@ -2069,9 +2087,7 @@ function openGapDetails(
 
 
 
-            <div
-                class="gap-detail-item"
-            >
+            <div class="gap-detail-item">
 
                 <span>
                     Shift
@@ -2087,9 +2103,7 @@ function openGapDetails(
 
 
 
-            <div
-                class="gap-detail-item"
-            >
+            <div class="gap-detail-item">
 
                 <span>
                     Attendant
@@ -2105,9 +2119,7 @@ function openGapDetails(
 
 
 
-            <div
-                class="gap-detail-item"
-            >
+            <div class="gap-detail-item">
 
                 <span>
                     Expected Sales
@@ -2123,9 +2135,7 @@ function openGapDetails(
 
 
 
-            <div
-                class="gap-detail-item"
-            >
+            <div class="gap-detail-item">
 
                 <span>
                     Payments Received
@@ -2141,16 +2151,14 @@ function openGapDetails(
 
 
 
-            <div
-                class="gap-detail-item"
-            >
+            <div class="gap-detail-item">
 
                 <span>
                     Difference
                 </span>
 
                 <strong>
-                    ${formatGapCurrency(
+                    ${formatGapDifference(
                         record.difference
                     )}
                 </strong>
@@ -2159,27 +2167,22 @@ function openGapDetails(
 
 
 
-            <div
-                class="gap-detail-item"
-            >
+            <div class="gap-detail-item">
 
                 <span>
                     Variance
                 </span>
 
                 <strong>
-                    ${record.variancePercentage.toFixed(
-                        2
-                    )}%
+                    ${record.variancePercentage
+                        .toFixed(2)}%
                 </strong>
 
             </div>
 
 
 
-            <div
-                class="gap-detail-item"
-            >
+            <div class="gap-detail-item">
 
                 <span>
                     Status
@@ -2233,7 +2236,7 @@ function openGapDetails(
 
 
 /* ==========================================
-   CLOSE GAP DETAILS
+   CLOSE DETAILS
 ========================================== */
 
 function closeGapDetails() {
@@ -2244,9 +2247,7 @@ function closeGapDetails() {
         );
 
 
-    if (
-        modal
-    ) {
+    if (modal) {
 
         modal.classList.remove(
             "active"
@@ -2276,7 +2277,7 @@ function getGapExplanation(
 
         return `
             Sales and payments are fully reconciled.
-            No financial gap was detected.
+            No financial gap was detected for this shift.
         `;
 
     }
@@ -2289,8 +2290,9 @@ function getGapExplanation(
 
         return `
             A small difference was detected between
-            expected sales and recorded payments.
-            This shift should be reviewed.
+            expected fuel sales and recorded payments.
+            The shift should be reviewed for possible
+            missing or delayed payment records.
         `;
 
     }
@@ -2302,9 +2304,9 @@ function getGapExplanation(
     ) {
 
         return `
-            A significant difference was detected.
-            This requires immediate review by the
-            station manager or organization owner.
+            A significant financial difference was detected.
+            This shift requires immediate investigation by
+            the station manager or organization owner.
         `;
 
     }
@@ -2316,10 +2318,10 @@ function getGapExplanation(
     ) {
 
         return `
-            Payments received are higher than the
-            recorded expected sales. The payment
-            records and sales records should be
-            reviewed.
+            Payments received are higher than the expected
+            sales recorded for this shift. Review both sales
+            and payment records to identify the source of
+            the surplus.
         `;
 
     }
@@ -2331,7 +2333,7 @@ function getGapExplanation(
 
 
 /* ==========================================
-   UPDATE GAP STATS
+   UPDATE PREMIUM STAT CARDS
 ========================================== */
 
 function updateGapStats(
@@ -2343,14 +2345,9 @@ function updateGapStats(
             (
                 total,
                 record
-            ) => {
-
-                return (
-                    total +
-                    record.expectedSales
-                );
-
-            },
+            ) =>
+                total +
+                record.expectedSales,
             0
         );
 
@@ -2360,21 +2357,16 @@ function updateGapStats(
             (
                 total,
                 record
-            ) => {
-
-                return (
-                    total +
-                    record.payments
-                );
-
-            },
+            ) =>
+                total +
+                record.payments,
             0
         );
 
 
     /*
        ONLY POSITIVE
-       DIFFERENCES ARE GAPS
+       DIFFERENCES COUNT AS GAP
     */
 
     const totalGap =
@@ -2385,13 +2377,40 @@ function updateGapStats(
             ) => {
 
                 if (
-                    record.difference >
-                    0
+                    record.difference > 0
                 ) {
 
                     return (
                         total +
                         record.difference
+                    );
+
+                }
+
+
+                return total;
+
+            },
+            0
+        );
+
+
+    const totalSurplus =
+        records.reduce(
+            (
+                total,
+                record
+            ) => {
+
+                if (
+                    record.difference < 0
+                ) {
+
+                    return (
+                        total +
+                        Math.abs(
+                            record.difference
+                        )
                     );
 
                 }
@@ -2411,6 +2430,33 @@ function updateGapStats(
                 "critical"
         ).length;
 
+
+    /*
+       CALCULATE PAYMENT
+       RECONCILIATION RATE
+    */
+
+    let paymentRate =
+        0;
+
+
+    if (
+        expectedSales > 0
+    ) {
+
+        paymentRate =
+            (
+                payments /
+                expectedSales
+            ) *
+            100;
+
+    }
+
+
+    /*
+       GET CARD ELEMENTS
+    */
 
     const expectedElement =
         document.getElementById(
@@ -2436,9 +2482,39 @@ function updateGapStats(
         );
 
 
-    if (
-        expectedElement
-    ) {
+    /*
+       GET SUBTEXT ELEMENTS
+    */
+
+    const expectedSubtext =
+        document.getElementById(
+            "expectedSalesSubtext"
+        );
+
+
+    const paymentsSubtext =
+        document.getElementById(
+            "paymentsReceivedSubtext"
+        );
+
+
+    const gapSubtext =
+        document.getElementById(
+            "totalGapSubtext"
+        );
+
+
+    const criticalSubtext =
+        document.getElementById(
+            "criticalVarianceSubtext"
+        );
+
+
+    /*
+       UPDATE VALUES
+    */
+
+    if (expectedElement) {
 
         expectedElement.textContent =
             formatGapCurrency(
@@ -2448,9 +2524,7 @@ function updateGapStats(
     }
 
 
-    if (
-        paymentsElement
-    ) {
+    if (paymentsElement) {
 
         paymentsElement.textContent =
             formatGapCurrency(
@@ -2460,9 +2534,7 @@ function updateGapStats(
     }
 
 
-    if (
-        gapElement
-    ) {
+    if (gapElement) {
 
         gapElement.textContent =
             formatGapCurrency(
@@ -2472,12 +2544,125 @@ function updateGapStats(
     }
 
 
-    if (
-        criticalElement
-    ) {
+    if (criticalElement) {
 
         criticalElement.textContent =
             criticalCount;
+
+    }
+
+
+    /*
+       EXPECTED SALES SUBTEXT
+    */
+
+    if (expectedSubtext) {
+
+        expectedSubtext.textContent =
+            `${records.length} shift${
+                records.length === 1
+                    ? ""
+                    : "s"
+            } analysed`;
+
+    }
+
+
+    /*
+       PAYMENT SUBTEXT
+    */
+
+    if (paymentsSubtext) {
+
+        if (
+            expectedSales === 0
+        ) {
+
+            paymentsSubtext.textContent =
+                "No expected sales recorded";
+
+        } else {
+
+            paymentsSubtext.textContent =
+                `${paymentRate.toFixed(
+                    1
+                )}% reconciliation rate`;
+
+        }
+
+    }
+
+
+    /*
+       GAP SUBTEXT
+    */
+
+    if (gapSubtext) {
+
+        if (
+            totalGap === 0 &&
+            totalSurplus === 0
+        ) {
+
+            gapSubtext.textContent =
+                "Fully reconciled";
+
+        } else if (
+            totalGap === 0 &&
+            totalSurplus > 0
+        ) {
+
+            gapSubtext.textContent =
+                `Surplus: ${formatGapCurrency(
+                    totalSurplus
+                )}`;
+
+        } else {
+
+            const gapPercentage =
+                expectedSales > 0
+
+                    ? (
+                        totalGap /
+                        expectedSales
+                    ) * 100
+
+                    : 0;
+
+
+            gapSubtext.textContent =
+                `${gapPercentage.toFixed(
+                    2
+                )}% of expected sales`;
+
+        }
+
+    }
+
+
+    /*
+       CRITICAL SUBTEXT
+    */
+
+    if (criticalSubtext) {
+
+        if (
+            criticalCount === 0
+        ) {
+
+            criticalSubtext.textContent =
+                "No critical issues detected";
+
+        } else {
+
+            criticalSubtext.textContent =
+                `${criticalCount} shift${
+                    criticalCount === 1
+                        ? " requires"
+                        : "s require"
+                } attention`;
+
+        }
 
     }
 
@@ -2493,9 +2678,7 @@ function formatGapCurrency(
 ) {
 
     const value =
-        Number(
-            amount
-        ) || 0;
+        Number(amount) || 0;
 
 
     return value.toLocaleString(
@@ -2515,6 +2698,47 @@ function formatGapCurrency(
                 2
 
         }
+    );
+
+}
+
+
+/* ==========================================
+   FORMAT DIFFERENCE
+========================================== */
+
+function formatGapDifference(
+    amount
+) {
+
+    const value =
+        Number(amount) || 0;
+
+
+    if (
+        value > 0
+    ) {
+
+        return formatGapCurrency(
+            value
+        );
+
+    }
+
+
+    if (
+        value < 0
+    ) {
+
+        return `+${formatGapCurrency(
+            Math.abs(value)
+        )}`;
+
+    }
+
+
+    return formatGapCurrency(
+        0
     );
 
 }
@@ -2545,9 +2769,7 @@ function escapeGapHTML(
 
 
     div.textContent =
-        String(
-            value
-        );
+        String(value);
 
 
     return div.innerHTML;

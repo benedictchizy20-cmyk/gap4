@@ -1,5 +1,5 @@
 /* ==========================================
-   FUELGAP - ALERTS
+   FUELGAP - PROFESSIONAL ALERTS
 ========================================== */
 
 
@@ -24,7 +24,7 @@ document.addEventListener(
     () => {
 
         const currentUser =
-            FuelGapUtils.getCurrentUser();
+            getAlertsCurrentUser();
 
 
         if (!currentUser) {
@@ -57,11 +57,6 @@ document.addEventListener(
         }
 
 
-        /*
-           WAIT FOR APP.JS TO
-           CREATE PAGE CONTENT
-        */
-
         setTimeout(
             () => {
 
@@ -80,7 +75,7 @@ document.addEventListener(
 
 
 /* ==========================================
-   SAFE GET STORAGE DATA
+   SAFE STORAGE
 ========================================== */
 
 function getAlertsStorageData(
@@ -126,7 +121,7 @@ function getAlertsStorageData(
 
 
 /* ==========================================
-   SAVE STORAGE DATA
+   SAVE STORAGE
 ========================================== */
 
 function saveAlertsStorageData(
@@ -169,12 +164,25 @@ function getAlertStations() {
 
 
 /* ==========================================
-   GET CURRENT USER
+   CURRENT USER
 ========================================== */
 
 function getAlertsCurrentUser() {
 
-    return FuelGapUtils.getCurrentUser();
+    if (
+        typeof FuelGapUtils !==
+        "undefined" &&
+
+        typeof FuelGapUtils.getCurrentUser ===
+        "function"
+    ) {
+
+        return FuelGapUtils.getCurrentUser();
+
+    }
+
+
+    return null;
 
 }
 
@@ -201,7 +209,7 @@ function getVisibleAlertStations() {
 
 
     /*
-       ADMIN CAN SEE ALL
+       ADMIN
     */
 
     if (
@@ -215,8 +223,7 @@ function getVisibleAlertStations() {
 
 
     /*
-       OWNER CAN SEE
-       ORGANIZATION STATIONS
+       OWNER
     */
 
     if (
@@ -234,8 +241,7 @@ function getVisibleAlertStations() {
 
 
     /*
-       MANAGER CAN SEE
-       ASSIGNED STATION
+       MANAGER
     */
 
     if (
@@ -267,16 +273,16 @@ function getVisibleAlertStations() {
 
     /*
        STAFF / ATTENDANT
-       CAN ONLY SEE
-       ASSIGNED STATION
     */
 
     if (
-        currentUser.role ===
-            "staff" ||
 
         currentUser.role ===
-            "attendant"
+        "staff" ||
+
+        currentUser.role ===
+        "attendant"
+
     ) {
 
         if (
@@ -336,8 +342,7 @@ function getVisibleAlerts() {
 
 
     /*
-       FUELGAP ADMIN
-       CAN SEE EVERYTHING
+       ADMIN
     */
 
     if (
@@ -362,10 +367,13 @@ function getVisibleAlerts() {
             */
 
             if (
+
                 alert.stationId &&
+
                 visibleStationIds.includes(
                     alert.stationId
                 )
+
             ) {
 
                 return true;
@@ -378,9 +386,12 @@ function getVisibleAlerts() {
             */
 
             if (
+
                 alert.organizationId &&
+
                 alert.organizationId ===
                 currentUser.organizationId
+
             ) {
 
                 return true;
@@ -397,7 +408,7 @@ function getVisibleAlerts() {
 
 
 /* ==========================================
-   RENDER ALERTS PAGE
+   RENDER PAGE
 ========================================== */
 
 function renderAlertsPage() {
@@ -420,97 +431,232 @@ function renderAlertsPage() {
         <div class="alerts-page">
 
 
-            <!-- =================================
+            <!-- ================================
                  PAGE HEADER
-            ================================== -->
+            ================================= -->
 
-            <div class="page-header">
+            <div class="page-header alerts-header">
+
 
                 <div>
 
                     <p class="page-eyebrow">
+
                         SYSTEM MONITORING
+
                     </p>
 
 
                     <h1>
-                        Alerts
+
+                        Alerts Center
+
                     </h1>
 
 
                     <p>
-                        Monitor fuel gaps, variances
-                        and important station activities.
+
+                        Monitor critical fuel gaps,
+                        variances and important
+                        station activities.
+
                     </p>
 
                 </div>
 
 
-                <button
-                    type="button"
-                    class="btn btn-primary"
-                    id="refreshAlertsButton"
-                >
-                    Refresh Alerts
-                </button>
+                <div class="alerts-header-actions">
+
+
+                    <button
+                        type="button"
+                        class="btn btn-outline"
+                        id="clearAlertFiltersButton"
+                    >
+
+                        Clear Filters
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="refreshAlertsButton"
+                    >
+
+                        Refresh Alerts
+
+                    </button>
+
+
+                </div>
+
 
             </div>
 
 
 
-            <!-- =================================
-                 ALERT SUMMARY
-            ================================== -->
+            <!-- ================================
+                 SUMMARY CARDS
+            ================================= -->
 
             <div class="alert-summary">
 
 
-                <div class="alert-summary-card">
+                <!-- TOTAL -->
 
-                    <span>
-                        Total Alerts
-                    </span>
+                <div class="alert-summary-card total-alert-card">
 
 
-                    <strong
-                        id="totalAlertsCount"
+                    <div
+                        class="alert-summary-icon"
                     >
-                        0
-                    </strong>
+
+                        🔔
+
+                    </div>
+
+
+                    <div>
+
+                        <span>
+
+                            Total Alerts
+
+                        </span>
+
+
+                        <strong
+                            id="totalAlertsCount"
+                        >
+
+                            0
+
+                        </strong>
+
+                    </div>
+
 
                 </div>
 
 
 
-                <div class="alert-summary-card">
+                <!-- UNRESOLVED -->
 
-                    <span>
-                        Unresolved
-                    </span>
+                <div
+                    class="alert-summary-card unresolved-alert-card"
+                >
 
 
-                    <strong
-                        id="unresolvedAlertsCount"
+                    <div
+                        class="alert-summary-icon"
                     >
-                        0
-                    </strong>
+
+                        ⚠️
+
+                    </div>
+
+
+                    <div>
+
+                        <span>
+
+                            Requires Attention
+
+                        </span>
+
+
+                        <strong
+                            id="unresolvedAlertsCount"
+                        >
+
+                            0
+
+                        </strong>
+
+                    </div>
+
 
                 </div>
 
 
 
-                <div class="alert-summary-card">
+                <!-- CRITICAL -->
 
-                    <span>
-                        Resolved
-                    </span>
+                <div
+                    class="alert-summary-card critical-alert-card"
+                >
 
 
-                    <strong
-                        id="resolvedAlertsCount"
+                    <div
+                        class="alert-summary-icon"
                     >
-                        0
-                    </strong>
+
+                        🚨
+
+                    </div>
+
+
+                    <div>
+
+                        <span>
+
+                            Critical Alerts
+
+                        </span>
+
+
+                        <strong
+                            id="criticalAlertsCount"
+                        >
+
+                            0
+
+                        </strong>
+
+                    </div>
+
+
+                </div>
+
+
+
+                <!-- RESOLVED -->
+
+                <div
+                    class="alert-summary-card resolved-alert-card"
+                >
+
+
+                    <div
+                        class="alert-summary-icon"
+                    >
+
+                        ✓
+
+                    </div>
+
+
+                    <div>
+
+                        <span>
+
+                            Resolved
+
+                        </span>
+
+
+                        <strong
+                            id="resolvedAlertsCount"
+                        >
+
+                            0
+
+                        </strong>
+
+                    </div>
+
 
                 </div>
 
@@ -519,126 +665,370 @@ function renderAlertsPage() {
 
 
 
-            <!-- =================================
-                 FILTER SECTION
-            ================================== -->
+            <!-- ================================
+                 ALERT ACTIVITY
+            ================================= -->
 
-            <section class="pump-section">
+            <section
+                class="pump-section alerts-section"
+            >
 
 
-                <div class="section-header">
+                <div
+                    class="section-header"
+                >
+
 
                     <div>
 
                         <h2>
+
                             Alert Activity
+
                         </h2>
 
 
                         <p>
-                            Review and resolve important
-                            fuel station alerts.
+
+                            Review, investigate and
+                            resolve station issues.
+
                         </p>
 
                     </div>
 
-                </div>
 
-
-
-                <!-- FILTERS -->
-
-                <div class="sales-filters">
-
-
-                    <select
-                        id="alertStatusFilter"
+                    <div
+                        class="alert-live-indicator"
                     >
 
-                        <option value="">
-                            All Statuses
-                        </option>
+                        <span
+                            class="live-dot"
+                        ></span>
 
+                        Monitoring Active
 
-                        <option value="unresolved">
-                            Unresolved
-                        </option>
+                    </div>
 
-
-                        <option value="resolved">
-                            Resolved
-                        </option>
-
-                    </select>
-
-
-
-                    <select
-                        id="alertTypeFilter"
-                    >
-
-                        <option value="">
-                            All Alert Types
-                        </option>
-
-
-                        <option value="critical_gap">
-                            Critical Gap
-                        </option>
-
-
-                        <option value="variance">
-                            Variance
-                        </option>
-
-
-                        <option value="system">
-                            System
-                        </option>
-
-                    </select>
-
-
-
-                    <input
-                        type="search"
-                        id="alertSearch"
-                        placeholder="Search alerts..."
-                    >
 
                 </div>
 
 
 
-                <!-- ALERT LIST -->
+                <!-- ============================
+                     FILTERS
+                ============================= -->
+
+                <div
+                    class="alerts-filter-panel"
+                >
+
+
+                    <div
+                        class="alert-filter-group"
+                    >
+
+                        <label>
+
+                            Status
+
+                        </label>
+
+
+                        <select
+                            id="alertStatusFilter"
+                        >
+
+                            <option value="">
+
+                                All Statuses
+
+                            </option>
+
+
+                            <option value="unresolved">
+
+                                Unresolved
+
+                            </option>
+
+
+                            <option value="resolved">
+
+                                Resolved
+
+                            </option>
+
+
+                        </select>
+
+
+                    </div>
+
+
+
+                    <div
+                        class="alert-filter-group"
+                    >
+
+                        <label>
+
+                            Alert Type
+
+                        </label>
+
+
+                        <select
+                            id="alertTypeFilter"
+                        >
+
+                            <option value="">
+
+                                All Types
+
+                            </option>
+
+
+                            <option value="critical_gap">
+
+                                Critical Gap
+
+                            </option>
+
+
+                            <option value="variance">
+
+                                Variance
+
+                            </option>
+
+
+                            <option value="payment">
+
+                                Payment Issue
+
+                            </option>
+
+
+                            <option value="reading">
+
+                                Meter Reading
+
+                            </option>
+
+
+                            <option value="system">
+
+                                System
+
+                            </option>
+
+
+                        </select>
+
+
+                    </div>
+
+
+
+                    <div
+                        class="alert-filter-group"
+                    >
+
+                        <label>
+
+                            Severity
+
+                        </label>
+
+
+                        <select
+                            id="alertSeverityFilter"
+                        >
+
+                            <option value="">
+
+                                All Severity
+
+                            </option>
+
+
+                            <option value="critical">
+
+                                Critical
+
+                            </option>
+
+
+                            <option value="high">
+
+                                High
+
+                            </option>
+
+
+                            <option value="medium">
+
+                                Medium
+
+                            </option>
+
+
+                            <option value="low">
+
+                                Low
+
+                            </option>
+
+
+                        </select>
+
+
+                    </div>
+
+
+
+                    <div
+                        class="alert-search-group"
+                    >
+
+                        <label>
+
+                            Search
+
+                        </label>
+
+
+                        <input
+                            type="search"
+                            id="alertSearch"
+                            placeholder="Search station, staff or alert..."
+                        >
+
+
+                    </div>
+
+
+                </div>
+
+
+
+                <!-- ============================
+                     RESULTS BAR
+                ============================= -->
+
+                <div
+                    class="alerts-results-bar"
+                >
+
+
+                    <p
+                        id="alertsResultsText"
+                    >
+
+                        0 alerts found
+
+                    </p>
+
+
+                </div>
+
+
+
+                <!-- ============================
+                     ALERT LIST
+                ============================= -->
 
                 <div
                     id="alertsContainer"
+                    class="alerts-container"
                 ></div>
 
 
 
-                <!-- EMPTY STATE -->
+                <!-- ============================
+                     EMPTY STATE
+                ============================= -->
 
                 <div
                     id="emptyAlertsState"
                     class="empty-state hidden"
                 >
 
+
+                    <div
+                        class="empty-alert-icon"
+                    >
+
+                        ✓
+
+                    </div>
+
+
                     <h3>
+
                         No alerts found
+
                     </h3>
 
 
                     <p>
+
                         Everything looks good.
-                        No alerts require attention.
+                        No alerts currently require
+                        your attention.
+
                     </p>
+
 
                 </div>
 
 
             </section>
+
+
+
+            <!-- ================================
+                 ALERT DETAILS MODAL
+            ================================= -->
+
+            <div
+                id="alertDetailsModal"
+                class="alert-modal hidden"
+            >
+
+
+                <div
+                    class="alert-modal-backdrop"
+                    data-close-alert-modal
+                ></div>
+
+
+                <div
+                    class="alert-modal-card"
+                >
+
+
+                    <button
+                        type="button"
+                        class="alert-modal-close"
+                        data-close-alert-modal
+                    >
+
+                        ×
+
+                    </button>
+
+
+                    <div
+                        id="alertDetailsContent"
+                    ></div>
+
+
+                </div>
+
+
+            </div>
 
 
         </div>
@@ -660,6 +1050,12 @@ function setupAlertEvents() {
         );
 
 
+    const clearFiltersButton =
+        document.getElementById(
+            "clearAlertFiltersButton"
+        );
+
+
     const statusFilter =
         document.getElementById(
             "alertStatusFilter"
@@ -669,6 +1065,12 @@ function setupAlertEvents() {
     const typeFilter =
         document.getElementById(
             "alertTypeFilter"
+        );
+
+
+    const severityFilter =
+        document.getElementById(
+            "alertSeverityFilter"
         );
 
 
@@ -697,16 +1099,16 @@ function setupAlertEvents() {
 
 
     /*
-       STATUS FILTER
+       CLEAR FILTERS
     */
 
-    if (statusFilter) {
+    if (clearFiltersButton) {
 
-        statusFilter.addEventListener(
-            "change",
+        clearFiltersButton.addEventListener(
+            "click",
             () => {
 
-                renderAlerts();
+                clearAlertFilters();
 
             }
         );
@@ -715,21 +1117,29 @@ function setupAlertEvents() {
 
 
     /*
-       TYPE FILTER
+       FILTER EVENTS
     */
 
-    if (typeFilter) {
+    [
+        statusFilter,
+        typeFilter,
+        severityFilter
+    ]
+        .filter(Boolean)
+        .forEach(
+            element => {
 
-        typeFilter.addEventListener(
-            "change",
-            () => {
+                element.addEventListener(
+                    "change",
+                    () => {
 
-                renderAlerts();
+                        renderAlerts();
+
+                    }
+                );
 
             }
         );
-
-    }
 
 
     /*
@@ -749,11 +1159,100 @@ function setupAlertEvents() {
 
     }
 
+
+    /*
+       CLOSE MODAL
+    */
+
+    document.addEventListener(
+        "click",
+        event => {
+
+            if (
+
+                event.target.matches(
+                    "[data-close-alert-modal]"
+                )
+
+            ) {
+
+                closeAlertModal();
+
+            }
+
+        }
+    );
+
+
+    /*
+       ESC KEY
+    */
+
+    document.addEventListener(
+        "keydown",
+        event => {
+
+            if (
+                event.key ===
+                "Escape"
+            ) {
+
+                closeAlertModal();
+
+            }
+
+        }
+    );
+
 }
 
 
 /* ==========================================
-   GET FILTER VALUES
+   CLEAR FILTERS
+========================================== */
+
+function clearAlertFilters() {
+
+    const filters = [
+
+        "alertStatusFilter",
+
+        "alertTypeFilter",
+
+        "alertSeverityFilter",
+
+        "alertSearch"
+
+    ];
+
+
+    filters.forEach(
+        id => {
+
+            const element =
+                document.getElementById(
+                    id
+                );
+
+
+            if (element) {
+
+                element.value =
+                    "";
+
+            }
+
+        }
+    );
+
+
+    renderAlerts();
+
+}
+
+
+/* ==========================================
+   GET FILTERS
 ========================================== */
 
 function getAlertFilters() {
@@ -770,6 +1269,12 @@ function getAlertFilters() {
         );
 
 
+    const severityFilter =
+        document.getElementById(
+            "alertSeverityFilter"
+        );
+
+
     const searchInput =
         document.getElementById(
             "alertSearch"
@@ -783,10 +1288,18 @@ function getAlertFilters() {
                 ? statusFilter.value
                 : "",
 
+
         type:
             typeFilter
                 ? typeFilter.value
                 : "",
+
+
+        severity:
+            severityFilter
+                ? severityFilter.value
+                : "",
+
 
         search:
             searchInput
@@ -812,14 +1325,28 @@ function filterAlerts(
     return alerts.filter(
         alert => {
 
+            const status =
+                alert.status ||
+                "unresolved";
+
+
+            const severity =
+                getAlertSeverity(
+                    alert
+                );
+
+
             /*
-               STATUS FILTER
+               STATUS
             */
 
             if (
+
                 filters.status &&
-                alert.status !==
+
+                status !==
                 filters.status
+
             ) {
 
                 return false;
@@ -828,13 +1355,16 @@ function filterAlerts(
 
 
             /*
-               TYPE FILTER
+               TYPE
             */
 
             if (
+
                 filters.type &&
+
                 alert.type !==
                 filters.type
+
             ) {
 
                 return false;
@@ -843,7 +1373,25 @@ function filterAlerts(
 
 
             /*
-               SEARCH FILTER
+               SEVERITY
+            */
+
+            if (
+
+                filters.severity &&
+
+                severity !==
+                filters.severity
+
+            ) {
+
+                return false;
+
+            }
+
+
+            /*
+               SEARCH
             */
 
             if (
@@ -852,19 +1400,31 @@ function filterAlerts(
 
                 const searchText =
                     `
+
                         ${alert.title || ""}
+
                         ${alert.message || ""}
+
                         ${alert.stationName || ""}
+
                         ${alert.shiftName || ""}
+
                         ${alert.staffName || ""}
+
+                        ${alert.type || ""}
+
+                        ${severity}
+
                     `
                         .toLowerCase();
 
 
                 if (
+
                     !searchText.includes(
                         filters.search
                     )
+
                 ) {
 
                     return false;
@@ -877,6 +1437,114 @@ function filterAlerts(
             return true;
 
         }
+    );
+
+}
+
+
+/* ==========================================
+   GET ALERT SEVERITY
+========================================== */
+
+function getAlertSeverity(
+    alert
+) {
+
+    if (
+        alert.severity
+    ) {
+
+        return String(
+            alert.severity
+        )
+            .toLowerCase();
+
+    }
+
+
+    if (
+
+        alert.type ===
+        "critical_gap"
+
+    ) {
+
+        return "critical";
+
+    }
+
+
+    const variance =
+        Math.abs(
+            Number(
+                alert.variancePercentage
+            ) || 0
+        );
+
+
+    if (
+        variance >= 10
+    ) {
+
+        return "critical";
+
+    }
+
+
+    if (
+        variance >= 5
+    ) {
+
+        return "high";
+
+    }
+
+
+    if (
+        variance >= 2
+    ) {
+
+        return "medium";
+
+    }
+
+
+    return "low";
+
+}
+
+
+/* ==========================================
+   GET ALERT ICON
+========================================== */
+
+function getAlertIcon(
+    type
+) {
+
+    const icons = {
+
+        critical_gap:
+            "🚨",
+
+        variance:
+            "📊",
+
+        payment:
+            "💳",
+
+        reading:
+            "⛽",
+
+        system:
+            "⚙️"
+
+    };
+
+
+    return (
+        icons[type] ||
+        "🔔"
     );
 
 }
@@ -915,6 +1583,12 @@ function renderAlerts() {
         );
 
 
+    const resultsText =
+        document.getElementById(
+            "alertsResultsText"
+        );
+
+
     if (!container) {
 
         return;
@@ -923,18 +1597,11 @@ function renderAlerts() {
 
 
     /*
-       CLEAR OLD ALERTS
-    */
-
-    container.innerHTML =
-        "";
-
-
-    /*
-       SORT ALERTS
+       SORT
 
        UNRESOLVED FIRST
-       THEN NEWEST FIRST
+       CRITICAL FIRST
+       NEWEST FIRST
     */
 
     filteredAlerts.sort(
@@ -943,12 +1610,24 @@ function renderAlerts() {
             b
         ) => {
 
-            if (
-                a.status ===
-                    "unresolved" &&
+            const statusA =
+                a.status ||
+                "unresolved";
 
-                b.status ===
-                    "resolved"
+
+            const statusB =
+                b.status ||
+                "unresolved";
+
+
+            if (
+
+                statusA ===
+                "unresolved" &&
+
+                statusB ===
+                "resolved"
+
             ) {
 
                 return -1;
@@ -957,11 +1636,13 @@ function renderAlerts() {
 
 
             if (
-                a.status ===
-                    "resolved" &&
 
-                b.status ===
-                    "unresolved"
+                statusA ===
+                "resolved" &&
+
+                statusB ===
+                "unresolved"
+
             ) {
 
                 return 1;
@@ -969,7 +1650,46 @@ function renderAlerts() {
             }
 
 
+            const severityRank = {
+
+                critical: 4,
+
+                high: 3,
+
+                medium: 2,
+
+                low: 1
+
+            };
+
+
+            const severityA =
+                severityRank[
+                    getAlertSeverity(a)
+                ] || 0;
+
+
+            const severityB =
+                severityRank[
+                    getAlertSeverity(b)
+                ] || 0;
+
+
+            if (
+                severityA !==
+                severityB
+            ) {
+
+                return (
+                    severityB -
+                    severityA
+                );
+
+            }
+
+
             return (
+
                 new Date(
                     b.createdAt
                 ) -
@@ -977,10 +1697,35 @@ function renderAlerts() {
                 new Date(
                     a.createdAt
                 )
+
             );
 
         }
     );
+
+
+    /*
+       CLEAR
+    */
+
+    container.innerHTML =
+        "";
+
+
+    /*
+       RESULTS TEXT
+    */
+
+    if (resultsText) {
+
+        resultsText.textContent =
+            `${filteredAlerts.length} alert${
+                filteredAlerts.length === 1
+                    ? ""
+                    : "s"
+            } found`;
+
+    }
 
 
     /*
@@ -1011,51 +1756,109 @@ function renderAlerts() {
         }
 
 
-        /*
-           CREATE ALERT CARDS
-        */
-
         filteredAlerts.forEach(
             alert => {
 
-                const alertItem =
-                    document.createElement(
-                        "div"
+                const severity =
+                    getAlertSeverity(
+                        alert
                     );
 
 
-                const alertStatus =
+                const status =
                     alert.status ||
                     "unresolved";
+
+
+                const alertItem =
+                    document.createElement(
+                        "article"
+                    );
 
 
                 alertItem.className =
                     `
                         alert-item
-                        alert-status-${alertStatus}
+                        alert-status-${status}
+                        alert-severity-${severity}
                     `;
 
 
                 alertItem.innerHTML = `
 
                     <div
-                        class="alert-item-header"
+                        class="alert-item-main"
                     >
 
 
-                        <div>
+                        <div
+                            class="alert-type-icon"
+                        >
 
-                            <h3>
+                            ${getAlertIcon(
+                                alert.type
+                            )}
 
-                                ${escapeAlertHTML(
-                                    alert.title ||
-                                    "System Alert"
-                                )}
-
-                            </h3>
+                        </div>
 
 
-                            <p>
+                        <div
+                            class="alert-content"
+                        >
+
+
+                            <div
+                                class="alert-item-top"
+                            >
+
+
+                                <div>
+
+                                    <div
+                                        class="alert-badge-row"
+                                    >
+
+                                        ${renderAlertSeverity(
+                                            severity
+                                        )}
+
+
+                                        ${renderAlertStatus(
+                                            status
+                                        )}
+
+                                    </div>
+
+
+                                    <h3>
+
+                                        ${escapeAlertHTML(
+                                            alert.title ||
+                                            "System Alert"
+                                        )}
+
+                                    </h3>
+
+                                </div>
+
+
+                                <span
+                                    class="alert-time"
+                                >
+
+                                    ${formatAlertRelativeDate(
+                                        alert.createdAt
+                                    )}
+
+                                </span>
+
+
+                            </div>
+
+
+                            <p
+                                class="alert-message"
+                            >
 
                                 ${escapeAlertHTML(
                                     alert.message ||
@@ -1064,121 +1867,123 @@ function renderAlerts() {
 
                             </p>
 
+
+
+                            <div
+                                class="alert-info-grid"
+                            >
+
+
+                                <div
+                                    class="alert-info-card"
+                                >
+
+                                    <span>
+
+                                        Station
+
+                                    </span>
+
+
+                                    <strong>
+
+                                        ${escapeAlertHTML(
+                                            alert.stationName ||
+                                            "System"
+                                        )}
+
+                                    </strong>
+
+                                </div>
+
+
+
+                                <div
+                                    class="alert-info-card"
+                                >
+
+                                    <span>
+
+                                        Shift
+
+                                    </span>
+
+
+                                    <strong>
+
+                                        ${escapeAlertHTML(
+                                            alert.shiftName ||
+                                            "N/A"
+                                        )}
+
+                                    </strong>
+
+                                </div>
+
+
+
+                                <div
+                                    class="alert-info-card"
+                                >
+
+                                    <span>
+
+                                        Staff
+
+                                    </span>
+
+
+                                    <strong>
+
+                                        ${escapeAlertHTML(
+                                            alert.staffName ||
+                                            "N/A"
+                                        )}
+
+                                    </strong>
+
+                                </div>
+
+
+
+                                <div
+                                    class="alert-info-card"
+                                >
+
+                                    <span>
+
+                                        Financial Impact
+
+                                    </span>
+
+
+                                    <strong>
+
+                                        ${formatAlertCurrency(
+                                            alert.amount
+                                        )}
+
+                                    </strong>
+
+                                </div>
+
+
+                            </div>
+
+
+
+                            <div
+                                class="alert-actions"
+                            >
+
+                                ${renderAlertActions(
+                                    alert
+                                )}
+
+                            </div>
+
+
                         </div>
-
-
-                        <div>
-
-                            ${renderAlertStatus(
-                                alertStatus
-                            )}
-
-                        </div>
-
-
-                    </div>
-
-
-
-                    <div
-                        class="alert-meta"
-                    >
-
-
-                        <span>
-
-                            Station:
-
-                            <strong>
-
-                                ${escapeAlertHTML(
-                                    alert.stationName ||
-                                    "System"
-                                )}
-
-                            </strong>
-
-                        </span>
-
-
-
-                        <span>
-
-                            Shift:
-
-                            <strong>
-
-                                ${escapeAlertHTML(
-                                    alert.shiftName ||
-                                    "N/A"
-                                )}
-
-                            </strong>
-
-                        </span>
-
-
-
-                        <span>
-
-                            Staff:
-
-                            <strong>
-
-                                ${escapeAlertHTML(
-                                    alert.staffName ||
-                                    "N/A"
-                                )}
-
-                            </strong>
-
-                        </span>
-
-
-
-                        <span>
-
-                            Amount:
-
-                            <strong>
-
-                                ${formatAlertCurrency(
-                                    alert.amount
-                                )}
-
-                            </strong>
-
-                        </span>
-
-
-
-                        <span>
-
-                            Created:
-
-                            <strong>
-
-                                ${formatAlertDate(
-                                    alert.createdAt
-                                )}
-
-                            </strong>
-
-                        </span>
-
-
-                    </div>
-
-
-
-                    <div
-                        class="alert-actions"
-                    >
-
-
-                        ${renderAlertActions(
-                            alert
-                        )}
 
 
                     </div>
@@ -1193,10 +1998,6 @@ function renderAlerts() {
             }
         );
 
-
-        /*
-           SETUP ACTION BUTTONS
-        */
 
         setupAlertActionButtons();
 
@@ -1215,7 +2016,51 @@ function renderAlerts() {
 
 
 /* ==========================================
-   RENDER ALERT STATUS
+   RENDER SEVERITY
+========================================== */
+
+function renderAlertSeverity(
+    severity
+) {
+
+    const labels = {
+
+        critical:
+            "Critical",
+
+        high:
+            "High Priority",
+
+        medium:
+            "Medium",
+
+        low:
+            "Low"
+
+    };
+
+
+    return `
+
+        <span
+            class="
+                alert-severity-badge
+                severity-${severity}
+            "
+        >
+
+            ${labels[severity] ||
+            "Alert"}
+
+        </span>
+
+    `;
+
+}
+
+
+/* ==========================================
+   RENDER STATUS
 ========================================== */
 
 function renderAlertStatus(
@@ -1230,9 +2075,14 @@ function renderAlertStatus(
         return `
 
             <span
-                class="status-badge status-online"
+                class="
+                    status-badge
+                    status-online
+                "
             >
+
                 Resolved
+
             </span>
 
         `;
@@ -1243,9 +2093,14 @@ function renderAlertStatus(
     return `
 
         <span
-            class="status-badge"
+            class="
+                status-badge
+                status-pending
+            "
         >
-            Unresolved
+
+            Open
+
         </span>
 
     `;
@@ -1254,30 +2109,40 @@ function renderAlertStatus(
 
 
 /* ==========================================
-   RENDER ALERT ACTIONS
+   RENDER ACTIONS
 ========================================== */
 
 function renderAlertActions(
     alert
 ) {
 
-    /*
-       RESOLVED ALERT
-    */
+    const alertId =
+        escapeAlertAttribute(
+            alert.id
+        );
+
 
     if (
+
         alert.status ===
         "resolved"
+
     ) {
 
         return `
 
             <button
                 type="button"
-                class="btn btn-outline btn-small"
-                data-view-alert="${alert.id}"
+                class="
+                    btn
+                    btn-outline
+                    btn-small
+                "
+                data-view-alert="${alertId}"
             >
+
                 View Details
+
             </button>
 
         `;
@@ -1285,27 +2150,35 @@ function renderAlertActions(
     }
 
 
-    /*
-       UNRESOLVED ALERT
-    */
-
     return `
 
         <button
             type="button"
-            class="btn btn-primary btn-small"
-            data-resolve-alert="${alert.id}"
+            class="
+                btn
+                btn-primary
+                btn-small
+            "
+            data-resolve-alert="${alertId}"
         >
-            Mark Resolved
+
+            ✓ Mark Resolved
+
         </button>
 
 
         <button
             type="button"
-            class="btn btn-outline btn-small"
-            data-view-alert="${alert.id}"
+            class="
+                btn
+                btn-outline
+                btn-small
+            "
+            data-view-alert="${alertId}"
         >
+
             View Details
+
         </button>
 
     `;
@@ -1318,10 +2191,6 @@ function renderAlertActions(
 ========================================== */
 
 function setupAlertActionButtons() {
-
-    /*
-       RESOLVE BUTTONS
-    */
 
     const resolveButtons =
         document.querySelectorAll(
@@ -1336,14 +2205,10 @@ function setupAlertActionButtons() {
                 "click",
                 () => {
 
-                    const alertId =
+                    resolveAlert(
                         button.getAttribute(
                             "data-resolve-alert"
-                        );
-
-
-                    resolveAlert(
-                        alertId
+                        )
                     );
 
                 }
@@ -1352,10 +2217,6 @@ function setupAlertActionButtons() {
         }
     );
 
-
-    /*
-       VIEW BUTTONS
-    */
 
     const viewButtons =
         document.querySelectorAll(
@@ -1370,14 +2231,10 @@ function setupAlertActionButtons() {
                 "click",
                 () => {
 
-                    const alertId =
+                    viewAlertDetails(
                         button.getAttribute(
                             "data-view-alert"
-                        );
-
-
-                    viewAlertDetails(
-                        alertId
+                        )
                     );
 
                 }
@@ -1408,13 +2265,9 @@ function resolveAlert(
     }
 
 
-    /*
-       CONFIRM ACTION
-    */
-
     const confirmed =
         window.confirm(
-            "Are you sure you want to mark this alert as resolved?"
+            "Mark this alert as resolved?"
         );
 
 
@@ -1432,8 +2285,8 @@ function resolveAlert(
     const alertIndex =
         alerts.findIndex(
             alert =>
-                alert.id ===
-                alertId
+                String(alert.id) ===
+                String(alertId)
         );
 
 
@@ -1446,10 +2299,6 @@ function resolveAlert(
 
     }
 
-
-    /*
-       UPDATE ALERT
-    */
 
     alerts[
         alertIndex
@@ -1472,19 +2321,11 @@ function resolveAlert(
         "Unknown User";
 
 
-    /*
-       SAVE
-    */
-
     saveAlertsStorageData(
         ALERTS_STORAGE_KEY,
         alerts
     );
 
-
-    /*
-       REFRESH PAGE
-    */
 
     renderAlerts();
 
@@ -1506,8 +2347,8 @@ function viewAlertDetails(
     const alert =
         alerts.find(
             item =>
-                item.id ===
-                alertId
+                String(item.id) ===
+                String(alertId)
         );
 
 
@@ -1518,63 +2359,390 @@ function viewAlertDetails(
     }
 
 
-    const details = `
+    const modal =
+        document.getElementById(
+            "alertDetailsModal"
+        );
 
-ALERT DETAILS
 
-Title:
-${alert.title || "System Alert"}
+    const content =
+        document.getElementById(
+            "alertDetailsContent"
+        );
 
-Status:
-${alert.status || "unresolved"}
 
-Station:
-${alert.stationName || "System"}
+    if (
+        !modal ||
+        !content
+    ) {
 
-Shift:
-${alert.shiftName || "N/A"}
+        return;
 
-Staff:
-${alert.staffName || "N/A"}
+    }
 
-Amount:
-${formatAlertCurrency(
-    alert.amount
-)}
 
-Variance:
-${Number(
-    alert.variancePercentage || 0
-).toFixed(2)}%
+    const severity =
+        getAlertSeverity(
+            alert
+        );
 
-Created:
-${formatAlertDate(
-    alert.createdAt
-)}
 
-${alert.resolvedAt
-    ? `Resolved:
-${formatAlertDate(
-    alert.resolvedAt
-)}`
-    : ""
-}
+    const status =
+        alert.status ||
+        "unresolved";
 
-Message:
-${alert.message || "No message available."}
+
+    content.innerHTML = `
+
+        <div
+            class="alert-modal-header"
+        >
+
+
+            <div
+                class="alert-modal-icon"
+            >
+
+                ${getAlertIcon(
+                    alert.type
+                )}
+
+            </div>
+
+
+            <div>
+
+                <div
+                    class="alert-badge-row"
+                >
+
+                    ${renderAlertSeverity(
+                        severity
+                    )}
+
+                    ${renderAlertStatus(
+                        status
+                    )}
+
+                </div>
+
+
+                <h2>
+
+                    ${escapeAlertHTML(
+                        alert.title ||
+                        "System Alert"
+                    )}
+
+                </h2>
+
+            </div>
+
+
+        </div>
+
+
+
+        <div
+            class="alert-modal-message"
+        >
+
+            ${escapeAlertHTML(
+                alert.message ||
+                "No message available."
+            )}
+
+        </div>
+
+
+
+        <div
+            class="alert-details-grid"
+        >
+
+
+            <div
+                class="alert-detail-card"
+            >
+
+                <span>
+
+                    Station
+
+                </span>
+
+
+                <strong>
+
+                    ${escapeAlertHTML(
+                        alert.stationName ||
+                        "System"
+                    )}
+
+                </strong>
+
+            </div>
+
+
+
+            <div
+                class="alert-detail-card"
+            >
+
+                <span>
+
+                    Shift
+
+                </span>
+
+
+                <strong>
+
+                    ${escapeAlertHTML(
+                        alert.shiftName ||
+                        "N/A"
+                    )}
+
+                </strong>
+
+            </div>
+
+
+
+            <div
+                class="alert-detail-card"
+            >
+
+                <span>
+
+                    Staff
+
+                </span>
+
+
+                <strong>
+
+                    ${escapeAlertHTML(
+                        alert.staffName ||
+                        "N/A"
+                    )}
+
+                </strong>
+
+            </div>
+
+
+
+            <div
+                class="alert-detail-card"
+            >
+
+                <span>
+
+                    Amount
+
+                </span>
+
+
+                <strong>
+
+                    ${formatAlertCurrency(
+                        alert.amount
+                    )}
+
+                </strong>
+
+            </div>
+
+
+
+            <div
+                class="alert-detail-card"
+            >
+
+                <span>
+
+                    Variance
+
+                </span>
+
+
+                <strong>
+
+                    ${Number(
+                        alert.variancePercentage || 0
+                    ).toFixed(2)}%
+
+                </strong>
+
+            </div>
+
+
+
+            <div
+                class="alert-detail-card"
+            >
+
+                <span>
+
+                    Created
+
+                </span>
+
+
+                <strong>
+
+                    ${formatAlertDate(
+                        alert.createdAt
+                    )}
+
+                </strong>
+
+            </div>
+
+
+            ${alert.resolvedAt
+                ? `
+
+                    <div
+                        class="alert-detail-card"
+                    >
+
+                        <span>
+
+                            Resolved
+
+                        </span>
+
+
+                        <strong>
+
+                            ${formatAlertDate(
+                                alert.resolvedAt
+                            )}
+
+                        </strong>
+
+                    </div>
+
+                `
+                : ""
+            }
+
+
+        </div>
+
+
+
+        <div
+            class="alert-modal-footer"
+        >
+
+
+            ${status !== "resolved"
+                ? `
+
+                    <button
+                        type="button"
+                        class="
+                            btn
+                            btn-primary
+                        "
+                        data-modal-resolve="${escapeAlertAttribute(
+                            alert.id
+                        )}"
+                    >
+
+                        ✓ Mark Resolved
+
+                    </button>
+
+                `
+                : ""
+            }
+
+
+            <button
+                type="button"
+                class="
+                    btn
+                    btn-outline
+                "
+                data-close-alert-modal
+            >
+
+                Close
+
+            </button>
+
+
+        </div>
 
     `;
 
 
-    window.alert(
-        details
+    modal.classList.remove(
+        "hidden"
     );
+
+
+    const resolveButton =
+        content.querySelector(
+            "[data-modal-resolve]"
+        );
+
+
+    if (resolveButton) {
+
+        resolveButton.addEventListener(
+            "click",
+            () => {
+
+                const id =
+                    resolveButton.getAttribute(
+                        "data-modal-resolve"
+                    );
+
+
+                closeAlertModal();
+
+                resolveAlert(
+                    id
+                );
+
+            }
+        );
+
+    }
 
 }
 
 
 /* ==========================================
-   UPDATE ALERT SUMMARY
+   CLOSE MODAL
+========================================== */
+
+function closeAlertModal() {
+
+    const modal =
+        document.getElementById(
+            "alertDetailsModal"
+        );
+
+
+    if (modal) {
+
+        modal.classList.add(
+            "hidden"
+        );
+
+    }
+
+}
+
+
+/* ==========================================
+   UPDATE SUMMARY
 ========================================== */
 
 function updateAlertSummary(
@@ -1588,9 +2756,12 @@ function updateAlertSummary(
     const unresolved =
         alerts.filter(
             alert =>
-                alert.status !==
+
+                (alert.status ||
+                    "unresolved") !==
                 "resolved"
-        ).length;
+        )
+            .length;
 
 
     const resolved =
@@ -1598,53 +2769,71 @@ function updateAlertSummary(
             alert =>
                 alert.status ===
                 "resolved"
-        ).length;
+        )
+            .length;
 
 
-    const totalElement =
+    const critical =
+        alerts.filter(
+            alert =>
+
+                (alert.status ||
+                    "unresolved") !==
+                "resolved" &&
+
+                getAlertSeverity(
+                    alert
+                ) ===
+                "critical"
+        )
+            .length;
+
+
+    updateAlertSummaryElement(
+        "totalAlertsCount",
+        total
+    );
+
+
+    updateAlertSummaryElement(
+        "unresolvedAlertsCount",
+        unresolved
+    );
+
+
+    updateAlertSummaryElement(
+        "criticalAlertsCount",
+        critical
+    );
+
+
+    updateAlertSummaryElement(
+        "resolvedAlertsCount",
+        resolved
+    );
+
+}
+
+
+/* ==========================================
+   UPDATE SUMMARY ELEMENT
+========================================== */
+
+function updateAlertSummaryElement(
+    id,
+    value
+) {
+
+    const element =
         document.getElementById(
-            "totalAlertsCount"
+            id
         );
 
 
-    const unresolvedElement =
-        document.getElementById(
-            "unresolvedAlertsCount"
-        );
+    if (element) {
 
-
-    const resolvedElement =
-        document.getElementById(
-            "resolvedAlertsCount"
-        );
-
-
-    if (
-        totalElement
-    ) {
-
-        totalElement.textContent =
-            total;
-
-    }
-
-
-    if (
-        unresolvedElement
-    ) {
-
-        unresolvedElement.textContent =
-            unresolved;
-
-    }
-
-
-    if (
-        resolvedElement
-    ) {
-
-        resolvedElement.textContent =
-            resolved;
+        element.textContent =
+            value;
 
     }
 
@@ -1660,9 +2849,8 @@ function formatAlertCurrency(
 ) {
 
     const value =
-        Number(
-            amount
-        ) || 0;
+        Number(amount) ||
+        0;
 
 
     return value.toLocaleString(
@@ -1703,15 +2891,15 @@ function formatAlertDate(
 
 
     const parsedDate =
-        new Date(
-            date
-        );
+        new Date(date);
 
 
     if (
+
         Number.isNaN(
             parsedDate.getTime()
         )
+
     ) {
 
         return "N/A";
@@ -1736,6 +2924,101 @@ function formatAlertDate(
 
 
 /* ==========================================
+   FORMAT RELATIVE DATE
+========================================== */
+
+function formatAlertRelativeDate(
+    date
+) {
+
+    if (!date) {
+
+        return "Unknown time";
+
+    }
+
+
+    const created =
+        new Date(date);
+
+
+    const now =
+        new Date();
+
+
+    const difference =
+        now -
+        created;
+
+
+    const seconds =
+        Math.floor(
+            difference / 1000
+        );
+
+
+    const minutes =
+        Math.floor(
+            seconds / 60
+        );
+
+
+    const hours =
+        Math.floor(
+            minutes / 60
+        );
+
+
+    const days =
+        Math.floor(
+            hours / 24
+        );
+
+
+    if (
+        seconds < 60
+    ) {
+
+        return "Just now";
+
+    }
+
+
+    if (
+        minutes < 60
+    ) {
+
+        return `${minutes}m ago`;
+
+    }
+
+
+    if (
+        hours < 24
+    ) {
+
+        return `${hours}h ago`;
+
+    }
+
+
+    if (
+        days < 7
+    ) {
+
+        return `${days}d ago`;
+
+    }
+
+
+    return formatAlertDate(
+        date
+    );
+
+}
+
+
+/* ==========================================
    ESCAPE HTML
 ========================================== */
 
@@ -1744,8 +3027,11 @@ function escapeAlertHTML(
 ) {
 
     if (
+
         value === null ||
+
         value === undefined
+
     ) {
 
         return "";
@@ -1760,11 +3046,28 @@ function escapeAlertHTML(
 
 
     div.textContent =
-        String(
-            value
-        );
+        String(value);
 
 
     return div.innerHTML;
+
+}
+
+
+/* ==========================================
+   ESCAPE ATTRIBUTE
+========================================== */
+
+function escapeAlertAttribute(
+    value
+) {
+
+    return escapeAlertHTML(
+        value
+    )
+        .replace(
+            /"/g,
+            "&quot;"
+        );
 
 }
