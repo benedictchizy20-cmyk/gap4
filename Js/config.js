@@ -1,15 +1,20 @@
 const FUELGAP_CONFIG = {
-    appName: "FuelGap",
 
-    // We will change this when the Express backend is connected.
-    API_BASE_URL: "http://localhost:7000/api/v1",
+    API_BASE_URL:
+        "http://localhost:7000/api",
 
-    // Frontend development mode
-    USE_MOCK_AUTH: true,
+    USE_MOCK_AUTH: false,
 
     storageKeys: {
-        user: "fuelgap_user",
-        token: "fuelgap_token",
-        refreshToken: "fuelgap_refresh_token"
+
+        token:
+            "fuelgap_access_token",
+
+        user:
+            "fuelgap_user"
+
     }
+
 };
+
+window.FUELGAP_CONFIG = FUELGAP_CONFIG;
