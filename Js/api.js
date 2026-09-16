@@ -1,5 +1,9 @@
 /* =========================================================
    FUELGAP - API CLIENT
+   COOKIE BASED AUTHENTICATION
+   NO LOCALSTORAGE AUTHENTICATION
+   LOCALHOST BACKEND
+   PLATFORM + ORGANIZATION API
 ========================================================= */
 
 const FuelGapAPI = {
@@ -10,19 +14,10 @@ const FuelGapAPI = {
 
     async request(endpoint, options = {}) {
 
-        const token = localStorage.getItem(
-            FUELGAP_CONFIG.storageKeys.token
-        );
-
         const headers = {
             "Content-Type": "application/json",
             ...(options.headers || {})
         };
-
-        /* Attach Supabase access token */
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
 
         let response;
 
@@ -32,74 +27,225 @@ const FuelGapAPI = {
                 `${FUELGAP_CONFIG.API_BASE_URL}${endpoint}`,
                 {
                     ...options,
-                    headers
+                    headers,
+                    credentials: "include"
                 }
             );
 
         } catch (error) {
 
-            console.error("FuelGap API connection error:", error);
+            console.error(
+                "FuelGap API connection error:",
+                error
+            );
 
             throw new Error(
                 "Unable to connect to FuelGap server. Make sure the backend is running."
             );
         }
 
-        /* =================================================
-           AUTHENTICATION ERROR
-        ================================================= */
-
-        if (response.status === 401) {
-
-            console.warn("FuelGap session expired.");
-
-            if (
-                typeof FuelGapUtils !== "undefined" &&
-                typeof FuelGapUtils.logout === "function"
-            ) {
-                FuelGapUtils.logout();
-            }
-
-            throw new Error(
-                "Your session has expired. Please login again."
-            );
-        }
 
         /* =================================================
            READ RESPONSE
         ================================================= */
 
-        let data;
+        let data = null;
 
         try {
 
-            data = await response.json();
+            const contentType =
+                response.headers.get("content-type");
+
+            if (
+                contentType &&
+                contentType.includes("application/json")
+            ) {
+
+                data = await response.json();
+
+            } else {
+
+                const text =
+                    await response.text();
+
+                if (text) {
+
+                    data = {
+                        message: text
+                    };
+
+                }
+
+            }
 
         } catch (error) {
+
+            console.error(
+                "Response parsing error:",
+                error
+            );
 
             throw new Error(
                 "The server returned an invalid response."
             );
         }
 
+
         /* =================================================
-           API ERROR
+           401 AUTHENTICATION ERROR
+        ================================================= */
+
+        if (response.status === 401) {
+
+            console.warn(
+                "FuelGap API returned 401:",
+                endpoint,
+                data
+            );
+
+            /*
+             * Only redirect when the actual authentication
+             * session is invalid.
+             */
+
+            if (
+                endpoint === "/auth/me" ||
+                endpoint === "/auth/login"
+            ) {
+
+                const currentPath =
+                    window.location.pathname;
+
+                if (
+                    !currentPath.includes("login.html") &&
+                    !currentPath.includes("register.html")
+                ) {
+
+                    window.location.href =
+                        "/login.html";
+                }
+
+            }
+
+            throw new Error(
+                data?.message ||
+                "Authentication required."
+            );
+        }
+
+
+        /* =================================================
+           403 PERMISSION ERROR
+        ================================================= */
+
+        if (response.status === 403) {
+
+            console.warn(
+                "FuelGap permission denied:",
+                endpoint,
+                data
+            );
+
+            throw new Error(
+                data?.message ||
+                "You do not have permission to perform this action."
+            );
+        }
+
+
+        /* =================================================
+           400 BAD REQUEST
+        ================================================= */
+
+        if (response.status === 400) {
+
+            throw new Error(
+                data?.message ||
+                "The request contains invalid data."
+            );
+        }
+
+
+        /* =================================================
+           404 NOT FOUND
+        ================================================= */
+
+        if (response.status === 404) {
+
+            throw new Error(
+                data?.message ||
+                "The requested resource was not found."
+            );
+        }
+
+
+        /* =================================================
+           409 CONFLICT
+        ================================================= */
+
+        if (response.status === 409) {
+
+            throw new Error(
+                data?.message ||
+                "This operation conflicts with existing data."
+            );
+        }
+
+
+        /* =================================================
+           422 VALIDATION
+        ================================================= */
+
+        if (response.status === 422) {
+
+            throw new Error(
+                data?.message ||
+                "The submitted data is invalid."
+            );
+        }
+
+
+        /* =================================================
+           500 SERVER ERROR
+        ================================================= */
+
+        if (response.status >= 500) {
+
+            console.error(
+                "FuelGap server error:",
+                {
+                    endpoint,
+                    status: response.status,
+                    data
+                }
+            );
+
+            throw new Error(
+                data?.message ||
+                "FuelGap server error. Please check the backend console."
+            );
+        }
+
+
+        /* =================================================
+           OTHER ERROR
         ================================================= */
 
         if (!response.ok) {
 
             throw new Error(
-                data.message ||
+                data?.message ||
                 "Request failed."
             );
         }
+
 
         return data;
     },
 
 
     /* =====================================================
-       AUTH
+       AUTHENTICATION
     ===================================================== */
 
     async register(userData) {
@@ -116,57 +262,23 @@ const FuelGapAPI = {
 
     async login(credentials) {
 
-        const response = await this.request(
+        return this.request(
             "/auth/login",
             {
                 method: "POST",
                 body: JSON.stringify(credentials)
             }
         );
-
-        /*
-         * Save Supabase access token
-         */
-
-        if (
-            response &&
-            response.data &&
-            response.data.session &&
-            response.data.session.access_token
-        ) {
-
-            localStorage.setItem(
-                FUELGAP_CONFIG.storageKeys.token,
-                response.data.session.access_token
-            );
-        }
-
-        /*
-         * Save user profile
-         */
-
-        if (
-            response &&
-            response.data &&
-            response.data.user
-        ) {
-
-            localStorage.setItem(
-                FUELGAP_CONFIG.storageKeys.user,
-                JSON.stringify(
-                    response.data.user
-                )
-            );
-        }
-
-        return response;
     },
 
 
     async getCurrentUser() {
 
         return this.request(
-            "/auth/me"
+            "/auth/me",
+            {
+                method: "GET"
+            }
         );
     },
 
@@ -175,37 +287,73 @@ const FuelGapAPI = {
 
         try {
 
-            const response =
-                await this.request(
-                    "/auth/logout",
-                    {
-                        method: "POST"
-                    }
-                );
-
-            return response;
-
-        } finally {
-
-            localStorage.removeItem(
-                FUELGAP_CONFIG.storageKeys.token
+            return await this.request(
+                "/auth/logout",
+                {
+                    method: "POST"
+                }
             );
 
-            localStorage.removeItem(
-                FUELGAP_CONFIG.storageKeys.user
+        } catch (error) {
+
+            console.warn(
+                "Logout request:",
+                error.message
             );
+
+            return {
+                success: false,
+                message: error.message
+            };
         }
     },
 
 
     /* =====================================================
-       DASHBOARD
+       NORMAL DASHBOARD
     ===================================================== */
 
     async getDashboard() {
 
         return this.request(
             "/dashboard"
+        );
+    },
+
+
+    /* =====================================================
+       PLATFORM / SUPER ADMIN
+    ===================================================== */
+
+    async getPlatformOverview() {
+
+        return this.request(
+            "/platform/overview",
+            {
+                method: "GET"
+            }
+        );
+    },
+
+
+    async getPlatformOrganizations() {
+
+        return this.request(
+            "/platform/organizations",
+            {
+                method: "GET"
+            }
+        );
+    },
+
+
+    async getPlatformOrganization(id) {
+
+        return this.request(
+            `/platform/organizations/${encodeURIComponent(id)}`,
+            {
+                method: "GET"
+            }
         );
     },
 
@@ -242,7 +390,10 @@ const FuelGapAPI = {
     },
 
 
-    async updateStation(id, stationData) {
+    async updateStation(
+        id,
+        stationData
+    ) {
 
         return this.request(
             `/stations/${id}`,
@@ -271,9 +422,10 @@ const FuelGapAPI = {
 
     async getPumps(stationId = "") {
 
-        const query = stationId
-            ? `?station_id=${encodeURIComponent(stationId)}`
-            : "";
+        const query =
+            stationId
+                ? `?station_id=${encodeURIComponent(stationId)}`
+                : "";
 
         return this.request(
             `/pumps${query}`
@@ -301,7 +453,10 @@ const FuelGapAPI = {
     },
 
 
-    async updatePump(id, pumpData) {
+    async updatePump(
+        id,
+        pumpData
+    ) {
 
         return this.request(
             `/pumps/${id}`,
@@ -330,9 +485,10 @@ const FuelGapAPI = {
 
     async getNozzles(pumpId = "") {
 
-        const query = pumpId
-            ? `?pump_id=${encodeURIComponent(pumpId)}`
-            : "";
+        const query =
+            pumpId
+                ? `?pump_id=${encodeURIComponent(pumpId)}`
+                : "";
 
         return this.request(
             `/nozzles${query}`
@@ -360,7 +516,10 @@ const FuelGapAPI = {
     },
 
 
-    async updateNozzle(id, nozzleData) {
+    async updateNozzle(
+        id,
+        nozzleData
+    ) {
 
         return this.request(
             `/nozzles/${id}`,
@@ -415,7 +574,10 @@ const FuelGapAPI = {
     },
 
 
-    async createStaffLogin(id, password) {
+    async createStaffLogin(
+        id,
+        password
+    ) {
 
         return this.request(
             `/staff/${id}/create-login`,
@@ -429,7 +591,10 @@ const FuelGapAPI = {
     },
 
 
-    async updateStaff(id, staffData) {
+    async updateStaff(
+        id,
+        staffData
+    ) {
 
         return this.request(
             `/staff/${id}`,
@@ -458,9 +623,11 @@ const FuelGapAPI = {
 
     async getShifts(filters = {}) {
 
-        const params = new URLSearchParams();
+        const params =
+            new URLSearchParams();
 
         if (filters.station_id) {
+
             params.append(
                 "station_id",
                 filters.station_id
@@ -468,6 +635,7 @@ const FuelGapAPI = {
         }
 
         if (filters.status) {
+
             params.append(
                 "status",
                 filters.status
@@ -475,6 +643,7 @@ const FuelGapAPI = {
         }
 
         if (filters.shift_date) {
+
             params.append(
                 "shift_date",
                 filters.shift_date
@@ -531,13 +700,308 @@ const FuelGapAPI = {
                 method: "PATCH"
             }
         );
+    },
+
+
+    /* =====================================================
+       SALES
+    ===================================================== */
+
+    async getSales(filters = {}) {
+
+        const params =
+            new URLSearchParams();
+
+        if (filters.station_id) {
+
+            params.append(
+                "station_id",
+                filters.station_id
+            );
+        }
+
+        if (filters.shift_id) {
+
+            params.append(
+                "shift_id",
+                filters.shift_id
+            );
+        }
+
+        if (filters.payment_method) {
+
+            params.append(
+                "payment_method",
+                filters.payment_method
+            );
+        }
+
+        if (filters.date) {
+
+            params.append(
+                "date",
+                filters.date
+            );
+        }
+
+        const query =
+            params.toString()
+                ? `?${params.toString()}`
+                : "";
+
+        return this.request(
+            `/sales${query}`,
+            {
+                method: "GET"
+            }
+        );
+    },
+
+
+    async getSale(id) {
+
+        return this.request(
+            `/sales/${id}`,
+            {
+                method: "GET"
+            }
+        );
+    },
+
+
+    async createSale(saleData) {
+
+        return this.request(
+            "/sales",
+            {
+                method: "POST",
+                body: JSON.stringify(saleData)
+            }
+        );
+    },
+
+
+    async deleteSale(id) {
+
+        return this.request(
+            `/sales/${id}`,
+            {
+                method: "DELETE"
+            }
+        );
+    },
+
+
+    /* =====================================================
+       PAYMENTS
+    ===================================================== */
+
+    async getPayments(filters = {}) {
+
+        const params =
+            new URLSearchParams();
+
+        if (filters.station_id) {
+
+            params.append(
+                "station_id",
+                filters.station_id
+            );
+        }
+
+        if (filters.shift_id) {
+
+            params.append(
+                "shift_id",
+                filters.shift_id
+            );
+        }
+
+        if (filters.sale_id) {
+
+            params.append(
+                "sale_id",
+                filters.sale_id
+            );
+        }
+
+        if (filters.payment_method) {
+
+            params.append(
+                "payment_method",
+                filters.payment_method
+            );
+        }
+
+        if (filters.date) {
+
+            params.append(
+                "date",
+                filters.date
+            );
+        }
+
+        const query =
+            params.toString()
+                ? `?${params.toString()}`
+                : "";
+
+        return this.request(
+            `/payments${query}`,
+            {
+                method: "GET"
+            }
+        );
+    },
+
+
+    async getPayment(id) {
+
+        return this.request(
+            `/payments/${id}`,
+            {
+                method: "GET"
+            }
+        );
+    },
+
+
+    async createPayment(paymentData) {
+
+        return this.request(
+            "/payments",
+            {
+                method: "POST",
+                body: JSON.stringify(paymentData)
+            }
+        );
+    },
+
+
+    async deletePayment(id) {
+
+        return this.request(
+            `/payments/${id}`,
+            {
+                method: "DELETE"
+            }
+        );
+    },
+
+
+    /* =====================================================
+       GAPS / RECONCILIATION
+    ===================================================== */
+
+    async getGaps(filters = {}) {
+
+        const params =
+            new URLSearchParams();
+
+        if (filters.station_id) {
+
+            params.append(
+                "station_id",
+                filters.station_id
+            );
+        }
+
+        if (filters.pump_id) {
+
+            params.append(
+                "pump_id",
+                filters.pump_id
+            );
+        }
+
+        if (filters.nozzle_id) {
+
+            params.append(
+                "nozzle_id",
+                filters.nozzle_id
+            );
+        }
+
+        if (filters.shift_id) {
+
+            params.append(
+                "shift_id",
+                filters.shift_id
+            );
+        }
+
+        if (filters.status) {
+
+            params.append(
+                "status",
+                filters.status
+            );
+        }
+
+        if (filters.date) {
+
+            params.append(
+                "date",
+                filters.date
+            );
+        }
+
+        const query =
+            params.toString()
+                ? `?${params.toString()}`
+                : "";
+
+        return this.request(
+            `/gaps${query}`,
+            {
+                method: "GET"
+            }
+        );
+    },
+
+
+    async getGap(id) {
+
+        return this.request(
+            `/gaps/${id}`,
+            {
+                method: "GET"
+            }
+        );
+    },
+
+
+    async createGap(gapData) {
+
+        return this.request(
+            "/gaps",
+            {
+                method: "POST",
+                body: JSON.stringify(gapData)
+            }
+        );
+    },
+
+
+    async deleteGap(id) {
+
+        return this.request(
+            `/gaps/${id}`,
+            {
+                method: "DELETE"
+            }
+        );
     }
 
 };
 
 
 /* =========================================================
-   EXPORT
+   GLOBAL EXPORT
 ========================================================= */
 
 window.FuelGapAPI = FuelGapAPI;
+
+console.log(
+    "FuelGap api.js loaded successfully."
+);

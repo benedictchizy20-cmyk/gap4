@@ -1,177 +1,140 @@
 /* =========================================================
    FUELGAP - SALES MANAGEMENT
-   PROFESSIONAL PREMIUM UI
-========================================================= */
-
-:root {
-
-    --sales-yellow: #f5c400;
-    --sales-yellow-dark: #d9aa00;
-    --sales-yellow-light: #fff8d6;
-
-    --sales-black: #111827;
-    --sales-dark: #1f2937;
-
-    --sales-gray: #6b7280;
-    --sales-muted: #9ca3af;
-
-    --sales-border: #e5e7eb;
-    --sales-border-light: #f1f3f5;
-
-    --sales-background: #f7f8fa;
-    --sales-white: #ffffff;
-
-    --sales-green: #15803d;
-    --sales-green-bg: #ecfdf3;
-
-    --sales-shadow:
-        0 8px 30px rgba(17, 24, 39, 0.06);
-
-    --sales-shadow-hover:
-        0 14px 40px rgba(17, 24, 39, 0.10);
-
-    --sales-radius: 18px;
-}
-
-
-/* =========================================================
-   PAGE
+   PRODUCTION-READY UI
+   WHITE + YELLOW ENTERPRISE DESIGN
+   RESPONSIVE / ACCESSIBLE / DATA-DENSE
 ========================================================= */
 
 .sales-page {
+    --sales-yellow: #facc15;
+    --sales-yellow-dark: #ca8a04;
+    --sales-yellow-deep: #a16207;
+    --sales-yellow-soft: #fffbea;
+    --sales-yellow-border: #fde68a;
+
+    --sales-white: #ffffff;
+    --sales-bg: #f8fafc;
+    --sales-surface: #ffffff;
+
+    --sales-text: #111827;
+    --sales-text-secondary: #374151;
+    --sales-muted: #64748b;
+    --sales-muted-light: #94a3b8;
+
+    --sales-border: #e5e7eb;
+    --sales-border-light: #eef2f7;
+
+    --sales-success: #16a34a;
+    --sales-success-soft: #f0fdf4;
+    --sales-success-border: #bbf7d0;
+
+    --sales-danger: #dc2626;
+    --sales-danger-soft: #fef2f2;
+    --sales-danger-border: #fecaca;
+
+    --sales-blue: #2563eb;
+    --sales-blue-soft: #eff6ff;
+    --sales-blue-border: #bfdbfe;
+
+    --sales-purple: #7c3aed;
+    --sales-purple-soft: #f5f3ff;
+
+    --sales-radius-sm: 8px;
+    --sales-radius-md: 12px;
+    --sales-radius-lg: 16px;
+
+    --sales-shadow-sm:
+        0 1px 2px rgba(15, 23, 42, 0.04);
+
+    --sales-shadow-md:
+        0 8px 24px rgba(15, 23, 42, 0.06);
+
+    --sales-shadow-lg:
+        0 16px 40px rgba(15, 23, 42, 0.08);
 
     width: 100%;
-
-    min-height: 100%;
-
-    padding-bottom: 40px;
-
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 24px;
+    color: var(--sales-text);
 }
 
 
 /* =========================================================
-   HEADER
+   PAGE HEADER
 ========================================================= */
 
-.sales-page-header {
-
+.sales-page .page-header {
     display: flex;
-
-    align-items: flex-end;
-
+    align-items: flex-start;
     justify-content: space-between;
-
-    gap: 30px;
-
-    margin-bottom: 24px;
-
-    padding: 28px;
-
-    background: var(--sales-white);
-
-    border:
-        1px solid var(--sales-border);
-
-    border-radius: 22px;
-
-    box-shadow: var(--sales-shadow);
-
+    gap: 24px;
+    margin-bottom: 22px;
+    padding: 0;
 }
 
-
-.sales-header-left {
-
-    min-width: 0;
-
-}
-
-
-.sales-eyebrow {
-
-    display: inline-flex;
-
+.sales-page .page-title-row {
+    display: flex;
     align-items: center;
-
-    gap: 9px;
-
-    margin-bottom: 10px;
-
-    color: var(--sales-yellow-dark);
-
-    font-size: 11px;
-
-    font-weight: 800;
-
-    letter-spacing: .14em;
-
-    text-transform: uppercase;
-
+    gap: 15px;
+    min-width: 0;
 }
 
+.sales-page .page-title-icon {
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 50px;
 
-.sales-eyebrow-dot {
-
-    width: 8px;
-
-    height: 8px;
-
-    flex-shrink: 0;
-
-    border-radius: 50%;
+    border-radius: 14px;
 
     background:
-        var(--sales-yellow);
+        linear-gradient(
+            135deg,
+            #fffbea 0%,
+            #fef3c7 100%
+        );
+
+    border: 1px solid var(--sales-yellow-border);
+
+    color: var(--sales-yellow-deep);
 
     box-shadow:
-        0 0 0 5px
-        var(--sales-yellow-light);
+        inset 0 1px 0 rgba(255, 255, 255, 0.8),
+        var(--sales-shadow-sm);
 
+    font-size: 20px;
 }
 
+.sales-page .page-title-row h1 {
+    margin: 0 0 4px;
 
-.sales-page-header h1 {
+    color: var(--sales-text);
 
-    margin: 0;
-
-    color: var(--sales-black);
-
-    font-size:
-        clamp(26px, 3vw, 36px);
-
-    line-height: 1.15;
-
+    font-size: 26px;
+    line-height: 1.2;
     font-weight: 800;
 
-    letter-spacing: -.035em;
-
+    letter-spacing: -0.025em;
 }
 
+.sales-page .page-title-row p {
+    margin: 0;
 
-.sales-page-header p {
+    color: var(--sales-muted);
 
-    max-width: 680px;
-
-    margin: 10px 0 0;
-
-    color: var(--sales-gray);
-
-    font-size: 14px;
-
-    line-height: 1.7;
-
+    font-size: 13px;
+    line-height: 1.5;
 }
 
-
-.sales-header-actions {
-
+.sales-page .page-header-actions {
     display: flex;
-
     align-items: center;
-
+    justify-content: flex-end;
     gap: 10px;
-
     flex-shrink: 0;
-
 }
 
 
@@ -179,117 +142,136 @@
    BUTTONS
 ========================================================= */
 
-.sales-btn {
+.sales-page .btn {
+    min-height: 42px;
 
     display: inline-flex;
-
     align-items: center;
-
     justify-content: center;
-
     gap: 9px;
-
-    min-height: 42px;
 
     padding: 0 16px;
 
-    border-radius: 11px;
+    border-radius: 10px;
+    border: 1px solid transparent;
 
+    font-family: inherit;
     font-size: 13px;
-
     font-weight: 700;
+    line-height: 1;
 
     cursor: pointer;
 
     transition:
-        transform .2s ease,
-        box-shadow .2s ease,
-        background .2s ease;
-
+        background-color 0.18s ease,
+        border-color 0.18s ease,
+        color 0.18s ease,
+        box-shadow 0.18s ease,
+        transform 0.18s ease;
 }
 
+.sales-page .btn i {
+    font-size: 13px;
+}
 
-.sales-btn:hover {
-
+.sales-page .btn:hover {
     transform: translateY(-1px);
-
 }
 
-
-.sales-btn:active {
-
+.sales-page .btn:active {
     transform: translateY(0);
-
 }
 
-
-.sales-btn-primary {
-
-    color: #111;
-
-    background:
-        var(--sales-yellow);
-
-    border:
-        1px solid var(--sales-yellow);
+.sales-page .btn:focus-visible {
+    outline: none;
 
     box-shadow:
-        0 5px 14px
-        rgba(245, 196, 0, .20);
-
+        0 0 0 3px rgba(250, 204, 21, 0.24);
 }
 
+.sales-page .btn-primary {
+    color: #111827;
 
-.sales-btn-primary:hover {
+    background: var(--sales-yellow);
 
-    background: #ffd21a;
+    border-color: var(--sales-yellow);
 
     box-shadow:
-        0 8px 20px
-        rgba(245, 196, 0, .28);
-
+        0 2px 5px rgba(202, 138, 4, 0.15);
 }
 
+.sales-page .btn-primary:hover {
+    background: #eab308;
+    border-color: #eab308;
 
-.sales-btn-secondary {
-
-    color: var(--sales-dark);
-
-    background:
-        var(--sales-white);
-
-    border:
-        1px solid var(--sales-border);
-
+    box-shadow:
+        0 5px 14px rgba(202, 138, 4, 0.18);
 }
 
+.sales-page .btn-secondary {
+    color: var(--sales-text-secondary);
 
-.sales-btn-secondary:hover {
+    background: var(--sales-white);
 
-    background: #fafafa;
+    border-color: var(--sales-border);
 
-    border-color: #d1d5db;
-
+    box-shadow: var(--sales-shadow-sm);
 }
 
+.sales-page .btn-secondary:hover {
+    color: var(--sales-text);
 
-.sales-btn:disabled {
+    background: #f8fafc;
 
-    opacity: .55;
+    border-color: #cbd5e1;
+}
 
+.sales-page .btn:disabled {
+    opacity: 0.6;
     cursor: not-allowed;
-
     transform: none;
-
 }
 
 
 /* =========================================================
-   KPI GRID
+   ERROR MESSAGE
 ========================================================= */
 
-.sales-kpi-grid {
+.sales-page .sales-error {
+    margin-bottom: 18px;
+}
 
+.sales-page .error-message {
+    min-height: 48px;
+
+    display: flex;
+    align-items: center;
+    gap: 11px;
+
+    padding: 12px 15px;
+
+    border: 1px solid var(--sales-danger-border);
+    border-radius: 10px;
+
+    color: #991b1b;
+
+    background: var(--sales-danger-soft);
+
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.sales-page .error-message i {
+    color: var(--sales-danger);
+    font-size: 16px;
+}
+
+
+/* =========================================================
+   KPI / STATISTICS
+========================================================= */
+
+.sales-page .stats-grid {
     display: grid;
 
     grid-template-columns:
@@ -297,979 +279,636 @@
 
     gap: 16px;
 
-    margin-bottom: 16px;
-
+    margin-bottom: 18px;
 }
 
-
-.sales-kpi-card {
-
+.sales-page .stat-card {
     position: relative;
+
+    display: flex;
+    align-items: center;
+    gap: 15px;
 
     min-width: 0;
 
-    padding: 21px;
-
-    background:
-        var(--sales-white);
-
-    border:
-        1px solid var(--sales-border);
-
-    border-radius:
-        var(--sales-radius);
-
-    box-shadow:
-        var(--sales-shadow);
+    padding: 20px;
 
     overflow: hidden;
 
+    background: var(--sales-surface);
+
+    border: 1px solid var(--sales-border);
+
+    border-radius: var(--sales-radius-lg);
+
+    box-shadow: var(--sales-shadow-sm);
+
     transition:
-        transform .2s ease,
-        box-shadow .2s ease;
-
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
 }
 
-
-.sales-kpi-card:hover {
-
-    transform: translateY(-2px);
-
-    box-shadow:
-        var(--sales-shadow-hover);
-
-}
-
-
-.sales-kpi-card::after {
-
+.sales-page .stat-card::before {
     content: "";
 
     position: absolute;
 
-    right: -35px;
+    top: 0;
+    left: 0;
+    right: 0;
 
-    bottom: -45px;
-
-    width: 105px;
-
-    height: 105px;
-
-    border-radius: 50%;
+    height: 3px;
 
     background:
-        var(--sales-yellow-light);
-
-    opacity: .75;
-
+        linear-gradient(
+            90deg,
+            var(--sales-yellow),
+            #fde68a
+        );
 }
 
-
-.sales-kpi-top {
-
-    position: relative;
-
-    z-index: 2;
-
-    display: flex;
-
-    align-items: center;
-
-    justify-content: space-between;
-
-    gap: 10px;
-
-    margin-bottom: 18px;
-
-}
-
-
-.sales-kpi-icon {
-
-    display: flex;
-
-    align-items: center;
-
-    justify-content: center;
-
-    width: 42px;
-
-    height: 42px;
-
-    border-radius: 12px;
-
-    color: #111;
-
-    background:
-        var(--sales-yellow-light);
-
-    font-size: 19px;
-
-    font-weight: 800;
-
-}
-
-
-.sales-kpi-label {
-
-    color: var(--sales-gray);
-
-    font-size: 11px;
-
-    font-weight: 800;
-
-    text-transform: uppercase;
-
-    letter-spacing: .055em;
-
-    text-align: right;
-
-}
-
-
-.sales-kpi-value {
-
-    position: relative;
-
-    z-index: 2;
-
-    display: block;
-
-    color: var(--sales-black);
-
-    font-size:
-        clamp(21px, 2.2vw, 28px);
-
-    line-height: 1.2;
-
-    font-weight: 800;
-
-    letter-spacing: -.035em;
-
-    white-space: nowrap;
-
-    overflow: hidden;
-
-    text-overflow: ellipsis;
-
-}
-
-
-.sales-kpi-description {
-
-    position: relative;
-
-    z-index: 2;
-
-    display: block;
-
-    margin-top: 8px;
-
-    color: var(--sales-muted);
-
-    font-size: 11px;
-
-}
-
-
-/* =========================================================
-   INSIGHT STRIP
-========================================================= */
-
-.sales-insight-strip {
-
-    display: grid;
-
-    grid-template-columns:
-        repeat(4, minmax(0, 1fr));
-
-    margin-bottom: 22px;
-
-    background:
-        var(--sales-white);
-
-    border:
-        1px solid var(--sales-border);
-
-    border-radius: 16px;
-
-    overflow: hidden;
-
-    box-shadow:
-        0 4px 20px
-        rgba(17, 24, 39, .035);
-
-}
-
-
-.sales-insight-item {
-
-    display: flex;
-
-    flex-direction: column;
-
-    gap: 5px;
-
-    padding: 16px 20px;
-
-    border-right:
-        1px solid
-        var(--sales-border-light);
-
-}
-
-
-.sales-insight-item:last-child {
-
-    border-right: 0;
-
-}
-
-
-.sales-insight-label {
-
-    color: var(--sales-muted);
-
-    font-size: 10px;
-
-    font-weight: 800;
-
-    text-transform: uppercase;
-
-    letter-spacing: .06em;
-
-}
-
-
-.sales-insight-value {
-
-    color: var(--sales-dark);
-
-    font-size: 14px;
-
-    font-weight: 800;
-
-}
-
-
-/* =========================================================
-   MAIN CARD
-========================================================= */
-
-.sales-main-card {
-
-    background:
-        var(--sales-white);
-
-    border:
-        1px solid var(--sales-border);
-
-    border-radius: 20px;
-
-    box-shadow:
-        var(--sales-shadow);
-
-    overflow: hidden;
-
-}
-
-
-/* =========================================================
-   SECTION HEADER
-========================================================= */
-
-.sales-section-header {
-
-    display: flex;
-
-    align-items: center;
-
-    justify-content: space-between;
-
-    gap: 20px;
-
-    padding: 22px 24px;
-
-    border-bottom:
-        1px solid
-        var(--sales-border-light);
-
-}
-
-
-.sales-section-title {
-
-    display: flex;
-
-    align-items: center;
-
-    gap: 12px;
-
-}
-
-
-.sales-section-title-icon {
-
-    display: flex;
-
-    align-items: center;
-
-    justify-content: center;
-
-    width: 40px;
-
-    height: 40px;
-
-    border-radius: 11px;
-
-    color: #111;
-
-    background:
-        var(--sales-yellow-light);
-
-    font-size: 17px;
-
-}
-
-
-.sales-section-title h2 {
-
-    margin: 0;
-
-    color: var(--sales-black);
-
-    font-size: 18px;
-
-    font-weight: 800;
-
-    letter-spacing: -.02em;
-
-}
-
-
-.sales-section-title p {
-
-    margin: 4px 0 0;
-
-    color: var(--sales-gray);
-
-    font-size: 11px;
-
-}
-
-
-.sales-record-badge {
-
-    display: inline-flex;
-
-    align-items: center;
-
-    padding: 7px 11px;
-
-    border-radius: 999px;
-
-    color: var(--sales-dark);
-
-    background: #f3f4f6;
-
-    font-size: 11px;
-
-    font-weight: 800;
-
-}
-
-
-/* =========================================================
-   FILTER BAR
-========================================================= */
-
-.sales-filter-bar {
-
-    display: flex;
-
-    align-items: flex-end;
-
-    gap: 12px;
-
-    padding: 18px 24px;
-
-    background: #fafafa;
-
-    border-bottom:
-        1px solid
-        var(--sales-border-light);
-
-}
-
-
-.sales-filter-field {
-
-    display: flex;
-
-    flex-direction: column;
-
-    gap: 7px;
-
-    min-width: 155px;
-
-}
-
-
-.sales-filter-field.search {
-
-    flex: 1;
-
-    min-width: 220px;
-
-}
-
-
-.sales-filter-field label {
-
-    color: var(--sales-gray);
-
-    font-size: 10px;
-
-    font-weight: 800;
-
-    text-transform: uppercase;
-
-    letter-spacing: .055em;
-
-}
-
-
-.sales-filter-field select,
-.sales-filter-field input {
-
-    width: 100%;
-
-    height: 42px;
-
-    padding: 0 12px;
-
-    color: var(--sales-dark);
-
-    background:
-        var(--sales-white);
-
-    border:
-        1px solid
-        var(--sales-border);
-
-    border-radius: 10px;
-
-    outline: none;
-
-    font-size: 12px;
-
-    transition:
-        border-color .2s ease,
-        box-shadow .2s ease;
-
-}
-
-
-.sales-filter-field select:focus,
-.sales-filter-field input:focus {
-
-    border-color:
-        var(--sales-yellow-dark);
-
-    box-shadow:
-        0 0 0 3px
-        var(--sales-yellow-light);
-
-}
-
-
-.sales-search {
-
-    position: relative;
-
-}
-
-
-.sales-search-icon {
+.sales-page .stat-card::after {
+    content: "";
 
     position: absolute;
 
-    left: 13px;
+    width: 90px;
+    height: 90px;
 
-    top: 50%;
+    right: -45px;
+    bottom: -45px;
 
-    transform:
-        translateY(-50%);
+    border-radius: 50%;
 
-    color: var(--sales-muted);
-
-    font-size: 16px;
+    background: var(--sales-yellow-soft);
 
     pointer-events: none;
-
 }
 
+.sales-page .stat-card:hover {
+    transform: translateY(-2px);
 
-.sales-search input {
+    border-color: #dfe3e8;
 
-    padding-left: 38px;
-
+    box-shadow: var(--sales-shadow-md);
 }
 
-
-.sales-clear-btn {
-
-    height: 42px;
-
-    padding: 0 14px;
-
-    border:
-        1px solid
-        var(--sales-border);
-
-    border-radius: 10px;
-
-    color: var(--sales-gray);
-
-    background:
-        var(--sales-white);
-
-    font-size: 11px;
-
-    font-weight: 800;
-
-    cursor: pointer;
-
-}
-
-
-.sales-clear-btn:hover {
-
-    color: var(--sales-dark);
-
-    border-color: #d1d5db;
-
-}
-
-
-/* =========================================================
-   TABLE
-========================================================= */
-
-.sales-table-container {
-
-    width: 100%;
-
-    overflow-x: auto;
-
-}
-
-
-.sales-table {
-
-    width: 100%;
-
-    min-width: 1050px;
-
-    border-collapse:
-        separate;
-
-    border-spacing: 0;
-
-}
-
-
-.sales-table thead th {
-
-    position: sticky;
-
-    top: 0;
-
-    z-index: 3;
-
-    padding: 13px 18px;
-
-    color: #6b7280;
-
-    background: #fafafa;
-
-    border-bottom:
-        1px solid
-        var(--sales-border);
-
-    font-size: 9px;
-
-    font-weight: 800;
-
-    text-transform: uppercase;
-
-    letter-spacing: .065em;
-
-    text-align: left;
-
-    white-space: nowrap;
-
-}
-
-
-.sales-table tbody td {
-
-    padding: 16px 18px;
-
-    color: var(--sales-dark);
-
-    background:
-        var(--sales-white);
-
-    border-bottom:
-        1px solid
-        var(--sales-border-light);
-
-    font-size: 12px;
-
-    vertical-align: middle;
-
-}
-
-
-.sales-table tbody tr {
-
-    transition:
-        background .15s ease;
-
-}
-
-
-.sales-table tbody tr:hover td {
-
-    background:
-        #fffdf2;
-
-}
-
-
-.sales-table tbody tr:last-child td {
-
-    border-bottom: 0;
-
-}
-
-
-/* =========================================================
-   SORT
-========================================================= */
-
-.sales-sortable {
-
-    cursor: pointer;
-
-    user-select: none;
-
-}
-
-
-.sales-sortable:hover {
-
-    color: var(--sales-dark);
-
-}
-
-
-.sales-sort-icon {
-
-    margin-left: 4px;
-
-    color: #9ca3af;
-
-    font-size: 9px;
-
-}
-
-
-/* =========================================================
-   STATION
-========================================================= */
-
-.sales-station {
+.sales-page .stat-icon {
+    position: relative;
+    z-index: 1;
+
+    width: 48px;
+    height: 48px;
 
     display: flex;
-
     align-items: center;
-
-    gap: 10px;
-
-    min-width: 190px;
-
-}
-
-
-.sales-station-avatar {
-
-    display: flex;
-
-    align-items: center;
-
     justify-content: center;
 
-    width: 36px;
+    flex: 0 0 48px;
 
-    height: 36px;
+    border-radius: 13px;
 
-    flex-shrink: 0;
+    background: var(--sales-yellow-soft);
 
-    border-radius: 10px;
+    border: 1px solid var(--sales-yellow-border);
 
-    color: #111;
+    color: var(--sales-yellow-deep);
 
-    background:
-        var(--sales-yellow-light);
-
-    font-size: 11px;
-
-    font-weight: 900;
-
+    font-size: 18px;
 }
 
-
-.sales-station-info {
+.sales-page .stat-content {
+    position: relative;
+    z-index: 1;
 
     min-width: 0;
-
 }
 
-
-.sales-station-name {
-
-    display: block;
-
-    max-width: 170px;
-
-    color: var(--sales-dark);
-
-    font-size: 12px;
-
-    font-weight: 800;
-
-    white-space: nowrap;
-
-    overflow: hidden;
-
-    text-overflow: ellipsis;
-
-}
-
-
-.sales-station-subtitle {
-
-    display: block;
-
-    margin-top: 3px;
+.sales-page .stat-label {
+    margin-bottom: 5px;
 
     color: var(--sales-muted);
-
-    font-size: 9px;
-
-}
-
-
-/* =========================================================
-   SHIFT
-========================================================= */
-
-.sales-shift {
-
-    display: inline-flex;
-
-    align-items: center;
-
-    padding: 7px 10px;
-
-    border-radius: 8px;
-
-    color: var(--sales-dark);
-
-    background: #f5f6f7;
-
-    font-size: 10px;
-
-    font-weight: 800;
-
-}
-
-
-/* =========================================================
-   PUMP / NOZZLE
-========================================================= */
-
-.sales-pump {
-
-    display: flex;
-
-    flex-direction: column;
-
-    gap: 3px;
-
-}
-
-
-.sales-pump-name {
-
-    color: var(--sales-dark);
-
-    font-size: 12px;
-
-    font-weight: 800;
-
-}
-
-
-.sales-nozzle-name {
-
-    color: var(--sales-muted);
-
-    font-size: 10px;
-
-}
-
-
-/* =========================================================
-   METER
-========================================================= */
-
-.sales-meter {
-
-    display: inline-flex;
-
-    align-items: center;
-
-    gap: 7px;
-
-    color: var(--sales-dark);
 
     font-size: 11px;
-
     font-weight: 700;
 
-    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
 
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
+.sales-page .stat-value {
+    color: var(--sales-text);
 
-.sales-meter-arrow {
+    font-size: 22px;
+    line-height: 1.15;
+    font-weight: 800;
 
-    color: var(--sales-muted);
+    letter-spacing: -0.025em;
 
-    font-size: 12px;
+    font-variant-numeric: tabular-nums;
 
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 
 /* =========================================================
-   VOLUME
+   CARDS
 ========================================================= */
 
-.sales-volume {
+.sales-page .card {
+    background: var(--sales-white);
 
-    color: var(--sales-dark);
+    border: 1px solid var(--sales-border);
+
+    border-radius: var(--sales-radius-lg);
+
+    box-shadow: var(--sales-shadow-sm);
+
+    overflow: hidden;
+}
+
+.sales-page .card + .card {
+    margin-top: 18px;
+}
+
+
+/* =========================================================
+   FILTER CARD
+========================================================= */
+
+.sales-page .sales-filters-card {
+    margin-bottom: 18px;
+}
+
+.sales-page .sales-filters-card .card-header {
+    min-height: 62px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 16px 21px;
+
+    background:
+        linear-gradient(
+            180deg,
+            #ffffff 0%,
+            #fcfcfb 100%
+        );
+
+    border-bottom: 1px solid var(--sales-border-light);
+}
+
+.sales-page .sales-filters-card .card-header h3,
+.sales-page .sales-filters-card .card-header h4 {
+    margin: 0;
+
+    color: var(--sales-text);
+
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.sales-page .filters-grid {
+    display: grid;
+
+    grid-template-columns:
+        minmax(220px, 2fr)
+        repeat(5, minmax(130px, 1fr));
+
+    gap: 14px;
+
+    padding: 18px 21px 21px;
+}
+
+.sales-page .form-group {
+    min-width: 0;
+}
+
+.sales-page .form-group label {
+    display: block;
+
+    margin: 0 0 7px;
+
+    color: #475569;
+
+    font-size: 11px;
+    line-height: 1.2;
+    font-weight: 700;
+
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+}
+
+.sales-page .form-control {
+    width: 100%;
+    min-height: 42px;
+
+    padding: 0 12px;
+
+    color: var(--sales-text);
+
+    background: #ffffff;
+
+    border: 1px solid #d8dee7;
+
+    border-radius: 9px;
+
+    font-family: inherit;
+    font-size: 13px;
+
+    outline: none;
+
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        background-color 0.18s ease;
+}
+
+.sales-page .form-control:hover {
+    border-color: #c4ccd7;
+}
+
+.sales-page .form-control:focus {
+    border-color: var(--sales-yellow-dark);
+
+    background: #ffffff;
+
+    box-shadow:
+        0 0 0 3px rgba(250, 204, 21, 0.18);
+}
+
+.sales-page .form-control::placeholder {
+    color: #a1aab8;
+}
+
+.sales-page select.form-control {
+    cursor: pointer;
+    appearance: auto;
+}
+
+.sales-page input[type="date"].form-control {
+    cursor: pointer;
+}
+
+.sales-page .input-with-icon {
+    position: relative;
+}
+
+.sales-page .input-with-icon i {
+    position: absolute;
+
+    top: 50%;
+    left: 13px;
+
+    z-index: 2;
+
+    color: #94a3b8;
 
     font-size: 13px;
 
-    font-weight: 900;
+    pointer-events: none;
 
+    transform: translateY(-50%);
 }
 
-
-.sales-volume-unit {
-
-    margin-left: 2px;
-
-    color: var(--sales-muted);
-
-    font-size: 9px;
-
-    font-weight: 700;
-
+.sales-page .input-with-icon .form-control {
+    padding-left: 37px;
 }
 
 
 /* =========================================================
-   MONEY
+   TABLE CONTAINER
 ========================================================= */
 
-.sales-money {
+.sales-page .card:has(.sales-table) {
+    overflow: hidden;
+}
 
-    color: var(--sales-dark);
+.sales-page .table-responsive {
+    width: 100%;
+
+    overflow-x: auto;
+    overflow-y: auto;
+
+    max-height: calc(100vh - 390px);
+
+    min-height: 260px;
+
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.sales-page .table-responsive::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+}
+
+.sales-page .table-responsive::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sales-page .table-responsive::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+.sales-page .table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+
+/* =========================================================
+   SALES TABLE
+========================================================= */
+
+.sales-page .data-table.sales-table {
+    width: 100%;
+
+    min-width: 1220px;
+
+    border-collapse: separate;
+    border-spacing: 0;
+
+    background: #ffffff;
+
+    font-size: 12.5px;
+}
+
+.sales-page .sales-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+
+    height: 48px;
+
+    padding: 0 14px;
+
+    color: #475569;
+
+    background:
+        linear-gradient(
+            180deg,
+            #fafafa 0%,
+            #f4f6f8 100%
+        );
+
+    border-bottom: 1px solid #dfe4ea;
+
+    font-size: 10.5px;
+    line-height: 1.2;
+    font-weight: 800;
+
+    text-transform: uppercase;
+    letter-spacing: 0.055em;
+
+    white-space: nowrap;
+
+    text-align: left;
+
+    box-shadow:
+        0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+.sales-page .sales-table tbody td {
+    height: 57px;
+
+    padding: 10px 14px;
+
+    color: var(--sales-text-secondary);
+
+    background: #ffffff;
+
+    border-bottom: 1px solid #eef1f4;
+
+    vertical-align: middle;
+
+    white-space: nowrap;
+
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease;
+}
+
+.sales-page .sales-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.sales-page .sales-table tbody tr:hover td {
+    background: #fffdf2;
+
+    border-bottom-color: #f8edbd;
+}
+
+
+/* =========================================================
+   TABLE ALIGNMENT
+========================================================= */
+
+.sales-page .sales-table th:nth-child(6),
+.sales-page .sales-table th:nth-child(7),
+.sales-page .sales-table th:nth-child(8),
+.sales-page .sales-table td:nth-child(6),
+.sales-page .sales-table td:nth-child(7),
+.sales-page .sales-table td:nth-child(8) {
+    text-align: right;
+}
+
+.sales-page .sales-table th:nth-child(9),
+.sales-page .sales-table td:nth-child(9) {
+    text-align: center;
+}
+
+.sales-page .sales-table th:nth-child(11),
+.sales-page .sales-table td:nth-child(11) {
+    min-width: 155px;
+}
+
+
+/* =========================================================
+   TABLE CONTENT
+========================================================= */
+
+.sales-page .record-id {
+    display: inline-flex;
+    align-items: center;
+
+    min-height: 25px;
+
+    padding: 0 8px;
+
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+
+    color: #475569;
+
+    background: #f8fafc;
+
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        monospace;
+
+    font-size: 10.5px;
+    font-weight: 700;
+
+    letter-spacing: -0.01em;
+}
+
+.sales-page .table-primary {
+    color: var(--sales-text);
+
+    font-weight: 700;
+}
+
+.sales-page .table-secondary {
+    color: var(--sales-muted);
+
+    font-size: 11.5px;
+}
+
+.sales-page .amount-value {
+    color: #111827;
 
     font-weight: 800;
 
+    font-variant-numeric: tabular-nums;
 }
 
+.sales-page .sales-table td:nth-child(6),
+.sales-page .sales-table td:nth-child(7) {
+    color: #334155;
 
-.sales-money-primary {
+    font-weight: 600;
 
-    color: #111;
-
-    font-size: 12px;
-
-    font-weight: 900;
-
+    font-variant-numeric: tabular-nums;
 }
 
 
 /* =========================================================
-   STATUS
+   PAYMENT BADGES
 ========================================================= */
 
-.sales-status {
-
+.sales-page .payment-badge {
     display: inline-flex;
-
     align-items: center;
+    justify-content: center;
 
-    gap: 7px;
+    min-width: 72px;
+    min-height: 27px;
 
-    padding: 7px 10px;
+    padding: 4px 9px;
 
     border-radius: 999px;
 
-    font-size: 9px;
+    border: 1px solid #e2e8f0;
 
+    color: #475569;
+
+    background: #f8fafc;
+
+    font-size: 10.5px;
     font-weight: 800;
 
+    letter-spacing: 0.02em;
+
+    white-space: nowrap;
+}
+
+.sales-page .payment-badge[data-payment="cash"] {
+    color: #166534;
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.sales-page .payment-badge[data-payment="pos"] {
+    color: #1d4ed8;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.sales-page .payment-badge[data-payment="transfer"],
+.sales-page .payment-badge[data-payment="bank_transfer"] {
+    color: #6d28d9;
+    background: #f5f3ff;
+    border-color: #ddd6fe;
+}
+
+.sales-page .payment-badge[data-payment="card"] {
+    color: #0369a1;
+    background: #f0f9ff;
+    border-color: #bae6fd;
 }
 
 
-.sales-status-dot {
+/* =========================================================
+   STATUS BADGES
+========================================================= */
+
+.sales-page .status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+
+    min-height: 26px;
+
+    padding: 4px 9px;
+
+    border-radius: 999px;
+
+    font-size: 10px;
+    font-weight: 800;
+
+    text-transform: uppercase;
+    letter-spacing: 0.045em;
+
+    white-space: nowrap;
+}
+
+.sales-page .status-badge::before {
+    content: "";
 
     width: 6px;
-
     height: 6px;
 
     border-radius: 50%;
 
-    background:
-        currentColor;
-
+    background: currentColor;
 }
 
+.sales-page .status-active {
+    color: #15803d;
 
-.sales-status-active {
+    background: var(--sales-success-soft);
 
-    color:
-        var(--sales-green);
-
-    background:
-        var(--sales-green-bg);
-
+    border: 1px solid var(--sales-success-border);
 }
 
+.sales-page .status-closed {
+    color: #475569;
 
-.sales-status-closed {
+    background: #f8fafc;
 
-    color: #6b7280;
+    border: 1px solid #e2e8f0;
+}
 
-    background: #f3f4f6;
+.sales-page .status-recorded {
+    color: #a16207;
 
+    background: #fffbea;
+
+    border: 1px solid #fde68a;
 }
 
 
@@ -1277,76 +916,92 @@
    EMPTY STATE
 ========================================================= */
 
-.sales-empty {
+.sales-page .empty-state {
+    min-height: 280px;
 
     display: flex;
-
-    flex-direction: column;
-
     align-items: center;
-
     justify-content: center;
 
-    min-height: 300px;
+    padding: 45px 20px;
 
-    padding: 45px 25px;
+    background: #ffffff;
+}
+
+.sales-page .empty-state-content {
+    max-width: 400px;
 
     text-align: center;
-
 }
 
-
-.sales-empty-icon {
+.sales-page .empty-state-icon {
+    width: 62px;
+    height: 62px;
 
     display: flex;
-
     align-items: center;
-
     justify-content: center;
 
-    width: 64px;
+    margin: 0 auto 16px;
 
-    height: 64px;
+    border-radius: 16px;
 
-    margin-bottom: 17px;
+    color: #a16207;
 
-    border-radius: 18px;
+    background: var(--sales-yellow-soft);
 
-    color: #111;
+    border: 1px solid var(--sales-yellow-border);
 
-    background:
-        var(--sales-yellow-light);
-
-    font-size: 26px;
-
+    font-size: 23px;
 }
 
+.sales-page .empty-state h3 {
+    margin: 0 0 7px;
 
-.sales-empty h3 {
+    color: var(--sales-text);
 
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.sales-page .empty-state p {
     margin: 0;
 
-    color: var(--sales-dark);
+    color: var(--sales-muted);
 
-    font-size: 17px;
-
-    font-weight: 800;
-
+    font-size: 12.5px;
+    line-height: 1.6;
 }
 
 
-.sales-empty p {
+/* =========================================================
+   LOADING STATE
+========================================================= */
 
-    max-width: 450px;
+.sales-page .table-loading {
+    height: 220px;
 
-    margin: 8px 0 20px;
+    text-align: center;
+    vertical-align: middle;
 
-    color: var(--sales-gray);
+    color: var(--sales-muted);
+}
+
+.sales-page .table-loading i {
+    display: block;
+
+    margin-bottom: 10px;
+
+    color: var(--sales-yellow-dark);
+
+    font-size: 22px;
+}
+
+.sales-page .table-loading span {
+    display: block;
 
     font-size: 12px;
-
-    line-height: 1.6;
-
+    font-weight: 600;
 }
 
 
@@ -1354,375 +1009,116 @@
    PAGINATION
 ========================================================= */
 
-.sales-pagination {
-
+.sales-page .pagination-container {
     display: flex;
-
     align-items: center;
-
     justify-content: space-between;
-
     gap: 15px;
 
-    padding: 17px 24px;
+    min-height: 64px;
 
-    border-top:
-        1px solid
-        var(--sales-border-light);
+    padding: 12px 18px;
 
     background:
-        var(--sales-white);
+        linear-gradient(
+            180deg,
+            #ffffff 0%,
+            #fafbfc 100%
+        );
 
+    border-top: 1px solid var(--sales-border-light);
 }
 
+.sales-page .pagination-info {
+    color: var(--sales-muted);
 
-.sales-pagination-info {
-
-    color: var(--sales-gray);
-
-    font-size: 10px;
-
+    font-size: 11.5px;
     font-weight: 600;
 
+    white-space: nowrap;
 }
 
-
-.sales-pagination-controls {
-
+.sales-page .pagination-buttons {
     display: flex;
-
     align-items: center;
-
     gap: 5px;
-
 }
 
-
-.sales-page-btn {
+.sales-page .pagination-btn {
+    min-width: 34px;
+    height: 34px;
 
     display: inline-flex;
-
     align-items: center;
-
     justify-content: center;
-
-    min-width: 34px;
-
-    height: 34px;
 
     padding: 0 9px;
 
-    border:
-        1px solid
-        var(--sales-border);
+    color: #475569;
 
+    background: #ffffff;
+
+    border: 1px solid #dfe4ea;
     border-radius: 8px;
 
-    color: var(--sales-gray);
-
-    background:
-        var(--sales-white);
-
-    font-size: 10px;
-
+    font-family: inherit;
+    font-size: 11px;
     font-weight: 700;
 
     cursor: pointer;
 
+    transition:
+        background-color 0.16s ease,
+        border-color 0.16s ease,
+        color 0.16s ease,
+        transform 0.16s ease;
 }
 
+.sales-page .pagination-btn:hover:not(:disabled) {
+    color: #111827;
 
-.sales-page-btn:hover {
+    background: #fffbea;
 
-    color: var(--sales-dark);
+    border-color: #f3d36a;
 
-    border-color: #d1d5db;
-
+    transform: translateY(-1px);
 }
 
+.sales-page .pagination-btn.active {
+    color: #111827;
 
-.sales-page-btn.active {
+    background: var(--sales-yellow);
 
-    color: #111;
+    border-color: var(--sales-yellow);
 
-    background:
-        var(--sales-yellow);
-
-    border-color:
-        var(--sales-yellow);
-
-    font-weight: 900;
-
+    box-shadow:
+        0 2px 5px rgba(202, 138, 4, 0.15);
 }
 
-
-.sales-page-btn:disabled {
-
-    opacity: .45;
+.sales-page .pagination-btn:disabled {
+    opacity: 0.45;
 
     cursor: not-allowed;
+}
 
+.sales-page .pagination-btn:focus-visible {
+    outline: none;
+
+    box-shadow:
+        0 0 0 3px rgba(250, 204, 21, 0.2);
 }
 
 
 /* =========================================================
-   REFRESH
+   NUMERIC DATA
 ========================================================= */
 
-.sales-refresh-spin {
-
-    display: inline-block;
-
-    animation:
-        salesSpin .7s linear infinite;
-
-}
-
-
-@keyframes salesSpin {
-
-    from {
-        transform: rotate(0deg);
-    }
-
-    to {
-        transform: rotate(360deg);
-    }
-
-}
-
-
-/* =========================================================
-   HIDDEN
-========================================================= */
-
-.hidden {
-
-    display: none !important;
-
-}
-
-
-/* =========================================================
-   RESPONSIVE
-========================================================= */
-
-@media (max-width: 1200px) {
-
-    .sales-kpi-grid {
-
-        grid-template-columns:
-            repeat(2, minmax(0, 1fr));
-
-    }
-
-
-    .sales-insight-strip {
-
-        grid-template-columns:
-            repeat(2, minmax(0, 1fr));
-
-    }
-
-
-    .sales-insight-item:nth-child(2) {
-
-        border-right: 0;
-
-    }
-
-
-    .sales-insight-item:nth-child(-n + 2) {
-
-        border-bottom:
-            1px solid
-            var(--sales-border-light);
-
-    }
-
-}
-
-
-@media (max-width: 900px) {
-
-    .sales-page-header {
-
-        flex-direction: column;
-
-        align-items: flex-start;
-
-    }
-
-
-    .sales-header-actions {
-
-        width: 100%;
-
-    }
-
-
-    .sales-header-actions .sales-btn {
-
-        flex: 1;
-
-    }
-
-
-    .sales-filter-bar {
-
-        display: grid;
-
-        grid-template-columns:
-            repeat(2, minmax(0, 1fr));
-
-    }
-
-
-    .sales-filter-field.search {
-
-        min-width: 0;
-
-    }
-
-}
-
-
-@media (max-width: 640px) {
-
-    .sales-page {
-
-        padding-bottom: 25px;
-
-    }
-
-
-    .sales-page-header {
-
-        padding: 20px;
-
-        margin-bottom: 16px;
-
-        border-radius: 16px;
-
-    }
-
-
-    .sales-page-header h1 {
-
-        font-size: 25px;
-
-    }
-
-
-    .sales-page-header p {
-
-        font-size: 12px;
-
-    }
-
-
-    .sales-header-actions {
-
-        flex-direction: column;
-
-    }
-
-
-    .sales-header-actions .sales-btn {
-
-        width: 100%;
-
-    }
-
-
-    .sales-kpi-grid {
-
-        grid-template-columns: 1fr;
-
-        gap: 10px;
-
-    }
-
-
-    .sales-kpi-card {
-
-        padding: 18px;
-
-    }
-
-
-    .sales-insight-strip {
-
-        grid-template-columns: 1fr;
-
-    }
-
-
-    .sales-insight-item {
-
-        border-right: 0;
-
-        border-bottom:
-            1px solid
-            var(--sales-border-light);
-
-    }
-
-
-    .sales-insight-item:last-child {
-
-        border-bottom: 0;
-
-    }
-
-
-    .sales-section-header {
-
-        align-items: flex-start;
-
-        flex-direction: column;
-
-        padding: 18px;
-
-    }
-
-
-    .sales-filter-bar {
-
-        grid-template-columns: 1fr;
-
-        padding: 16px;
-
-    }
-
-
-    .sales-filter-field,
-    .sales-filter-field.search {
-
-        min-width: 0;
-
-    }
-
-
-    .sales-pagination {
-
-        align-items: flex-start;
-
-        flex-direction: column;
-
-        padding: 16px;
-
-    }
-
-
-    .sales-pagination-controls {
-
-        width: 100%;
-
-        overflow-x: auto;
-
-    }
-
+.sales-page .stat-value,
+.sales-page .amount-value,
+.sales-page .sales-table td:nth-child(6),
+.sales-page .sales-table td:nth-child(7),
+.sales-page .sales-table td:nth-child(8) {
+    font-variant-numeric: tabular-nums;
 }
 
 
@@ -1730,16 +1126,529 @@
    ACCESSIBILITY
 ========================================================= */
 
-.sales-btn:focus-visible,
-.sales-clear-btn:focus-visible,
-.sales-page-btn:focus-visible,
-.sales-filter-field select:focus-visible,
-.sales-filter-field input:focus-visible {
-
-    outline:
-        3px solid
-        rgba(245, 196, 0, .35);
-
+.sales-page button:focus-visible,
+.sales-page input:focus-visible,
+.sales-page select:focus-visible {
+    outline: 2px solid rgba(202, 138, 4, 0.45);
     outline-offset: 2px;
+}
+
+.sales-page ::selection {
+    color: #111827;
+    background: #fde68a;
+}
+
+
+/* =========================================================
+   LARGE DESKTOP
+========================================================= */
+
+@media (max-width: 1280px) {
+
+    .sales-page {
+        padding: 20px;
+    }
+
+    .sales-page .stats-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .sales-page .filters-grid {
+        grid-template-columns:
+            repeat(3, minmax(0, 1fr));
+    }
+
+    .sales-page .filters-grid .form-group:first-child {
+        grid-column: span 3;
+    }
+}
+
+
+/* =========================================================
+   TABLET
+========================================================= */
+
+@media (max-width: 960px) {
+
+    .sales-page {
+        padding: 18px;
+    }
+
+    .sales-page .page-header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 17px;
+    }
+
+    .sales-page .page-header-actions {
+        justify-content: flex-start;
+    }
+
+    .sales-page .filters-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .sales-page .filters-grid .form-group:first-child {
+        grid-column: span 2;
+    }
+
+    .sales-page .table-responsive {
+        max-height: none;
+    }
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 700px) {
+
+    .sales-page {
+        padding: 14px;
+    }
+
+    .sales-page .page-title-icon {
+        width: 44px;
+        height: 44px;
+        flex-basis: 44px;
+
+        border-radius: 12px;
+
+        font-size: 17px;
+    }
+
+    .sales-page .page-title-row h1 {
+        font-size: 22px;
+    }
+
+    .sales-page .page-title-row p {
+        font-size: 12px;
+    }
+
+    .sales-page .page-header-actions {
+        width: 100%;
+    }
+
+    .sales-page .page-header-actions .btn {
+        flex: 1;
+    }
+
+    .sales-page .stats-grid {
+        grid-template-columns: 1fr;
+
+        gap: 12px;
+    }
+
+    .sales-page .stat-card {
+        padding: 17px;
+    }
+
+    .sales-page .stat-value {
+        font-size: 20px;
+    }
+
+    .sales-page .filters-grid {
+        grid-template-columns: 1fr;
+
+        gap: 12px;
+
+        padding: 16px;
+    }
+
+    .sales-page .filters-grid .form-group:first-child {
+        grid-column: auto;
+    }
+
+    .sales-page .sales-filters-card .card-header {
+        padding: 15px 16px;
+    }
+
+    .sales-page .sales-table thead th {
+        height: 44px;
+
+        padding: 0 11px;
+
+        font-size: 9.5px;
+    }
+
+    .sales-page .sales-table tbody td {
+        height: 53px;
+
+        padding: 9px 11px;
+
+        font-size: 11.5px;
+    }
+
+    .sales-page .pagination-container {
+        align-items: flex-start;
+        flex-direction: column;
+
+        padding: 13px 15px;
+    }
+
+    .sales-page .pagination-buttons {
+        width: 100%;
+
+        justify-content: flex-start;
+
+        overflow-x: auto;
+
+        padding-bottom: 2px;
+    }
+}
+
+
+/* =========================================================
+   SMALL MOBILE
+========================================================= */
+
+@media (max-width: 480px) {
+
+    .sales-page {
+        padding: 10px;
+    }
+
+    .sales-page .page-title-row {
+        gap: 11px;
+    }
+
+    .sales-page .page-title-icon {
+        width: 40px;
+        height: 40px;
+        flex-basis: 40px;
+
+        font-size: 15px;
+    }
+
+    .sales-page .page-title-row h1 {
+        font-size: 20px;
+    }
+
+    .sales-page .page-title-row p {
+        font-size: 11px;
+    }
+
+    .sales-page .page-header-actions {
+        flex-direction: column;
+    }
+
+    .sales-page .page-header-actions .btn {
+        width: 100%;
+    }
+
+    .sales-page .stat-card {
+        gap: 12px;
+
+        padding: 15px;
+    }
+
+    .sales-page .stat-icon {
+        width: 42px;
+        height: 42px;
+        flex-basis: 42px;
+
+        border-radius: 11px;
+    }
+
+    .sales-page .stat-label {
+        font-size: 10px;
+    }
+
+    .sales-page .stat-value {
+        font-size: 18px;
+    }
+
+    .sales-page .card {
+        border-radius: 13px;
+    }
+
+    .sales-page .error-message {
+        font-size: 11.5px;
+    }
+}
+
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+    .sales-page *,
+    .sales-page *::before,
+    .sales-page *::after {
+        scroll-behavior: auto !important;
+
+        transition: none !important;
+
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
+
+
+/* =========================================================
+   PRINT
+========================================================= */
+
+@media print {
+
+    .sales-page {
+        max-width: none;
+
+        padding: 0;
+
+        background: #ffffff;
+    }
+
+    .sales-page .page-header-actions,
+    .sales-page .sales-filters-card,
+    .sales-page .pagination-container {
+        display: none !important;
+    }
+
+    .sales-page .stats-grid {
+        grid-template-columns:
+            repeat(4, 1fr);
+    }
+
+    .sales-page .stat-card,
+    .sales-page .card {
+        box-shadow: none;
+
+        border: 1px solid #d1d5db;
+    }
+
+    .sales-page .table-responsive {
+        max-height: none;
+
+        overflow: visible;
+    }
+
+    .sales-page .sales-table thead th {
+        position: static;
+    }
+
+    .sales-page .sales-table {
+        min-width: 0;
+
+        font-size: 10px;
+    }
+
+    .sales-page .sales-table tbody td,
+    .sales-page .sales-table thead th {
+        padding: 7px;
+    }
+}
+/* =========================================================
+   RECORD SALE MODAL
+========================================================= */
+
+.sales-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.sales-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+}
+
+.sales-modal-dialog {
+    position: relative;
+    z-index: 2;
+    width: min(680px, 100%);
+    max-height: 92vh;
+    overflow-y: auto;
+    background: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.25);
+}
+
+.sales-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 22px 24px;
+    border-bottom: 1px solid #eeeeee;
+}
+
+.sales-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.sales-modal-title h2 {
+    margin: 0;
+    font-size: 21px;
+    color: #171717;
+}
+
+.sales-modal-title p {
+    margin: 4px 0 0;
+    color: #777777;
+    font-size: 13px;
+}
+
+.sales-modal-icon {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: #fff7cc;
+    color: #d9a400;
+    font-size: 19px;
+}
+
+.sales-modal-close {
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 10px;
+    background: #f5f5f5;
+    color: #555555;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.sales-modal-close:hover {
+    background: #eeeeee;
+}
+
+.sales-form {
+    padding: 24px;
+}
+
+.sales-form .form-group {
+    margin-bottom: 18px;
+}
+
+.sales-form label {
+    display: block;
+    margin-bottom: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #292929;
+}
+
+.sales-form .required {
+    color: #d9a400;
+}
+
+.sales-form .form-control {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid #dddddd;
+    border-radius: 10px;
+    padding: 0 13px;
+    background: #ffffff;
+    color: #222222;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.sales-form .form-control:focus {
+    border-color: #e4b400;
+    box-shadow: 0 0 0 3px rgba(228, 180, 0, 0.12);
+}
+
+.form-help {
+    display: block;
+    margin-top: 6px;
+    color: #858585;
+    font-size: 11px;
+}
+
+.currency-input {
+    position: relative;
+}
+
+.currency-input > span {
+    position: absolute;
+    left: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #777777;
+    font-weight: 600;
+    z-index: 1;
+}
+
+.currency-input input {
+    padding-left: 34px !important;
+}
+
+.sales-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #eeeeee;
+}
+
+.form-error {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #fff0f0;
+    border: 1px solid #ffd0d0;
+    color: #c62828;
+    font-size: 13px;
+    margin-top: 5px;
+}
+
+body.modal-open {
+    overflow: hidden;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 700px) {
+
+    .sales-modal {
+        padding: 10px;
+        align-items: flex-end;
+    }
+
+    .sales-modal-dialog {
+        width: 100%;
+        max-height: 95vh;
+        border-radius: 18px 18px 0 0;
+    }
+
+    .sales-modal-header {
+        padding: 18px;
+    }
+
+    .sales-form {
+        padding: 18px;
+    }
+
+    .sales-modal-actions {
+        flex-direction: column-reverse;
+    }
+
+    .sales-modal-actions .btn {
+        width: 100%;
+    }
 
 }

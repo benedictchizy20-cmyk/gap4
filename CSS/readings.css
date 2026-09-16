@@ -1,153 +1,240 @@
-/* ==========================================
-   FUELGAP - METER READINGS PRO UI
-   White + Yellow Premium Design
-========================================== */
+/* =========================================================
+   FUELGAP - METER READINGS
+   PROFESSIONAL PRODUCTION UI
+   WHITE + YELLOW THEME
+   SCROLLABLE ADD READING MODAL
+========================================================= */
 
 
-/* ==========================================
+/* =========================================================
+   ROOT VARIABLES
+========================================================= */
+
+:root {
+
+    --fg-yellow: #f5c400;
+    --fg-yellow-dark: #d9a900;
+    --fg-yellow-light: #fff8d6;
+
+    --fg-black: #111827;
+    --fg-dark: #1f2937;
+    --fg-text: #374151;
+    --fg-muted: #6b7280;
+    --fg-light: #9ca3af;
+
+    --fg-border: #e5e7eb;
+    --fg-border-light: #eef0f3;
+
+    --fg-white: #ffffff;
+    --fg-bg: #f7f8fa;
+
+    --fg-success: #15803d;
+    --fg-success-bg: #ecfdf3;
+
+    --fg-danger: #dc2626;
+    --fg-danger-bg: #fef2f2;
+
+    --fg-warning: #b45309;
+    --fg-warning-bg: #fffbeb;
+
+    --fg-blue: #2563eb;
+    --fg-blue-bg: #eff6ff;
+
+    --fg-shadow-sm:
+        0 2px 8px rgba(15, 23, 42, 0.05);
+
+    --fg-shadow-md:
+        0 12px 35px rgba(15, 23, 42, 0.10);
+
+    --fg-shadow-lg:
+        0 25px 70px rgba(15, 23, 42, 0.20);
+
+    --fg-radius-sm: 8px;
+    --fg-radius-md: 12px;
+    --fg-radius-lg: 16px;
+    --fg-radius-xl: 20px;
+
+}
+
+
+/* =========================================================
+   GLOBAL PAGE
+========================================================= */
+
+.meter-readings-page {
+
+    width: 100%;
+    max-width: 1600px;
+
+    margin: 0 auto;
+
+    padding: 28px;
+
+    box-sizing: border-box;
+
+}
+
+
+/* =========================================================
    PAGE HEADER
-========================================== */
+========================================================= */
 
-.page-header {
+.meter-readings-page .page-header {
+
     display: flex;
-    align-items: flex-start;
+
     justify-content: space-between;
+
+    align-items: flex-end;
+
     gap: 24px;
 
-    padding: 8px 0 28px;
     margin-bottom: 28px;
 
-    border-bottom: 1px solid #e8eaed;
 }
 
 
-.page-header > div:first-child {
-    max-width: 700px;
-}
+.meter-readings-page .page-eyebrow {
 
+    display: inline-flex;
 
-.page-eyebrow {
-    margin: 0 0 8px;
+    align-items: center;
+
+    gap: 7px;
+
+    margin-bottom: 8px;
+
+    color: var(--fg-yellow-dark);
 
     font-size: 11px;
+
     font-weight: 800;
-    letter-spacing: 1.8px;
+
+    letter-spacing: 1.5px;
 
     text-transform: uppercase;
 
-    color: #c98d00;
 }
 
 
-.page-header h1 {
+.meter-readings-page .page-eyebrow::before {
+
+    content: "";
+
+    width: 7px;
+
+    height: 7px;
+
+    border-radius: 50%;
+
+    background: var(--fg-yellow);
+
+    box-shadow:
+        0 0 0 4px rgba(245, 196, 0, 0.12);
+
+}
+
+
+.meter-readings-page .page-header h1 {
+
     margin: 0;
 
-    font-size: clamp(28px, 4vw, 40px);
+    color: var(--fg-black);
+
+    font-size: 30px;
+
+    line-height: 1.2;
+
     font-weight: 800;
-    line-height: 1.15;
 
-    color: #151515;
+    letter-spacing: -0.6px;
 
-    letter-spacing: -0.8px;
 }
 
 
-.page-header p:not(.page-eyebrow) {
-    margin: 10px 0 0;
+.meter-readings-page .page-header p {
 
-    max-width: 620px;
+    margin: 9px 0 0;
 
-    font-size: 15px;
-    line-height: 1.7;
+    color: var(--fg-muted);
 
-    color: #6b7280;
+    font-size: 14px;
+
+    line-height: 1.6;
+
 }
 
 
-/* ==========================================
-   BUTTONS
-========================================== */
+.page-actions {
 
-.btn {
-    display: inline-flex;
+    display: flex;
+
     align-items: center;
+
+    gap: 10px;
+
+}
+
+
+/* =========================================================
+   BUTTONS
+========================================================= */
+
+.meter-readings-page .btn,
+#meterReadingModal .btn {
+
+    min-height: 42px;
+
+    padding: 0 16px;
+
+    border-radius: 10px;
+
+    border: 1px solid transparent;
+
+    font-family: inherit;
+
+    font-size: 13px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    display: inline-flex;
+
+    align-items: center;
+
     justify-content: center;
 
     gap: 8px;
 
-    min-height: 44px;
-
-    padding: 0 18px;
-
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 700;
-
-    border: 1px solid transparent;
-    border-radius: 11px;
-
-    cursor: pointer;
-
-    white-space: nowrap;
-
     transition:
-        transform 0.2s ease,
-        box-shadow 0.2s ease,
-        background 0.2s ease,
-        border-color 0.2s ease;
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        background 0.18s ease,
+        border-color 0.18s ease;
+
 }
 
 
-.btn:active {
-    transform: scale(0.97);
+.meter-readings-page .btn:hover,
+#meterReadingModal .btn:hover {
+
+    transform: translateY(-1px);
+
 }
 
 
-.btn-primary {
-    color: #151515;
+.meter-readings-page .btn:active,
+#meterReadingModal .btn:active {
 
-    background: #f7c600;
+    transform: translateY(0);
 
-    border-color: #f7c600;
-
-    box-shadow:
-        0 8px 20px
-        rgba(247, 198, 0, 0.18);
 }
 
 
-.btn-primary:hover:not(:disabled) {
-    background: #e9b900;
+.meter-readings-page .btn:disabled,
+#meterReadingModal .btn:disabled {
 
-    border-color: #e9b900;
-
-    transform: translateY(-2px);
-
-    box-shadow:
-        0 12px 28px
-        rgba(247, 198, 0, 0.28);
-}
-
-
-.btn-secondary {
-    color: #374151;
-
-    background: #ffffff;
-
-    border-color: #d8dde3;
-}
-
-
-.btn-secondary:hover:not(:disabled) {
-    color: #151515;
-
-    background: #fafafa;
-
-    border-color: #bfc5cc;
-}
-
-
-.btn:disabled {
     opacity: 0.55;
 
     cursor: not-allowed;
@@ -155,1247 +242,2120 @@
     transform: none;
 
     box-shadow: none;
+
 }
 
 
-/* ==========================================
-   READING STATISTICS
-========================================== */
+.meter-readings-page .btn-primary,
+#meterReadingModal .btn-primary {
 
-.reading-stats {
+    color: #161616;
+
+    background:
+        linear-gradient(
+            135deg,
+            #ffd83d 0%,
+            var(--fg-yellow) 100%
+        );
+
+    border-color: #e7b600;
+
+    box-shadow:
+        0 5px 14px rgba(245, 196, 0, 0.20);
+
+}
+
+
+.meter-readings-page .btn-primary:hover,
+#meterReadingModal .btn-primary:hover {
+
+    box-shadow:
+        0 8px 20px rgba(245, 196, 0, 0.28);
+
+}
+
+
+.meter-readings-page .btn-secondary,
+#meterReadingModal .btn-secondary {
+
+    color: var(--fg-dark);
+
+    background: var(--fg-white);
+
+    border-color: var(--fg-border);
+
+}
+
+
+.meter-readings-page .btn-secondary:hover,
+#meterReadingModal .btn-secondary:hover {
+
+    background: #fafafa;
+
+    border-color: #d1d5db;
+
+}
+
+
+/* =========================================================
+   STATS
+========================================================= */
+
+.meter-readings-page .stats-grid {
+
     display: grid;
 
     grid-template-columns:
         repeat(4, minmax(0, 1fr));
 
-    gap: 18px;
+    gap: 16px;
 
-    margin-bottom: 28px;
+    margin-bottom: 22px;
+
 }
 
 
-.reading-stat-card {
-    position: relative;
+.meter-readings-page .stat-card {
 
-    padding: 22px;
-
-    min-height: 120px;
-
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-
-    background: #ffffff;
-
-    border: 1px solid #eceef0;
-
-    border-radius: 18px;
-
-    overflow: hidden;
-
-    box-shadow:
-        0 10px 32px
-        rgba(15, 23, 42, 0.045);
-
-    transition:
-        transform 0.25s ease,
-        box-shadow 0.25s ease,
-        border-color 0.25s ease;
-}
-
-
-.reading-stat-card::before {
-    content: "";
-
-    position: absolute;
-
-    top: 0;
-    left: 0;
-
-    width: 100%;
-    height: 4px;
-
-    background: #f7c600;
-}
-
-
-.reading-stat-card:hover {
-    transform: translateY(-4px);
-
-    border-color: #e5e7eb;
-
-    box-shadow:
-        0 18px 45px
-        rgba(15, 23, 42, 0.09);
-}
-
-
-.reading-stat-card span {
-    display: block;
-
-    margin-bottom: 10px;
-
-    font-size: 13px;
-    font-weight: 600;
-
-    color: #6b7280;
-}
-
-
-.reading-stat-card strong {
-    display: block;
-
-    font-size: clamp(26px, 3vw, 34px);
-    font-weight: 800;
-
-    line-height: 1;
-
-    color: #171717;
-
-    letter-spacing: -0.6px;
-}
-
-
-/* ==========================================
-   MAIN READING SECTION
-========================================== */
-
-.reading-section {
-    padding: 24px;
-
-    background: #ffffff;
-
-    border: 1px solid #eceef0;
-
-    border-radius: 20px;
-
-    box-shadow:
-        0 10px 36px
-        rgba(15, 23, 42, 0.045);
-}
-
-
-/* ==========================================
-   SECTION HEADER
-========================================== */
-
-.section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    gap: 20px;
-
-    margin-bottom: 24px;
-}
-
-
-.section-header h2 {
-    margin: 0;
-
-    font-size: 21px;
-    font-weight: 800;
-
-    color: #171717;
-
-    letter-spacing: -0.3px;
-}
-
-
-.section-header p {
-    margin: 6px 0 0;
-
-    font-size: 14px;
-    line-height: 1.6;
-
-    color: #6b7280;
-}
-
-
-/* ==========================================
-   SEARCH
-========================================== */
-
-#readingSearch {
-    width: 100%;
-    max-width: 320px;
-
-    min-height: 44px;
-
-    padding: 0 15px;
-
-    font-family: inherit;
-    font-size: 14px;
-
-    color: #1f2937;
-
-    background: #ffffff;
-
-    border: 1px solid #dfe3e8;
-
-    border-radius: 11px;
-
-    outline: none;
-
-    transition:
-        border-color 0.2s ease,
-        box-shadow 0.2s ease,
-        background 0.2s ease;
-}
-
-
-#readingSearch::placeholder {
-    color: #9ca3af;
-}
-
-
-#readingSearch:focus {
-    border-color: #f7c600;
-
-    box-shadow:
-        0 0 0 4px
-        rgba(247, 198, 0, 0.12);
-}
-
-
-/* ==========================================
-   TABLE WRAPPER
-========================================== */
-
-.table-wrapper {
-    width: 100%;
-
-    overflow-x: auto;
-
-    border: 1px solid #eceef0;
-
-    border-radius: 15px;
-
-    background: #ffffff;
-}
-
-
-/* ==========================================
-   READING TABLE
-========================================== */
-
-.reading-table {
-    width: 100%;
-
-    min-width: 1050px;
-
-    border-collapse: collapse;
-
-    background: #ffffff;
-}
-
-
-.reading-table thead {
-    background: #fafafa;
-}
-
-
-.reading-table th {
-    padding: 15px 18px;
-
-    text-align: left;
-
-    white-space: nowrap;
-
-    font-size: 11px;
-    font-weight: 800;
-
-    letter-spacing: 0.6px;
-
-    text-transform: uppercase;
-
-    color: #6b7280;
-
-    border-bottom:
-        1px solid #e5e7eb;
-}
-
-
-.reading-table td {
-    padding: 17px 18px;
-
-    font-size: 14px;
-
-    color: #374151;
-
-    border-bottom:
-        1px solid #f0f1f3;
-
-    vertical-align: middle;
-}
-
-
-.reading-table tbody tr {
-    transition:
-        background 0.2s ease;
-}
-
-
-.reading-table tbody tr:hover {
-    background:
-        rgba(247, 198, 0, 0.045);
-}
-
-
-.reading-table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-
-/* ==========================================
-   READING TYPE
-========================================== */
-
-.reading-table td:nth-child(5) {
-    font-weight: 700;
-}
-
-
-.reading-table td:nth-child(6) {
-    font-weight: 800;
-
-    color: #171717;
-
-    font-variant-numeric:
-        tabular-nums;
-}
-
-
-/* ==========================================
-   PHOTO VIEW BUTTON
-========================================== */
-
-.view-meter-photo {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    min-height: 34px;
-
-    padding: 0 12px;
-
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 700;
-
-    color: #8a6100;
-
-    background: #fff8db;
-
-    border: 1px solid #f6df87;
-
-    border-radius: 8px;
-
-    cursor: pointer;
-
-    transition:
-        background 0.2s ease,
-        color 0.2s ease,
-        transform 0.2s ease;
-}
-
-
-.view-meter-photo:hover {
-    color: #151515;
-
-    background: #f7c600;
-
-    border-color: #f7c600;
-
-    transform: translateY(-1px);
-}
-
-
-/* ==========================================
-   EMPTY STATE
-========================================== */
-
-.empty-state {
-    padding: 70px 20px;
-
-    text-align: center;
-}
-
-
-.empty-state h3 {
-    margin: 0 0 8px;
-
-    font-size: 19px;
-    font-weight: 800;
-
-    color: #1f2937;
-}
-
-
-.empty-state p {
-    margin: 0 auto;
-
-    max-width: 420px;
-
-    font-size: 14px;
-    line-height: 1.7;
-
-    color: #6b7280;
-}
-
-
-.hidden {
-    display: none !important;
-}
-
-
-/* ==========================================
-   MODAL
-========================================== */
-
-.modal {
-    position: fixed;
-
-    inset: 0;
-
-    z-index: 1000;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    min-height: 110px;
 
     padding: 20px;
 
-    overflow-y: auto;
-}
+    background: var(--fg-white);
 
+    border: 1px solid var(--fg-border);
 
-.modal-overlay {
-    position: fixed;
+    border-radius: var(--fg-radius-lg);
 
-    inset: 0;
-
-    background:
-        rgba(15, 23, 42, 0.58);
-
-    backdrop-filter:
-        blur(6px);
-
-    z-index: 1;
-}
-
-
-.modal-content {
-    position: relative;
-
-    z-index: 2;
-
-    width: 100%;
-    max-width: 680px;
-
-    max-height:
-        calc(100vh - 40px);
-
-    overflow-y: auto;
-
-    padding: 28px;
-
-    background: #ffffff;
-
-    border-radius: 22px;
-
-    box-shadow:
-        0 30px 80px
-        rgba(0, 0, 0, 0.25);
-
-    animation:
-        readingModalIn
-        0.28s ease;
-}
-
-
-@keyframes readingModalIn {
-
-    from {
-        opacity: 0;
-
-        transform:
-            translateY(20px)
-            scale(0.98);
-    }
-
-    to {
-        opacity: 1;
-
-        transform:
-            translateY(0)
-            scale(1);
-    }
-
-}
-
-
-/* ==========================================
-   MODAL HEADER
-========================================== */
-
-.modal-header {
-    padding-bottom: 20px;
-
-    margin-bottom: 24px;
-
-    border-bottom:
-        1px solid #eeeeee;
-}
-
-
-.modal-header h2 {
-    margin: 0;
-
-    padding-right: 45px;
-
-    font-size: 23px;
-    font-weight: 800;
-
-    color: #151515;
-
-    letter-spacing: -0.4px;
-}
-
-
-.modal-header p {
-    margin: 7px 0 0;
-
-    font-size: 14px;
-    line-height: 1.65;
-
-    color: #6b7280;
-}
-
-
-/* ==========================================
-   MODAL CLOSE
-========================================== */
-
-.modal-close {
-    position: absolute;
-
-    top: 22px;
-    right: 22px;
-
-    z-index: 5;
+    box-shadow: var(--fg-shadow-sm);
 
     display: flex;
+
     align-items: center;
+
+    gap: 15px;
+
+}
+
+
+.meter-readings-page .stat-icon {
+
+    width: 46px;
+
+    height: 46px;
+
+    flex: 0 0 46px;
+
+    display: flex;
+
+    align-items: center;
+
     justify-content: center;
 
-    width: 38px;
-    height: 38px;
+    border-radius: 13px;
 
-    padding: 0;
+    background: var(--fg-yellow-light);
 
-    font-family: inherit;
-    font-size: 26px;
+    color: #8a6900;
+
+    font-size: 12px;
+
+    font-weight: 900;
+
+    letter-spacing: 0.5px;
+
+}
+
+
+.meter-readings-page .stat-content {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 5px;
+
+}
+
+
+.meter-readings-page .stat-content span {
+
+    color: var(--fg-muted);
+
+    font-size: 12px;
+
+    font-weight: 600;
+
+}
+
+
+.meter-readings-page .stat-content strong {
+
+    color: var(--fg-black);
+
+    font-size: 25px;
 
     line-height: 1;
 
-    color: #6b7280;
+    font-weight: 800;
 
-    background: #f5f6f7;
+}
 
-    border: none;
+
+/* =========================================================
+   CONTENT CARDS
+========================================================= */
+
+.meter-readings-page .content-card {
+
+    background: var(--fg-white);
+
+    border: 1px solid var(--fg-border);
+
+    border-radius: var(--fg-radius-lg);
+
+    box-shadow: var(--fg-shadow-sm);
+
+    margin-bottom: 22px;
+
+    overflow: hidden;
+
+}
+
+
+.meter-readings-page .content-card-header {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    gap: 16px;
+
+    padding: 20px 22px;
+
+    border-bottom: 1px solid var(--fg-border-light);
+
+}
+
+
+.meter-readings-page .content-card-header h2 {
+
+    margin: 0;
+
+    color: var(--fg-black);
+
+    font-size: 17px;
+
+    font-weight: 800;
+
+}
+
+
+.meter-readings-page .content-card-header p {
+
+    margin: 5px 0 0;
+
+    color: var(--fg-muted);
+
+    font-size: 12px;
+
+    line-height: 1.5;
+
+}
+
+
+/* =========================================================
+   FILTERS
+========================================================= */
+
+.meter-readings-page .filters-grid {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 16px;
+
+    padding: 20px 22px;
+
+    border-bottom: 1px solid var(--fg-border-light);
+
+}
+
+
+/* =========================================================
+   FORM GROUPS
+========================================================= */
+
+.meter-readings-page .form-group,
+#meterReadingModal .form-group {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 7px;
+
+}
+
+
+.meter-readings-page .form-group label,
+#meterReadingModal .form-group label {
+
+    color: var(--fg-dark);
+
+    font-size: 12px;
+
+    font-weight: 750;
+
+    line-height: 1.3;
+
+}
+
+
+.required {
+
+    color: var(--fg-danger);
+
+    margin-left: 2px;
+
+}
+
+
+.meter-readings-page input,
+.meter-readings-page select,
+#meterReadingModal input,
+#meterReadingModal select {
+
+    width: 100%;
+
+    min-height: 44px;
+
+    padding: 0 13px;
+
+    box-sizing: border-box;
+
+    color: var(--fg-black);
+
+    background: var(--fg-white);
+
+    border: 1px solid #d9dde3;
 
     border-radius: 10px;
 
-    cursor: pointer;
+    outline: none;
+
+    font-family: inherit;
+
+    font-size: 13px;
 
     transition:
-        background 0.2s ease,
-        color 0.2s ease,
-        transform 0.2s ease;
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        background 0.18s ease;
+
 }
 
 
-.modal-close:hover {
-    color: #151515;
+.meter-readings-page input::placeholder,
+#meterReadingModal input::placeholder {
 
-    background: #f7c600;
+    color: #a1a7b0;
 
-    transform: rotate(90deg);
 }
 
 
-/* ==========================================
-   FORM
-========================================== */
+.meter-readings-page input:focus,
+.meter-readings-page select:focus,
+#meterReadingModal input:focus,
+#meterReadingModal select:focus {
 
-#readingForm {
+    border-color: #e3b700;
+
+    box-shadow:
+        0 0 0 3px rgba(245, 196, 0, 0.13);
+
+}
+
+
+.meter-readings-page select,
+#meterReadingModal select {
+
+    cursor: pointer;
+
+    appearance: auto;
+
+}
+
+
+.meter-readings-page select:disabled,
+#meterReadingModal select:disabled {
+
+    color: #9ca3af;
+
+    background: #f5f6f7;
+
+    cursor: not-allowed;
+
+}
+
+
+.form-help {
+
+    margin-top: -1px;
+
+    color: var(--fg-muted);
+
+    font-size: 11px;
+
+    line-height: 1.45;
+
+}
+
+
+/* =========================================================
+   EVIDENCE ROLL
+========================================================= */
+
+.meter-readings-page .evidence-section {
+
+    overflow: hidden;
+
+}
+
+
+.meter-readings-page .evidence-roll {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    gap: 14px;
+
+    padding: 20px 22px;
+
+}
+
+
+.meter-readings-page .evidence-card {
+
+    min-width: 0;
+
+    background: #fbfbfc;
+
+    border: 1px solid var(--fg-border);
+
+    border-radius: 14px;
+
+    overflow: hidden;
+
+    transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease;
+
+}
+
+
+.meter-readings-page .evidence-card:hover {
+
+    transform: translateY(-2px);
+
+    box-shadow: var(--fg-shadow-md);
+
+}
+
+
+.meter-readings-page .evidence-image-wrapper {
+
+    width: 100%;
+
+    height: 150px;
+
+    background: #111827;
+
+    overflow: hidden;
+
+}
+
+
+.meter-readings-page .evidence-image {
+
+    width: 100%;
+
+    height: 100%;
+
+    display: block;
+
+    object-fit: cover;
+
+}
+
+
+.meter-readings-page .evidence-info {
+
+    padding: 12px;
+
     display: flex;
 
     flex-direction: column;
 
     gap: 4px;
+
 }
 
 
-.form-group {
-    display: flex;
+.meter-readings-page .evidence-info strong {
 
-    flex-direction: column;
+    color: var(--fg-black);
 
-    gap: 8px;
+    font-size: 12px;
 
-    margin-bottom: 16px;
-}
-
-
-.form-group label {
-    font-size: 13px;
-    font-weight: 700;
-
-    color: #374151;
-}
-
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-    width: 100%;
-
-    box-sizing: border-box;
-
-    padding: 12px 14px;
-
-    font-family: inherit;
-    font-size: 14px;
-
-    color: #1f2937;
-
-    background: #ffffff;
-
-    border:
-        1px solid #dfe3e8;
-
-    border-radius: 11px;
-
-    outline: none;
-
-    transition:
-        border-color 0.2s ease,
-        box-shadow 0.2s ease,
-        background 0.2s ease;
-}
-
-
-.form-group input,
-.form-group select {
-    min-height: 46px;
-}
-
-
-.form-group textarea {
-    min-height: 110px;
-
-    resize: vertical;
-}
-
-
-.form-group input::placeholder,
-.form-group textarea::placeholder {
-    color: #9ca3af;
-}
-
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-    border-color: #f7c600;
-
-    box-shadow:
-        0 0 0 4px
-        rgba(247, 198, 0, 0.12);
-}
-
-
-.form-group select:disabled {
-    opacity: 0.6;
-
-    cursor: not-allowed;
-
-    background: #f7f7f7;
-}
-
-
-/* ==========================================
-   CAMERA SECTION
-========================================== */
-
-.camera-container {
-    position: relative;
-
-    width: 100%;
-
-    min-height: 280px;
+    white-space: nowrap;
 
     overflow: hidden;
 
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    text-overflow: ellipsis;
 
-    background:
-        linear-gradient(
-            135deg,
-            #161616,
-            #303030
-        );
-
-    border:
-        1px solid #2d2d2d;
-
-    border-radius: 16px;
-
-    box-shadow:
-        inset 0 0 0 1px
-        rgba(255, 255, 255, 0.04);
 }
 
 
-.camera-container::before {
-    content:
-        "LIVE CAMERA";
+.meter-readings-page .evidence-info span {
 
-    position: absolute;
+    color: var(--fg-muted);
 
-    top: 14px;
-    left: 14px;
+    font-size: 11px;
 
-    z-index: 2;
-
-    padding: 6px 10px;
-
-    font-size: 10px;
-    font-weight: 800;
-
-    letter-spacing: 1px;
-
-    color: #151515;
-
-    background: #f7c600;
-
-    border-radius: 999px;
 }
 
 
-#meterCamera {
+/* =========================================================
+   TABLE
+========================================================= */
+
+.meter-readings-page .table-responsive {
+
     width: 100%;
 
-    height: 100%;
+    overflow-x: auto;
 
-    min-height: 280px;
-
-    object-fit: cover;
-
-    display: block;
 }
 
 
-#meterCanvas {
-    max-width: 100%;
+.meter-readings-page .data-table {
+
+    width: 100%;
+
+    min-width: 900px;
+
+    border-collapse: collapse;
+
 }
 
 
-.camera-actions {
-    display: flex;
+.meter-readings-page .data-table th {
 
-    flex-wrap: wrap;
+    padding: 13px 16px;
 
-    gap: 12px;
-
-    margin-top: 14px;
-}
-
-
-.camera-actions .btn {
-    flex: 1;
-
-    min-width: 180px;
-}
-
-
-.camera-container + .camera-actions + small {
-    display: block;
-
-    margin-top: 10px;
-
-    font-size: 12px;
-    line-height: 1.6;
+    text-align: left;
 
     color: #6b7280;
-}
 
+    background: #fafafa;
 
-/* ==========================================
-   PHOTO PREVIEW
-========================================== */
-
-.photo-preview {
-    position: relative;
-
-    width: 100%;
-
-    margin: 4px 0 20px;
-
-    padding: 10px;
-
-    background: #ffffff;
-
-    border:
-        1px solid #e5e7eb;
-
-    border-radius: 16px;
-
-    box-shadow:
-        0 10px 30px
-        rgba(15, 23, 42, 0.06);
-}
-
-
-.photo-preview::before {
-    content:
-        "✓ LIVE SNAP CAPTURED";
-
-    position: absolute;
-
-    top: 18px;
-    left: 18px;
-
-    z-index: 2;
-
-    padding: 7px 11px;
+    border-bottom: 1px solid var(--fg-border);
 
     font-size: 10px;
+
     font-weight: 800;
 
     letter-spacing: 0.7px;
+
+    text-transform: uppercase;
+
+    white-space: nowrap;
+
+}
+
+
+.meter-readings-page .data-table td {
+
+    padding: 15px 16px;
+
+    color: var(--fg-text);
+
+    border-bottom: 1px solid var(--fg-border-light);
+
+    font-size: 12px;
+
+    vertical-align: middle;
+
+}
+
+
+.meter-readings-page .data-table tbody tr {
+
+    transition:
+        background 0.15s ease;
+
+}
+
+
+.meter-readings-page .data-table tbody tr:hover {
+
+    background: #fffdf1;
+
+}
+
+
+.meter-readings-page .data-table td strong {
+
+    color: var(--fg-black);
+
+    font-weight: 750;
+
+}
+
+
+.table-empty {
+
+    padding: 50px 20px !important;
+
+    color: var(--fg-muted) !important;
+
+    text-align: center;
+
+}
+
+
+/* =========================================================
+   READING TYPE BADGES
+========================================================= */
+
+.reading-type-badge {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    min-height: 26px;
+
+    padding: 0 9px;
+
+    border-radius: 999px;
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+}
+
+
+.reading-opening {
 
     color: #166534;
 
     background: #dcfce7;
 
-    border:
-        1px solid #bbf7d0;
+}
+
+
+.reading-periodic {
+
+    color: #1d4ed8;
+
+    background: #dbeafe;
+
+}
+
+
+.reading-closing {
+
+    color: #7c2d12;
+
+    background: #ffedd5;
+
+}
+
+
+.reading-correction {
+
+    color: #6b21a8;
+
+    background: #f3e8ff;
+
+}
+
+
+/* =========================================================
+   STATUS BADGES
+========================================================= */
+
+.status-badge {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    min-height: 25px;
+
+    padding: 0 9px;
 
     border-radius: 999px;
+
+    font-size: 10px;
+
+    font-weight: 800;
+
 }
 
 
-#meterPreviewImage {
-    display: block;
+.status-success {
 
-    width: 100%;
+    color: var(--fg-success);
 
-    max-height: 360px;
+    background: var(--fg-success-bg);
 
-    object-fit: cover;
-
-    border-radius: 11px;
-
-    background: #f5f5f5;
 }
 
 
-/* ==========================================
-   FORM MESSAGE
-========================================== */
+.status-warning {
 
-.form-message {
-    padding: 13px 15px;
+    color: var(--fg-warning);
 
-    margin: 4px 0 14px;
+    background: var(--fg-warning-bg);
 
-    border-radius: 11px;
+}
 
-    font-size: 13px;
-    font-weight: 600;
+
+/* =========================================================
+   =========================================================
+   ADD READING MODAL
+   =========================================================
+========================================================= */
+
+
+/* =========================================================
+   BODY LOCK
+========================================================= */
+
+body.modal-open {
+
+    overflow: hidden !important;
+
+}
+
+
+/* =========================================================
+   MODAL OVERLAY
+========================================================= */
+
+.modal-overlay#meterReadingModal {
+
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 9999;
+
+    width: 100vw;
+
+    height: 100vh;
+
+    box-sizing: border-box;
+
+    padding: 24px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    background:
+        rgba(15, 23, 42, 0.68);
+
+    backdrop-filter:
+        blur(7px);
+
+    -webkit-backdrop-filter:
+        blur(7px);
+
+    overflow: hidden;
+
+    animation:
+        meterModalFadeIn
+        0.18s ease;
+
+}
+
+
+@keyframes meterModalFadeIn {
+
+    from {
+
+        opacity: 0;
+
+    }
+
+    to {
+
+        opacity: 1;
+
+    }
+
+}
+
+
+/* =========================================================
+   MODAL CONTAINER
+========================================================= */
+
+#meterReadingModal .modal-container {
+
+    position: relative;
+
+    width: min(
+        760px,
+        calc(100vw - 48px)
+    );
+
+    max-height:
+        calc(100vh - 48px);
+
+    display: flex;
+
+    flex-direction: column;
+
+    background: var(--fg-white);
+
+    border:
+        1px solid rgba(255, 255, 255, 0.8);
+
+    border-radius: 20px;
+
+    box-shadow:
+        0 30px 90px rgba(0, 0, 0, 0.25);
+
+    overflow: hidden;
+
+    animation:
+        meterModalSlideUp
+        0.24s cubic-bezier(
+            0.22,
+            1,
+            0.36,
+            1
+        );
+
+}
+
+
+@keyframes meterModalSlideUp {
+
+    from {
+
+        opacity: 0;
+
+        transform:
+            translateY(18px)
+            scale(0.985);
+
+    }
+
+    to {
+
+        opacity: 1;
+
+        transform:
+            translateY(0)
+            scale(1);
+
+    }
+
+}
+
+
+/* =========================================================
+   MODAL HEADER
+========================================================= */
+
+#meterReadingModal .modal-header {
+
+    position: relative;
+
+    z-index: 5;
+
+    flex: 0 0 auto;
+
+    display: flex;
+
+    align-items: flex-start;
+
+    justify-content: space-between;
+
+    gap: 20px;
+
+    padding:
+        22px 24px
+        19px;
+
+    background:
+        linear-gradient(
+            180deg,
+            #ffffff 0%,
+            #fcfcfc 100%
+        );
+
+    border-bottom:
+        1px solid var(--fg-border);
+
+    box-shadow:
+        0 4px 12px rgba(15, 23, 42, 0.03);
+
+}
+
+
+#meterReadingModal .modal-eyebrow {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    margin-bottom: 7px;
+
+    color: #9a7500;
+
+    font-size: 10px;
+
+    font-weight: 900;
+
+    letter-spacing: 1.4px;
+
+    text-transform: uppercase;
+
+}
+
+
+#meterReadingModal .modal-eyebrow::before {
+
+    content: "";
+
+    width: 6px;
+
+    height: 6px;
+
+    border-radius: 50%;
+
+    background: var(--fg-yellow);
+
+    box-shadow:
+        0 0 0 4px
+        rgba(245, 196, 0, 0.12);
+
+}
+
+
+#meterReadingModal .modal-header h2 {
+
+    margin: 0;
+
+    color: var(--fg-black);
+
+    font-size: 21px;
+
+    line-height: 1.25;
+
+    font-weight: 850;
+
+    letter-spacing: -0.35px;
+
+}
+
+
+#meterReadingModal .modal-header p {
+
+    max-width: 540px;
+
+    margin: 6px 0 0;
+
+    color: var(--fg-muted);
+
+    font-size: 12px;
 
     line-height: 1.5;
+
 }
 
 
-.form-message.success {
+#meterReadingModal .modal-close {
+
+    width: 38px;
+
+    height: 38px;
+
+    flex: 0 0 38px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    margin-top: 1px;
+
+    padding: 0;
+
+    border: 1px solid var(--fg-border);
+
+    border-radius: 10px;
+
+    color: #4b5563;
+
+    background: #ffffff;
+
+    font-size: 24px;
+
+    font-weight: 400;
+
+    line-height: 1;
+
+    cursor: pointer;
+
+    transition:
+        background 0.18s ease,
+        color 0.18s ease,
+        border-color 0.18s ease,
+        transform 0.18s ease;
+
+}
+
+
+#meterReadingModal .modal-close:hover {
+
+    color: #111827;
+
+    background: #f9fafb;
+
+    border-color: #d1d5db;
+
+    transform: rotate(3deg);
+
+}
+
+
+/* =========================================================
+   MODAL FORM
+========================================================= */
+
+#meterReadingModal .modal-form {
+
+    min-height: 0;
+
+    flex: 1 1 auto;
+
+    display: flex;
+
+    flex-direction: column;
+
+    overflow: hidden;
+
+}
+
+
+/* =========================================================
+   SCROLLABLE MODAL BODY
+========================================================= */
+
+#meterReadingModal .modal-form {
+
+    overflow-y: auto;
+
+    overflow-x: hidden;
+
+    scrollbar-width: thin;
+
+    scrollbar-color:
+        #d1d5db
+        #f5f5f5;
+
+}
+
+
+/* Chrome / Edge / Safari */
+
+#meterReadingModal .modal-form::-webkit-scrollbar {
+
+    width: 8px;
+
+}
+
+
+#meterReadingModal .modal-form::-webkit-scrollbar-track {
+
+    background: #f5f6f7;
+
+}
+
+
+#meterReadingModal .modal-form::-webkit-scrollbar-thumb {
+
+    background: #cfd3d8;
+
+    border-radius: 999px;
+
+    border: 2px solid #f5f6f7;
+
+}
+
+
+#meterReadingModal .modal-form::-webkit-scrollbar-thumb:hover {
+
+    background: #aeb4bb;
+
+}
+
+
+/* =========================================================
+   FORM CONTENT AREA
+========================================================= */
+
+#meterReadingModal .modal-form > .form-group {
+
+    margin-left: 24px;
+
+    margin-right: 24px;
+
+}
+
+
+#meterReadingModal .modal-form > .form-group:first-child {
+
+    margin-top: 22px;
+
+}
+
+
+#meterReadingModal .modal-form > .form-group:last-of-type {
+
+    margin-bottom: 22px;
+
+}
+
+
+/* =========================================================
+   FORM FIELD SPACING
+========================================================= */
+
+#meterReadingModal .modal-form > .form-group {
+
+    margin-bottom: 17px;
+
+}
+
+
+/* =========================================================
+   INPUTS INSIDE MODAL
+========================================================= */
+
+#meterReadingModal .form-group input,
+#meterReadingModal .form-group select {
+
+    min-height: 46px;
+
+    background: #ffffff;
+
+}
+
+
+#meterReadingModal .form-group select:hover:not(:disabled),
+#meterReadingModal .form-group input:hover {
+
+    border-color: #c8cdd4;
+
+}
+
+
+/* =========================================================
+   CAMERA SECTION
+========================================================= */
+
+#meterReadingModal .camera-section {
+
+    margin:
+        3px 24px
+        22px;
+
+    padding: 18px;
+
+    background:
+        linear-gradient(
+            180deg,
+            #fffdf3 0%,
+            #fffef9 100%
+        );
+
+    border:
+        1px solid #f0df9a;
+
+    border-radius: 16px;
+
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.7);
+
+}
+
+
+#meterReadingModal .camera-section-header {
+
+    display: flex;
+
+    align-items: flex-start;
+
+    justify-content: space-between;
+
+    gap: 15px;
+
+    margin-bottom: 14px;
+
+}
+
+
+#meterReadingModal .camera-section-header h3 {
+
+    margin: 0;
+
+    color: var(--fg-black);
+
+    font-size: 14px;
+
+    font-weight: 800;
+
+}
+
+
+#meterReadingModal .camera-section-header p {
+
+    margin: 5px 0 0;
+
+    color: var(--fg-muted);
+
+    font-size: 11px;
+
+    line-height: 1.5;
+
+}
+
+
+#meterReadingModal .camera-badge {
+
+    flex: 0 0 auto;
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 6px;
+
+    min-height: 26px;
+
+    padding: 0 9px;
+
+    border-radius: 999px;
+
     color: #166534;
 
     background: #ecfdf3;
 
-    border:
-        1px solid #bbf7d0;
+    border: 1px solid #bbf7d0;
+
+    font-size: 9px;
+
+    font-weight: 900;
+
+    letter-spacing: 0.6px;
+
 }
 
 
-.form-message.error {
+#meterReadingModal .camera-badge::before {
+
+    content: "";
+
+    width: 6px;
+
+    height: 6px;
+
+    border-radius: 50%;
+
+    background: #22c55e;
+
+    box-shadow:
+        0 0 0 3px
+        rgba(34, 197, 94, 0.13);
+
+}
+
+
+/* =========================================================
+   CAMERA PREVIEW
+========================================================= */
+
+#meterReadingModal .camera-preview {
+
+    position: relative;
+
+    width: 100%;
+
+    min-height: 270px;
+
+    aspect-ratio: 16 / 9;
+
+    overflow: hidden;
+
+    background:
+        radial-gradient(
+            circle at center,
+            #252a32 0%,
+            #11151b 65%,
+            #0b0e13 100%
+        );
+
+    border:
+        1px solid #202630;
+
+    border-radius: 14px;
+
+    box-shadow:
+        inset 0 0 0 1px
+        rgba(255,255,255,0.04);
+
+}
+
+
+#meterReadingModal .camera-preview video,
+#meterReadingModal .camera-preview img {
+
+    position: absolute;
+
+    inset: 0;
+
+    width: 100%;
+
+    height: 100%;
+
+    object-fit: cover;
+
+}
+
+
+#meterReadingModal .camera-placeholder {
+
+    position: absolute;
+
+    inset: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 7px;
+
+    padding: 25px;
+
+    color: #d1d5db;
+
+    text-align: center;
+
+}
+
+
+#meterReadingModal .camera-placeholder-icon {
+
+    width: 58px;
+
+    height: 58px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    margin-bottom: 4px;
+
+    border-radius: 16px;
+
+    background:
+        rgba(255,255,255,0.08);
+
+    border:
+        1px solid
+        rgba(255,255,255,0.10);
+
+    font-size: 25px;
+
+}
+
+
+#meterReadingModal .camera-placeholder strong {
+
+    color: #ffffff;
+
+    font-size: 13px;
+
+    font-weight: 800;
+
+}
+
+
+#meterReadingModal .camera-placeholder span {
+
+    max-width: 280px;
+
+    color: #9ca3af;
+
+    font-size: 11px;
+
+    line-height: 1.5;
+
+}
+
+
+/* =========================================================
+   CAMERA ACTIONS
+========================================================= */
+
+#meterReadingModal .camera-actions {
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    gap: 9px;
+
+    margin-top: 12px;
+
+}
+
+
+#meterReadingModal .camera-actions .btn {
+
+    min-height: 40px;
+
+    padding: 0 14px;
+
+}
+
+
+/* =========================================================
+   CAMERA STATUS
+========================================================= */
+
+#meterReadingModal .camera-status {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    min-height: 34px;
+
+    margin-top: 10px;
+
+    padding:
+        8px 10px;
+
+    color: #6b7280;
+
+    background: #ffffff;
+
+    border: 1px solid #e8e9eb;
+
+    border-radius: 9px;
+
+    font-size: 11px;
+
+    line-height: 1.4;
+
+}
+
+
+#meterReadingModal .camera-status::before {
+
+    content: "";
+
+    width: 7px;
+
+    height: 7px;
+
+    flex: 0 0 7px;
+
+    border-radius: 50%;
+
+    background: #9ca3af;
+
+}
+
+
+#meterReadingModal .camera-status-active {
+
+    color: #1d4ed8;
+
+    background: #eff6ff;
+
+    border-color: #bfdbfe;
+
+}
+
+
+#meterReadingModal .camera-status-active::before {
+
+    background: #2563eb;
+
+    box-shadow:
+        0 0 0 4px
+        rgba(37, 99, 235, 0.10);
+
+}
+
+
+#meterReadingModal .camera-status-success {
+
+    color: #166534;
+
+    background: #ecfdf3;
+
+    border-color: #bbf7d0;
+
+}
+
+
+#meterReadingModal .camera-status-success::before {
+
+    background: #22c55e;
+
+    box-shadow:
+        0 0 0 4px
+        rgba(34, 197, 94, 0.10);
+
+}
+
+
+#meterReadingModal .camera-status-error {
+
     color: #b91c1c;
 
     background: #fef2f2;
 
-    border:
-        1px solid #fecaca;
+    border-color: #fecaca;
+
 }
 
 
-/* ==========================================
-   SAVE BUTTON
-========================================== */
+#meterReadingModal .camera-status-error::before {
 
-#readingForm > .btn-primary {
-    width: 100%;
+    background: #ef4444;
 
-    min-height: 50px;
-
-    margin-top: 4px;
-
-    font-size: 15px;
-
-    border-radius: 12px;
 }
 
 
-/* ==========================================
-   PHOTO VIEW MODAL
-========================================== */
+/* =========================================================
+   MODAL FOOTER
+========================================================= */
 
-.photo-modal-content {
-    max-width: 900px;
+#meterReadingModal .modal-footer {
 
-    padding: 12px;
+    position: sticky;
 
-    background: #111827;
+    bottom: 0;
 
-    border-radius: 20px;
+    z-index: 10;
 
-    overflow: hidden;
-}
+    flex: 0 0 auto;
 
+    display: flex;
 
-.photo-modal-content .modal-close {
-    position: absolute;
+    align-items: center;
 
-    top: 20px;
-    right: 20px;
+    justify-content: flex-end;
 
-    color: #ffffff;
+    gap: 10px;
+
+    padding:
+        15px 24px;
 
     background:
-        rgba(0, 0, 0, 0.55);
+        rgba(255,255,255,0.96);
+
+    border-top:
+        1px solid var(--fg-border);
+
+    box-shadow:
+        0 -7px 18px
+        rgba(15, 23, 42, 0.05);
 
     backdrop-filter:
         blur(8px);
+
+    -webkit-backdrop-filter:
+        blur(8px);
+
 }
 
 
-.photo-modal-content .modal-close:hover {
-    color: #151515;
+#meterReadingModal .modal-footer .btn {
 
-    background: #f7c600;
+    min-width: 130px;
+
 }
 
 
-#fullMeterPhoto {
-    display: block;
+/* =========================================================
+   MODAL FIELD SEPARATOR
+========================================================= */
 
-    width: 100%;
+#meterReadingModal .modal-form > .form-group:nth-child(1) {
 
-    max-height:
-        calc(100vh - 100px);
+    padding-top: 1px;
 
-    object-fit: contain;
-
-    border-radius: 13px;
-
-    background: #000;
 }
 
 
-/* ==========================================
-   CUSTOM SCROLLBAR
-========================================== */
+/* =========================================================
+   NUMBER INPUT
+========================================================= */
 
-.table-wrapper::-webkit-scrollbar {
-    height: 8px;
+#meterReadingModal
+input[type="number"] {
+
+    font-size: 15px;
+
+    font-weight: 700;
+
 }
 
 
-.table-wrapper::-webkit-scrollbar-track {
-    background: #f3f4f6;
+#meterReadingModal
+input[type="number"]::-webkit-inner-spin-button,
+#meterReadingModal
+input[type="number"]::-webkit-outer-spin-button {
+
+    opacity: 1;
+
 }
 
 
-.table-wrapper::-webkit-scrollbar-thumb {
-    background: #cfd4da;
+/* =========================================================
+   TOAST
+========================================================= */
 
-    border-radius: 999px;
+.fg-toast {
+
+    position: fixed;
+
+    right: 24px;
+
+    bottom: 24px;
+
+    z-index: 12000;
+
+    max-width: 380px;
+
+    min-width: 260px;
+
+    padding:
+        13px 16px;
+
+    color: #ffffff;
+
+    background: #111827;
+
+    border-radius: 11px;
+
+    box-shadow:
+        0 15px 35px
+        rgba(0,0,0,0.18);
+
+    font-size: 12px;
+
+    font-weight: 650;
+
+    line-height: 1.45;
+
+    opacity: 0;
+
+    pointer-events: none;
+
+    transform:
+        translateY(12px);
+
+    transition:
+        opacity 0.22s ease,
+        transform 0.22s ease;
+
 }
 
 
-.table-wrapper::-webkit-scrollbar-thumb:hover {
-    background: #aeb5bd;
+.fg-toast.show {
+
+    opacity: 1;
+
+    transform:
+        translateY(0);
+
 }
 
 
-.modal-content::-webkit-scrollbar {
-    width: 7px;
+.fg-toast-success {
+
+    background:
+        #166534;
+
 }
 
 
-.modal-content::-webkit-scrollbar-thumb {
-    background: #d1d5db;
+.fg-toast-error {
 
-    border-radius: 999px;
+    background:
+        #b91c1c;
+
 }
 
 
-/* ==========================================
-   TABLET RESPONSIVE
-========================================== */
+.fg-toast-warning {
+
+    background:
+        #92400e;
+
+}
+
+
+.fg-toast-info {
+
+    background:
+        #1f2937;
+
+}
+
+
+/* =========================================================
+   EMPTY STATE
+========================================================= */
+
+.meter-readings-page .empty-state {
+
+    min-height: 130px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    color: var(--fg-muted);
+
+    font-size: 12px;
+
+    text-align: center;
+
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
 
 @media (max-width: 1100px) {
 
-    .reading-stats {
+    .meter-readings-page .stats-grid {
+
         grid-template-columns:
             repeat(2, minmax(0, 1fr));
+
     }
 
 
-    .camera-container,
-    #meterCamera {
-        min-height: 240px;
+    .meter-readings-page .evidence-roll {
+
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+
     }
 
 }
 
 
-/* ==========================================
-   MOBILE
-========================================== */
+@media (max-width: 800px) {
 
-@media (max-width: 768px) {
-
-    .page-header {
-        flex-direction: column;
-
-        align-items: stretch;
-
-        gap: 18px;
-    }
-
-
-    .page-header .btn {
-        width: 100%;
-    }
-
-
-    .reading-stats {
-        grid-template-columns:
-            1fr;
-
-        gap: 14px;
-    }
-
-
-    .reading-stat-card {
-        min-height: auto;
+    .meter-readings-page {
 
         padding: 20px;
+
     }
 
 
-    .reading-section {
-        padding: 16px;
+    .meter-readings-page .page-header {
 
-        border-radius: 16px;
-    }
+        align-items: flex-start;
 
-
-    .section-header {
         flex-direction: column;
 
-        align-items: stretch;
-
-        gap: 16px;
     }
 
 
-    #readingSearch {
-        max-width: none;
-    }
+    .meter-readings-page .page-actions {
 
-
-    .modal {
-        padding: 12px;
-
-        align-items: flex-end;
-    }
-
-
-    .modal-content {
-        max-height:
-            calc(100vh - 24px);
-
-        padding: 22px;
-
-        border-radius:
-            20px 20px 16px 16px;
-    }
-
-
-    .modal-header h2 {
-        font-size: 21px;
-    }
-
-
-    .camera-container,
-    #meterCamera {
-        min-height: 220px;
-    }
-
-
-    .camera-actions {
-        flex-direction: column;
-    }
-
-
-    .camera-actions .btn {
         width: 100%;
+
     }
 
 
-    .photo-modal-content {
-        padding: 8px;
+    .meter-readings-page .page-actions .btn {
 
-        border-radius: 16px;
+        flex: 1;
+
     }
 
 
-    #fullMeterPhoto {
+    .meter-readings-page .filters-grid {
+
+        grid-template-columns: 1fr;
+
+    }
+
+
+    #meterReadingModal {
+
+        padding: 14px;
+
+    }
+
+
+    #meterReadingModal .modal-container {
+
+        width:
+            min(
+                680px,
+                calc(100vw - 28px)
+            );
+
         max-height:
-            calc(100vh - 70px);
+            calc(100vh - 28px);
+
+        border-radius: 17px;
+
+    }
+
+
+    #meterReadingModal .modal-header {
+
+        padding:
+            18px 18px 16px;
+
+    }
+
+
+    #meterReadingModal .modal-form > .form-group {
+
+        margin-left: 18px;
+
+        margin-right: 18px;
+
+    }
+
+
+    #meterReadingModal .camera-section {
+
+        margin-left: 18px;
+
+        margin-right: 18px;
+
+    }
+
+
+    #meterReadingModal .modal-footer {
+
+        padding:
+            13px 18px;
+
     }
 
 }
 
 
-/* ==========================================
-   SMALL MOBILE
-========================================== */
+@media (max-width: 600px) {
 
-@media (max-width: 480px) {
+    .meter-readings-page {
 
-    .page-header {
-        padding-bottom: 20px;
+        padding: 14px;
 
-        margin-bottom: 20px;
     }
 
 
-    .page-header h1 {
-        font-size: 29px;
+    .meter-readings-page .stats-grid {
+
+        grid-template-columns: 1fr;
+
     }
 
 
-    .page-header p:not(.page-eyebrow) {
-        font-size: 14px;
+    .meter-readings-page .evidence-roll {
+
+        grid-template-columns: 1fr;
+
     }
 
 
-    .reading-stat-card strong {
-        font-size: 28px;
+    .meter-readings-page .page-header h1 {
+
+        font-size: 25px;
+
     }
 
 
-    .reading-section {
-        padding: 13px;
+    .meter-readings-page .page-actions {
+
+        flex-direction: column;
+
     }
 
 
-    .section-header h2 {
-        font-size: 19px;
+    .meter-readings-page .page-actions .btn {
+
+        width: 100%;
+
     }
 
 
-    .modal {
-        padding: 0;
+    #meterReadingModal {
 
-        align-items: flex-end;
+        padding: 8px;
+
     }
 
 
-    .modal-content {
-        padding: 18px;
+    #meterReadingModal .modal-container {
+
+        width: 100%;
+
+        max-width: none;
+
+        height:
+            calc(100vh - 16px);
 
         max-height:
-            calc(100vh - 8px);
+            calc(100vh - 16px);
 
-        border-radius:
-            18px 18px 0 0;
+        border-radius: 15px;
+
     }
 
 
-    .modal-close {
-        top: 14px;
-        right: 14px;
+    #meterReadingModal .modal-header {
 
-        width: 36px;
-        height: 36px;
+        padding:
+            16px;
+
     }
 
 
-    .modal-header {
-        padding-right: 38px;
+    #meterReadingModal .modal-header h2 {
 
-        margin-bottom: 20px;
+        font-size: 18px;
+
     }
 
 
-    .modal-header h2 {
-        font-size: 19px;
+    #meterReadingModal .modal-header p {
+
+        font-size: 11px;
+
     }
 
 
-    .camera-container,
-    #meterCamera {
+    #meterReadingModal .modal-close {
+
+        width: 34px;
+
+        height: 34px;
+
+        flex-basis: 34px;
+
+    }
+
+
+    #meterReadingModal .modal-form > .form-group {
+
+        margin-left: 16px;
+
+        margin-right: 16px;
+
+    }
+
+
+    #meterReadingModal .camera-section {
+
+        margin:
+            3px 16px
+            18px;
+
+        padding: 13px;
+
+    }
+
+
+    #meterReadingModal .camera-section-header {
+
+        flex-direction: column;
+
+        gap: 10px;
+
+    }
+
+
+    #meterReadingModal .camera-preview {
+
+        min-height: 230px;
+
+    }
+
+
+    #meterReadingModal .camera-actions {
+
+        display: grid;
+
+        grid-template-columns:
+            1fr 1fr;
+
+    }
+
+
+    #meterReadingModal .camera-actions .btn {
+
+        width: 100%;
+
+    }
+
+
+    #meterReadingModal
+    .camera-actions
+    #startCameraBtn {
+
+        grid-column:
+            1 / -1;
+
+    }
+
+
+    #meterReadingModal .modal-footer {
+
+        display: grid;
+
+        grid-template-columns:
+            1fr 1fr;
+
+        padding:
+            12px 16px;
+
+    }
+
+
+    #meterReadingModal .modal-footer .btn {
+
+        width: 100%;
+
+        min-width: 0;
+
+    }
+
+}
+
+
+@media (max-width: 380px) {
+
+    .meter-readings-page {
+
+        padding: 10px;
+
+    }
+
+
+    #meterReadingModal .camera-preview {
+
         min-height: 190px;
+
     }
 
 
-    .camera-container::before {
-        top: 10px;
-        left: 10px;
+    #meterReadingModal .modal-header h2 {
 
-        font-size: 9px;
+        font-size: 17px;
+
     }
 
 
-    .form-group input,
-    .form-group select {
-        min-height: 48px;
+    #meterReadingModal .modal-footer {
+
+        grid-template-columns: 1fr;
+
     }
 
-
-    #readingForm > .btn-primary {
-        min-height: 52px;
-    }
+}
 
 
-    .photo-preview {
-        padding: 7px;
-    }
+/* =========================================================
+   ACCESSIBILITY
+========================================================= */
+
+.meter-readings-page button:focus-visible,
+.meter-readings-page input:focus-visible,
+.meter-readings-page select:focus-visible,
+#meterReadingModal button:focus-visible,
+#meterReadingModal input:focus-visible,
+#meterReadingModal select:focus-visible {
+
+    outline:
+        3px solid
+        rgba(245, 196, 0, 0.25);
+
+    outline-offset: 2px;
+
+}
 
 
-    .photo-preview::before {
-        top: 14px;
-        left: 14px;
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
 
-        font-size: 9px;
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+
+        scroll-behavior: auto !important;
+
+        animation-duration: 0.01ms !important;
+
+        animation-iteration-count: 1 !important;
+
+        transition-duration: 0.01ms !important;
+
     }
 
 }

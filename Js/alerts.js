@@ -1,183 +1,709 @@
-/* ==========================================
-   FUELGAP - PROFESSIONAL ALERTS
-========================================== */
+/* =========================================================
+   FUELGAP - ALERTS FRONTEND
+   PRODUCTION VERSION
+   SUPABASE + EXPRESS
+   HTTPONLY COOKIE SESSION
+   NO LOCALSTORAGE AUTH
+========================================================= */
+
+"use strict";
 
 
-/* ==========================================
-   STORAGE KEYS
-========================================== */
+/* =========================================================
+   ALERTS STATE
+========================================================= */
 
-const ALERTS_STORAGE_KEY =
-    "fuelgap_alerts";
+const AlertsState = {
 
+    currentUser: null,
 
-const ALERTS_STATIONS_STORAGE_KEY =
-    "fuelgap_stations";
+    alerts: [],
+    filteredAlerts: [],
 
+    stations: [],
 
-/* ==========================================
-   PAGE LOAD
-========================================== */
+    isLoading: false,
+    isProcessing: false,
+    isCreating: false,
 
-document.addEventListener(
-    "DOMContentLoaded",
-    () => {
+    filters: {
+        station_id: "",
+        severity: "",
+        status: "",
+        type: "",
+        search: ""
+    },
 
-        const currentUser =
-            getAlertsCurrentUser();
+    autoRefreshTimer: null,
 
+    selectedAlert: null
 
-        if (!currentUser) {
-
-            window.location.href =
-                "../login.html";
-
-            return;
-
-        }
+};
 
 
-        /*
-           CHECK PERMISSION
-        */
+/* =========================================================
+   ALERTS CSS
+========================================================= */
 
-        if (
-            typeof hasPermission === "function" &&
-            !hasPermission(
-                currentUser.role,
-                "alerts"
-            )
-        ) {
+(function injectAlertsStyles() {
 
-            window.location.href =
-                "./dashboard.html";
-
-            return;
-
-        }
-
-
-        setTimeout(
-            () => {
-
-                renderAlertsPage();
-
-                setupAlertEvents();
-
-                renderAlerts();
-
-            },
-            0
-        );
-
+    if (document.getElementById("fuelgap-alerts-styles")) {
+        return;
     }
-);
+
+    const style = document.createElement("style");
+
+    style.id = "fuelgap-alerts-styles";
+
+    style.textContent = `
+
+        .alerts-page {
+            padding: 24px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .alerts-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .alerts-title-wrap h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 800;
+            color: #171717;
+        }
+
+        .alerts-title-wrap p {
+            margin: 7px 0 0;
+            color: #737373;
+            font-size: 14px;
+        }
+
+        .alerts-header-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .alerts-btn {
+            border: 0;
+            border-radius: 10px;
+            padding: 11px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: .2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .alerts-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .alerts-btn-primary {
+            background: #facc15;
+            color: #171717;
+        }
+
+        .alerts-btn-secondary {
+            background: #f5f5f5;
+            color: #262626;
+            border: 1px solid #e5e5e5;
+        }
+
+        .alerts-btn-danger {
+            background: #dc2626;
+            color: #fff;
+        }
+
+        .alerts-btn-success {
+            background: #16a34a;
+            color: #fff;
+        }
+
+        .alerts-btn-warning {
+            background: #f59e0b;
+            color: #fff;
+        }
+
+        .alerts-btn:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .alerts-summary {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 15px;
+            margin-bottom: 24px;
+        }
+
+        .alert-stat-card {
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            border-radius: 14px;
+            padding: 18px;
+            box-shadow: 0 3px 14px rgba(0,0,0,.04);
+        }
+
+        .alert-stat-label {
+            color: #737373;
+            font-size: 13px;
+            margin-bottom: 7px;
+        }
+
+        .alert-stat-value {
+            font-size: 27px;
+            font-weight: 800;
+            color: #171717;
+        }
+
+        .alert-stat-card.warning {
+            border-left: 4px solid #f59e0b;
+        }
+
+        .alert-stat-card.high {
+            border-left: 4px solid #ea580c;
+        }
+
+        .alert-stat-card.critical {
+            border-left: 4px solid #dc2626;
+        }
+
+        .alert-stat-card.resolved {
+            border-left: 4px solid #16a34a;
+        }
+
+        .alerts-filters {
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: 1.3fr 1fr 1fr 1fr 1.5fr;
+            gap: 12px;
+        }
+
+        .alerts-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .alerts-field label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #525252;
+        }
+
+        .alerts-field input,
+        .alerts-field select,
+        .alerts-modal input,
+        .alerts-modal select,
+        .alerts-modal textarea {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #d4d4d4;
+            border-radius: 9px;
+            padding: 11px 12px;
+            background: #fff;
+            color: #171717;
+            outline: none;
+            font-size: 14px;
+        }
+
+        .alerts-field input:focus,
+        .alerts-field select:focus,
+        .alerts-modal input:focus,
+        .alerts-modal select:focus,
+        .alerts-modal textarea:focus {
+            border-color: #eab308;
+            box-shadow: 0 0 0 3px rgba(250,204,21,.15);
+        }
+
+        .alerts-table-wrap {
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 3px 14px rgba(0,0,0,.04);
+        }
+
+        .alerts-table-scroll {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .alerts-table {
+            width: 100%;
+            min-width: 950px;
+            border-collapse: collapse;
+        }
+
+        .alerts-table th {
+            background: #fafafa;
+            color: #525252;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .alerts-table td {
+            padding: 14px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #262626;
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+        .alerts-table tbody tr:hover {
+            background: #fffdf0;
+        }
+
+        .alert-title {
+            font-weight: 750;
+            color: #171717;
+        }
+
+        .alert-message-preview {
+            margin-top: 4px;
+            color: #737373;
+            font-size: 12px;
+            max-width: 360px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .alert-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5px 9px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .alert-badge-info {
+            background: #e0f2fe;
+            color: #0369a1;
+        }
+
+        .alert-badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .alert-badge-high {
+            background: #ffedd5;
+            color: #c2410c;
+        }
+
+        .alert-badge-critical {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .alert-badge-new {
+            background: #fef9c3;
+            color: #854d0e;
+        }
+
+        .alert-badge-acknowledged {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .alert-badge-resolved {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .alert-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .alert-action-btn {
+            border: 1px solid #e5e5e5;
+            background: #fff;
+            border-radius: 8px;
+            padding: 7px 9px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .alert-action-btn:hover {
+            background: #fafafa;
+        }
+
+        .alert-action-btn.danger {
+            color: #dc2626;
+        }
+
+        .alert-empty {
+            text-align: center;
+            padding: 55px 20px;
+            color: #737373;
+        }
+
+        .alert-empty strong {
+            display: block;
+            color: #404040;
+            font-size: 17px;
+            margin-bottom: 6px;
+        }
+
+        .alert-loading {
+            text-align: center;
+            padding: 50px;
+            color: #737373;
+        }
+
+        .alerts-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.55);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .alerts-modal {
+            width: min(680px, 100%);
+            max-height: 90vh;
+            overflow-y: auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 25px 70px rgba(0,0,0,.2);
+        }
+
+        .alerts-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            padding: 20px 22px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .alerts-modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .alerts-modal-close {
+            width: 34px;
+            height: 34px;
+            border: 0;
+            border-radius: 8px;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .alerts-modal-body {
+            padding: 22px;
+        }
+
+        .alerts-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .alerts-form-full {
+            grid-column: 1 / -1;
+        }
+
+        .alerts-modal textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .alerts-modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 18px 22px;
+            border-top: 1px solid #e5e5e5;
+        }
+
+        .alert-detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .alert-detail-item {
+            background: #fafafa;
+            border-radius: 10px;
+            padding: 13px;
+        }
+
+        .alert-detail-label {
+            color: #737373;
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 800;
+            margin-bottom: 5px;
+        }
+
+        .alert-detail-value {
+            color: #171717;
+            font-size: 14px;
+            font-weight: 650;
+            word-break: break-word;
+        }
+
+        .alert-detail-message {
+            background: #fafafa;
+            padding: 15px;
+            border-radius: 10px;
+            line-height: 1.6;
+            color: #404040;
+            white-space: pre-wrap;
+        }
+
+        .alerts-toast-container {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: min(380px, calc(100vw - 40px));
+        }
+
+        .alerts-toast {
+            background: #171717;
+            color: #fff;
+            padding: 14px 16px;
+            border-radius: 10px;
+            box-shadow: 0 12px 30px rgba(0,0,0,.2);
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .alerts-toast.success {
+            border-left: 4px solid #22c55e;
+        }
+
+        .alerts-toast.error {
+            border-left: 4px solid #ef4444;
+        }
+
+        .alerts-toast.warning {
+            border-left: 4px solid #facc15;
+        }
+
+        @media (max-width: 1100px) {
+
+            .alerts-summary {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .alerts-filters {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+        }
+
+        @media (max-width: 700px) {
+
+            .alerts-page {
+                padding: 15px;
+            }
+
+            .alerts-header {
+                flex-direction: column;
+            }
+
+            .alerts-header-actions {
+                width: 100%;
+            }
+
+            .alerts-header-actions .alerts-btn {
+                flex: 1;
+            }
+
+            .alerts-summary {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .alerts-filters {
+                grid-template-columns: 1fr;
+            }
+
+            .alerts-form-grid,
+            .alert-detail-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .alerts-form-full {
+                grid-column: auto;
+            }
+
+        }
+
+        @media (max-width: 430px) {
+
+            .alerts-summary {
+                grid-template-columns: 1fr;
+            }
+
+        }
+
+    `;
+
+    document.head.appendChild(style);
+
+})();
 
 
-/* ==========================================
-   SAFE STORAGE
-========================================== */
+/* =========================================================
+   CURRENT USER
+   IMPORTANT:
+   SUPPORTS MULTIPLE API RESPONSE SHAPES
+========================================================= */
 
-function getAlertsStorageData(
-    storageKey
-) {
+async function getAlertsCurrentUser() {
 
     try {
 
-        const data =
-            localStorage.getItem(
-                storageKey
+        if (
+            window.FuelGapAPI &&
+            typeof FuelGapAPI.getCurrentUser === "function"
+        ) {
+
+            const response =
+                await FuelGapAPI.getCurrentUser();
+
+            console.log(
+                "FUELGAP ALERTS - AUTH/ME RESPONSE:",
+                response
             );
 
 
-        if (!data) {
+            /*
+                Supported responses:
 
-            return [];
+                {
+                    user: {...}
+                }
+
+                {
+                    data: {
+                        user: {...}
+                    }
+                }
+
+                {
+                    data: {
+                        data: {
+                            user: {...}
+                        }
+                    }
+                }
+
+                {
+                    data: {...}
+                }
+
+                {
+                    role: "owner"
+                }
+            */
+
+            const user =
+                response?.user ||
+                response?.data?.user ||
+                response?.data?.data?.user ||
+                response?.data?.data ||
+                response?.data ||
+                response;
+
+
+            console.log(
+                "FUELGAP ALERTS - CURRENT USER:",
+                user
+            );
+
+            console.log(
+                "FUELGAP ALERTS - CURRENT ROLE:",
+                user?.role
+            );
+
+
+            if (user) {
+                return user;
+            }
 
         }
 
-
-        const parsed =
-            JSON.parse(data);
-
-
-        return Array.isArray(parsed)
-            ? parsed
-            : [];
-
     } catch (error) {
 
-        console.error(
-            `Unable to load ${storageKey}:`,
+        console.warn(
+            "FuelGapAPI.getCurrentUser failed:",
             error
         );
 
-
-        return [];
-
     }
 
-}
+
+    /* =====================================================
+       FALLBACK TO UTILS
+    ===================================================== */
+
+    try {
+
+        if (
+            window.FuelGapUtils &&
+            typeof FuelGapUtils.getCurrentUser === "function"
+        ) {
+
+            const user =
+                FuelGapUtils.getCurrentUser();
 
 
-/* ==========================================
-   SAVE STORAGE
-========================================== */
-
-function saveAlertsStorageData(
-    storageKey,
-    data
-) {
-
-    localStorage.setItem(
-        storageKey,
-        JSON.stringify(data)
-    );
-
-}
+            console.log(
+                "FUELGAP ALERTS - UTILS CURRENT USER:",
+                user
+            );
 
 
-/* ==========================================
-   GET ALERTS
-========================================== */
+            if (user) {
+                return user;
+            }
 
-function getAlerts() {
+        }
 
-    return getAlertsStorageData(
-        ALERTS_STORAGE_KEY
-    );
+    } catch (error) {
 
-}
-
-
-/* ==========================================
-   GET STATIONS
-========================================== */
-
-function getAlertStations() {
-
-    return getAlertsStorageData(
-        ALERTS_STATIONS_STORAGE_KEY
-    );
-
-}
-
-
-/* ==========================================
-   CURRENT USER
-========================================== */
-
-function getAlertsCurrentUser() {
-
-    if (
-        typeof FuelGapUtils !==
-        "undefined" &&
-
-        typeof FuelGapUtils.getCurrentUser ===
-        "function"
-    ) {
-
-        return FuelGapUtils.getCurrentUser();
+        console.warn(
+            "FuelGapUtils.getCurrentUser failed:",
+            error
+        );
 
     }
 
@@ -187,116 +713,232 @@ function getAlertsCurrentUser() {
 }
 
 
-/* ==========================================
-   GET VISIBLE STATIONS
-========================================== */
+/* =========================================================
+   ROLE CHECK
+========================================================= */
 
-function getVisibleAlertStations() {
+function canManageAlerts() {
 
-    const currentUser =
-        getAlertsCurrentUser();
-
-
-    const stations =
-        getAlertStations();
+    const user =
+        AlertsState.currentUser;
 
 
-    if (!currentUser) {
-
-        return [];
-
-    }
-
-
-    /*
-       ADMIN
-    */
-
-    if (
-        currentUser.role ===
-        "admin"
-    ) {
-
-        return stations;
-
-    }
+    const role =
+        user?.role ||
+        user?.user?.role ||
+        user?.data?.role ||
+        user?.data?.user?.role ||
+        "";
 
 
-    /*
-       OWNER
-    */
-
-    if (
-        currentUser.role ===
-        "owner"
-    ) {
-
-        return stations.filter(
-            station =>
-                station.organizationId ===
-                currentUser.organizationId
-        );
-
-    }
+    const normalizedRole =
+        String(role)
+            .trim()
+            .toLowerCase();
 
 
-    /*
-       MANAGER
-    */
+    console.log(
+        "FUELGAP ALERTS - ROLE CHECK:",
+        {
+            user,
+            role,
+            normalizedRole
+        }
+    );
 
-    if (
-        currentUser.role ===
+
+    return [
+        "owner",
+        "admin",
         "manager"
-    ) {
+    ].includes(
+        normalizedRole
+    );
 
-        if (
-            currentUser.stationId
-        ) {
-
-            return stations.filter(
-                station =>
-                    station.id ===
-                    currentUser.stationId
-            );
-
-        }
+}
 
 
-        return stations.filter(
-            station =>
-                station.organizationId ===
-                currentUser.organizationId
+/* =========================================================
+   TOAST
+========================================================= */
+
+function showAlertsToast(
+    message,
+    type = "success"
+) {
+
+    let container =
+        document.getElementById(
+            "alertsToastContainer"
+        );
+
+
+    if (!container) {
+
+        container =
+            document.createElement("div");
+
+        container.id =
+            "alertsToastContainer";
+
+        container.className =
+            "alerts-toast-container";
+
+        document.body.appendChild(
+            container
         );
 
     }
 
 
-    /*
-       STAFF / ATTENDANT
-    */
+    const toast =
+        document.createElement("div");
+
+    toast.className =
+        `alerts-toast ${type}`;
+
+
+    toast.textContent =
+        message;
+
+
+    container.appendChild(
+        toast
+    );
+
+
+    setTimeout(() => {
+
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(10px)";
+        toast.style.transition = ".25s ease";
+
+
+        setTimeout(() => {
+
+            toast.remove();
+
+        }, 250);
+
+    }, 3500);
+
+}
+
+
+/* =========================================================
+   ESCAPE HTML
+========================================================= */
+
+function escapeAlertHtml(value) {
 
     if (
-
-        currentUser.role ===
-        "staff" ||
-
-        currentUser.role ===
-        "attendant"
-
+        value === null ||
+        value === undefined
     ) {
+        return "";
+    }
 
-        if (
-            currentUser.stationId
-        ) {
 
-            return stations.filter(
-                station =>
-                    station.id ===
-                    currentUser.stationId
-            );
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 
+}
+
+
+/* =========================================================
+   FORMAT DATE
+========================================================= */
+
+function formatAlertDate(value) {
+
+    if (!value) {
+        return "—";
+    }
+
+
+    const date =
+        new Date(value);
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+        return "—";
+    }
+
+
+    return date.toLocaleString(
+        "en-NG",
+        {
+            dateStyle: "medium",
+            timeStyle: "short"
         }
+    );
 
+}
+
+
+/* =========================================================
+   FORMAT NUMBER
+========================================================= */
+
+function formatAlertNumber(value) {
+
+    const number =
+        Number(value);
+
+
+    if (
+        Number.isNaN(number)
+    ) {
+        return "0";
+    }
+
+
+    return number.toLocaleString(
+        "en-NG"
+    );
+
+}
+
+
+/* =========================================================
+   GET API DATA ARRAY
+========================================================= */
+
+function extractAlertsArray(response) {
+
+    if (
+        Array.isArray(response)
+    ) {
+        return response;
+    }
+
+
+    if (
+        Array.isArray(response?.data)
+    ) {
+        return response.data;
+    }
+
+
+    if (
+        Array.isArray(response?.data?.alerts)
+    ) {
+        return response.data.alerts;
+    }
+
+
+    if (
+        Array.isArray(response?.alerts)
+    ) {
+        return response.alerts;
     }
 
 
@@ -305,161 +947,456 @@ function getVisibleAlertStations() {
 }
 
 
-/* ==========================================
-   GET VISIBLE STATION IDS
-========================================== */
+/* =========================================================
+   LOAD STATIONS
+========================================================= */
 
-function getVisibleAlertStationIds() {
+async function loadAlertStations() {
 
-    return getVisibleAlertStations()
-        .map(
-            station =>
-                station.id
+    try {
+
+        if (
+            !window.FuelGapAPI ||
+            typeof FuelGapAPI.getStations !== "function"
+        ) {
+
+            console.warn(
+                "FuelGapAPI.getStations is unavailable."
+            );
+
+            return;
+
+        }
+
+
+        const response =
+            await FuelGapAPI.getStations();
+
+
+        const stations =
+            extractAlertsArray(
+                response
+            );
+
+
+        AlertsState.stations =
+            stations || [];
+
+
+        console.log(
+            "FUELGAP ALERTS - STATIONS:",
+            AlertsState.stations
         );
+
+
+    } catch (error) {
+
+        console.error(
+            "Failed to load alert stations:",
+            error
+        );
+
+
+        AlertsState.stations = [];
+
+    }
 
 }
 
 
-/* ==========================================
-   GET VISIBLE ALERTS
-========================================== */
+/* =========================================================
+   POPULATE STATION FILTER
+========================================================= */
 
-function getVisibleAlerts() {
+function populateAlertStationFilter() {
 
-    const currentUser =
-        getAlertsCurrentUser();
-
-
-    const alerts =
-        getAlerts();
+    const select =
+        document.getElementById(
+            "alertStationFilter"
+        );
 
 
-    if (!currentUser) {
-
-        return [];
-
+    if (!select) {
+        return;
     }
 
 
-    /*
-       ADMIN
-    */
-
-    if (
-        currentUser.role ===
-        "admin"
-    ) {
-
-        return alerts;
-
-    }
+    const currentValue =
+        AlertsState.filters.station_id;
 
 
-    const visibleStationIds =
-        getVisibleAlertStationIds();
+    select.innerHTML =
+        `<option value="">All stations</option>`;
 
 
-    return alerts.filter(
-        alert => {
+    AlertsState.stations.forEach(
+        station => {
 
-            /*
-               STATION ALERT
-            */
+            const id =
+                station.id ||
+                station.station_id;
 
-            if (
 
-                alert.stationId &&
+            const name =
+                station.name ||
+                station.station_name ||
+                `Station ${id}`;
 
-                visibleStationIds.includes(
-                    alert.stationId
-                )
 
-            ) {
-
-                return true;
-
+            if (!id) {
+                return;
             }
 
 
-            /*
-               ORGANIZATION ALERT
-            */
-
-            if (
-
-                alert.organizationId &&
-
-                alert.organizationId ===
-                currentUser.organizationId
-
-            ) {
-
-                return true;
-
-            }
+            const option =
+                document.createElement("option");
 
 
-            return false;
+            option.value =
+                id;
+
+
+            option.textContent =
+                name;
+
+
+            select.appendChild(
+                option
+            );
 
         }
     );
 
+
+    select.value =
+        currentValue;
+
 }
 
 
-/* ==========================================
+/* =========================================================
+   LOAD ALERTS
+========================================================= */
+
+async function loadAlerts() {
+
+    if (AlertsState.isLoading) {
+        return;
+    }
+
+
+    AlertsState.isLoading =
+        true;
+
+
+    renderAlertsLoading();
+
+
+    try {
+
+        const filters = {};
+
+
+        if (
+            AlertsState.filters.station_id
+        ) {
+            filters.station_id =
+                AlertsState.filters.station_id;
+        }
+
+
+        if (
+            AlertsState.filters.severity
+        ) {
+            filters.severity =
+                AlertsState.filters.severity;
+        }
+
+
+        if (
+            AlertsState.filters.status
+        ) {
+            filters.status =
+                AlertsState.filters.status;
+        }
+
+
+        if (
+            AlertsState.filters.type
+        ) {
+            filters.type =
+                AlertsState.filters.type;
+        }
+
+
+        filters.limit = 500;
+
+
+        const response =
+            await FuelGapAPI.getAlerts(
+                filters
+            );
+
+
+        AlertsState.alerts =
+            extractAlertsArray(
+                response
+            );
+
+
+        console.log(
+            "FUELGAP ALERTS - LOADED:",
+            AlertsState.alerts
+        );
+
+
+        applyAlertFilters();
+
+
+    } catch (error) {
+
+        console.error(
+            "FUELGAP ALERTS - LOAD ERROR:",
+            error
+        );
+
+
+        renderAlertsError(
+            error.message ||
+            "Unable to load alerts."
+        );
+
+    } finally {
+
+        AlertsState.isLoading =
+            false;
+
+    }
+
+}
+
+
+/* =========================================================
+   APPLY FILTERS
+========================================================= */
+
+function applyAlertFilters() {
+
+    const search =
+        String(
+            AlertsState.filters.search ||
+            ""
+        )
+            .trim()
+            .toLowerCase();
+
+
+    AlertsState.filteredAlerts =
+        AlertsState.alerts.filter(
+            alert => {
+
+                if (
+                    AlertsState.filters.station_id &&
+                    String(
+                        alert.station_id ||
+                        ""
+                    ) !== String(
+                        AlertsState.filters.station_id
+                    )
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (
+                    AlertsState.filters.severity &&
+                    String(
+                        alert.severity ||
+                        ""
+                    ).toLowerCase() !==
+                    String(
+                        AlertsState.filters.severity
+                    ).toLowerCase()
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (
+                    AlertsState.filters.status &&
+                    String(
+                        alert.status ||
+                        ""
+                    ).toLowerCase() !==
+                    String(
+                        AlertsState.filters.status
+                    ).toLowerCase()
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (
+                    AlertsState.filters.type &&
+                    String(
+                        alert.type ||
+                        ""
+                    ).toLowerCase() !==
+                    String(
+                        AlertsState.filters.type
+                    ).toLowerCase()
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (search) {
+
+                    const searchable =
+                        [
+                            alert.title,
+                            alert.message,
+                            alert.type,
+                            alert.severity,
+                            alert.status,
+                            alert.station?.name,
+                            alert.pump?.pump_number,
+                            alert.nozzle?.nozzle_number
+                        ]
+                            .filter(Boolean)
+                            .join(" ")
+                            .toLowerCase();
+
+
+                    if (
+                        !searchable.includes(
+                            search
+                        )
+                    ) {
+
+                        return false;
+
+                    }
+
+                }
+
+
+                return true;
+
+            }
+        );
+
+
+    renderAlertsPage();
+
+}
+
+
+/* =========================================================
+   SUMMARY
+========================================================= */
+
+function getAlertSummary() {
+
+    const alerts =
+        AlertsState.alerts;
+
+
+    return {
+
+        total:
+            alerts.length,
+
+        newCount:
+            alerts.filter(
+                alert =>
+                    alert.status === "new"
+            ).length,
+
+        acknowledged:
+            alerts.filter(
+                alert =>
+                    alert.status === "acknowledged"
+            ).length,
+
+        resolved:
+            alerts.filter(
+                alert =>
+                    alert.status === "resolved"
+            ).length,
+
+        critical:
+            alerts.filter(
+                alert =>
+                    alert.severity === "critical"
+            ).length,
+
+        high:
+            alerts.filter(
+                alert =>
+                    alert.severity === "high"
+            ).length,
+
+        warning:
+            alerts.filter(
+                alert =>
+                    alert.severity === "warning"
+            ).length
+
+    };
+
+}
+
+
+/* =========================================================
    RENDER PAGE
-========================================== */
+========================================================= */
 
 function renderAlertsPage() {
 
-    const pageContent =
+    const container =
         document.getElementById(
             "pageContent"
         );
 
 
-    if (!pageContent) {
+    if (!container) {
+
+        console.warn(
+            "FuelGap Alerts: #pageContent not found."
+        );
 
         return;
 
     }
 
 
-    pageContent.innerHTML = `
+    const summary =
+        getAlertSummary();
+
+
+    container.innerHTML = `
 
         <div class="alerts-page">
 
+            <div class="alerts-header">
 
-            <!-- ================================
-                 PAGE HEADER
-            ================================= -->
-
-            <div class="page-header alerts-header">
-
-
-                <div>
-
-                    <p class="page-eyebrow">
-
-                        SYSTEM MONITORING
-
-                    </p>
-
+                <div class="alerts-title-wrap">
 
                     <h1>
-
-                        Alerts Center
-
+                        Alerts & Notifications
                     </h1>
 
-
                     <p>
-
-                        Monitor critical fuel gaps,
-                        variances and important
-                        station activities.
-
+                        Monitor fuel gaps, variances and operational exceptions.
                     </p>
 
                 </div>
@@ -467,569 +1404,448 @@ function renderAlertsPage() {
 
                 <div class="alerts-header-actions">
 
-
                     <button
+                        class="alerts-btn alerts-btn-secondary"
                         type="button"
-                        class="btn btn-outline"
-                        id="clearAlertFiltersButton"
+                        id="refreshAlertsBtn"
                     >
-
-                        Clear Filters
-
+                        ↻ Refresh
                     </button>
 
 
-                    <button
-                        type="button"
-                        class="btn btn-primary"
-                        id="refreshAlertsButton"
-                    >
-
-                        Refresh Alerts
-
-                    </button>
-
+                    ${
+                        canManageAlerts()
+                            ? `
+                                <button
+                                    class="alerts-btn alerts-btn-primary"
+                                    type="button"
+                                    id="createAlertBtn"
+                                >
+                                    + Create Alert
+                                </button>
+                            `
+                            : ""
+                    }
 
                 </div>
-
 
             </div>
 
 
+            <div class="alerts-summary">
 
-            <!-- ================================
-                 SUMMARY CARDS
-            ================================= -->
+                <div class="alert-stat-card">
 
-            <div class="alert-summary">
-
-
-                <!-- TOTAL -->
-
-                <div class="alert-summary-card total-alert-card">
-
-
-                    <div
-                        class="alert-summary-icon"
-                    >
-
-                        🔔
-
+                    <div class="alert-stat-label">
+                        Total Alerts
                     </div>
 
-
-                    <div>
-
-                        <span>
-
-                            Total Alerts
-
-                        </span>
-
-
-                        <strong
-                            id="totalAlertsCount"
-                        >
-
-                            0
-
-                        </strong>
-
+                    <div class="alert-stat-value">
+                        ${formatAlertNumber(summary.total)}
                     </div>
-
 
                 </div>
 
 
+                <div class="alert-stat-card warning">
 
-                <!-- UNRESOLVED -->
-
-                <div
-                    class="alert-summary-card unresolved-alert-card"
-                >
-
-
-                    <div
-                        class="alert-summary-icon"
-                    >
-
-                        ⚠️
-
+                    <div class="alert-stat-label">
+                        New
                     </div>
 
-
-                    <div>
-
-                        <span>
-
-                            Requires Attention
-
-                        </span>
-
-
-                        <strong
-                            id="unresolvedAlertsCount"
-                        >
-
-                            0
-
-                        </strong>
-
+                    <div class="alert-stat-value">
+                        ${formatAlertNumber(summary.newCount)}
                     </div>
-
 
                 </div>
 
 
+                <div class="alert-stat-card high">
 
-                <!-- CRITICAL -->
-
-                <div
-                    class="alert-summary-card critical-alert-card"
-                >
-
-
-                    <div
-                        class="alert-summary-icon"
-                    >
-
-                        🚨
-
+                    <div class="alert-stat-label">
+                        High
                     </div>
 
-
-                    <div>
-
-                        <span>
-
-                            Critical Alerts
-
-                        </span>
-
-
-                        <strong
-                            id="criticalAlertsCount"
-                        >
-
-                            0
-
-                        </strong>
-
+                    <div class="alert-stat-value">
+                        ${formatAlertNumber(summary.high)}
                     </div>
-
 
                 </div>
 
 
+                <div class="alert-stat-card critical">
 
-                <!-- RESOLVED -->
-
-                <div
-                    class="alert-summary-card resolved-alert-card"
-                >
-
-
-                    <div
-                        class="alert-summary-icon"
-                    >
-
-                        ✓
-
+                    <div class="alert-stat-label">
+                        Critical
                     </div>
 
+                    <div class="alert-stat-value">
+                        ${formatAlertNumber(summary.critical)}
+                    </div>
 
-                    <div>
+                </div>
 
-                        <span>
 
+                <div class="alert-stat-card resolved">
+
+                    <div class="alert-stat-label">
+                        Resolved
+                    </div>
+
+                    <div class="alert-stat-value">
+                        ${formatAlertNumber(summary.resolved)}
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="alerts-filters">
+
+                <div class="alerts-field">
+
+                    <label>
+                        Station
+                    </label>
+
+                    <select id="alertStationFilter">
+                        <option value="">
+                            All stations
+                        </option>
+                    </select>
+
+                </div>
+
+
+                <div class="alerts-field">
+
+                    <label>
+                        Severity
+                    </label>
+
+                    <select id="alertSeverityFilter">
+
+                        <option value="">
+                            All severity
+                        </option>
+
+                        <option value="info">
+                            Info
+                        </option>
+
+                        <option value="warning">
+                            Warning
+                        </option>
+
+                        <option value="high">
+                            High
+                        </option>
+
+                        <option value="critical">
+                            Critical
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="alerts-field">
+
+                    <label>
+                        Status
+                    </label>
+
+                    <select id="alertStatusFilter">
+
+                        <option value="">
+                            All status
+                        </option>
+
+                        <option value="new">
+                            New
+                        </option>
+
+                        <option value="acknowledged">
+                            Acknowledged
+                        </option>
+
+                        <option value="resolved">
                             Resolved
+                        </option>
 
-                        </span>
-
-
-                        <strong
-                            id="resolvedAlertsCount"
-                        >
-
-                            0
-
-                        </strong>
-
-                    </div>
-
+                    </select>
 
                 </div>
 
+
+                <div class="alerts-field">
+
+                    <label>
+                        Type
+                    </label>
+
+                    <select id="alertTypeFilter">
+
+                        <option value="">
+                            All types
+                        </option>
+
+                        <option value="gap_variance">
+                            Gap Variance
+                        </option>
+
+                        <option value="system">
+                            System
+                        </option>
+
+                        <option value="operational">
+                            Operational
+                        </option>
+
+                        <option value="payment">
+                            Payment
+                        </option>
+
+                        <option value="meter">
+                            Meter
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="alerts-field">
+
+                    <label>
+                        Search
+                    </label>
+
+                    <input
+                        type="search"
+                        id="alertSearch"
+                        placeholder="Search alerts..."
+                        value="${escapeAlertHtml(
+                            AlertsState.filters.search
+                        )}"
+                    >
+
+                </div>
 
             </div>
 
-
-
-            <!-- ================================
-                 ALERT ACTIVITY
-            ================================= -->
-
-            <section
-                class="pump-section alerts-section"
-            >
-
-
-                <div
-                    class="section-header"
-                >
-
-
-                    <div>
-
-                        <h2>
-
-                            Alert Activity
-
-                        </h2>
-
-
-                        <p>
-
-                            Review, investigate and
-                            resolve station issues.
-
-                        </p>
-
-                    </div>
-
-
-                    <div
-                        class="alert-live-indicator"
-                    >
-
-                        <span
-                            class="live-dot"
-                        ></span>
-
-                        Monitoring Active
-
-                    </div>
-
-
-                </div>
-
-
-
-                <!-- ============================
-                     FILTERS
-                ============================= -->
-
-                <div
-                    class="alerts-filter-panel"
-                >
-
-
-                    <div
-                        class="alert-filter-group"
-                    >
-
-                        <label>
-
-                            Status
-
-                        </label>
-
-
-                        <select
-                            id="alertStatusFilter"
-                        >
-
-                            <option value="">
-
-                                All Statuses
-
-                            </option>
-
-
-                            <option value="unresolved">
-
-                                Unresolved
-
-                            </option>
-
-
-                            <option value="resolved">
-
-                                Resolved
-
-                            </option>
-
-
-                        </select>
-
-
-                    </div>
-
-
-
-                    <div
-                        class="alert-filter-group"
-                    >
-
-                        <label>
-
-                            Alert Type
-
-                        </label>
-
-
-                        <select
-                            id="alertTypeFilter"
-                        >
-
-                            <option value="">
-
-                                All Types
-
-                            </option>
-
-
-                            <option value="critical_gap">
-
-                                Critical Gap
-
-                            </option>
-
-
-                            <option value="variance">
-
-                                Variance
-
-                            </option>
-
-
-                            <option value="payment">
-
-                                Payment Issue
-
-                            </option>
-
-
-                            <option value="reading">
-
-                                Meter Reading
-
-                            </option>
-
-
-                            <option value="system">
-
-                                System
-
-                            </option>
-
-
-                        </select>
-
-
-                    </div>
-
-
-
-                    <div
-                        class="alert-filter-group"
-                    >
-
-                        <label>
-
-                            Severity
-
-                        </label>
-
-
-                        <select
-                            id="alertSeverityFilter"
-                        >
-
-                            <option value="">
-
-                                All Severity
-
-                            </option>
-
-
-                            <option value="critical">
-
-                                Critical
-
-                            </option>
-
-
-                            <option value="high">
-
-                                High
-
-                            </option>
-
-
-                            <option value="medium">
-
-                                Medium
-
-                            </option>
-
-
-                            <option value="low">
-
-                                Low
-
-                            </option>
-
-
-                        </select>
-
-
-                    </div>
-
-
-
-                    <div
-                        class="alert-search-group"
-                    >
-
-                        <label>
-
-                            Search
-
-                        </label>
-
-
-                        <input
-                            type="search"
-                            id="alertSearch"
-                            placeholder="Search station, staff or alert..."
-                        >
-
-
-                    </div>
-
-
-                </div>
-
-
-
-                <!-- ============================
-                     RESULTS BAR
-                ============================= -->
-
-                <div
-                    class="alerts-results-bar"
-                >
-
-
-                    <p
-                        id="alertsResultsText"
-                    >
-
-                        0 alerts found
-
-                    </p>
-
-
-                </div>
-
-
-
-                <!-- ============================
-                     ALERT LIST
-                ============================= -->
-
-                <div
-                    id="alertsContainer"
-                    class="alerts-container"
-                ></div>
-
-
-
-                <!-- ============================
-                     EMPTY STATE
-                ============================= -->
-
-                <div
-                    id="emptyAlertsState"
-                    class="empty-state hidden"
-                >
-
-
-                    <div
-                        class="empty-alert-icon"
-                    >
-
-                        ✓
-
-                    </div>
-
-
-                    <h3>
-
-                        No alerts found
-
-                    </h3>
-
-
-                    <p>
-
-                        Everything looks good.
-                        No alerts currently require
-                        your attention.
-
-                    </p>
-
-
-                </div>
-
-
-            </section>
-
-
-
-            <!-- ================================
-                 ALERT DETAILS MODAL
-            ================================= -->
 
             <div
-                id="alertDetailsModal"
-                class="alert-modal hidden"
+                class="alerts-table-wrap"
+                id="alertsTableContainer"
             >
 
-
-                <div
-                    class="alert-modal-backdrop"
-                    data-close-alert-modal
-                ></div>
-
-
-                <div
-                    class="alert-modal-card"
-                >
-
-
-                    <button
-                        type="button"
-                        class="alert-modal-close"
-                        data-close-alert-modal
-                    >
-
-                        ×
-
-                    </button>
-
-
-                    <div
-                        id="alertDetailsContent"
-                    ></div>
-
-
-                </div>
-
+                ${renderAlertTable()}
 
             </div>
 
+        </div>
+
+    `;
+
+
+    populateAlertStationFilter();
+
+
+    const stationFilter =
+        document.getElementById(
+            "alertStationFilter"
+        );
+
+    const severityFilter =
+        document.getElementById(
+            "alertSeverityFilter"
+        );
+
+    const statusFilter =
+        document.getElementById(
+            "alertStatusFilter"
+        );
+
+    const typeFilter =
+        document.getElementById(
+            "alertTypeFilter"
+        );
+
+    const searchInput =
+        document.getElementById(
+            "alertSearch"
+        );
+
+    const refreshButton =
+        document.getElementById(
+            "refreshAlertsBtn"
+        );
+
+    const createButton =
+        document.getElementById(
+            "createAlertBtn"
+        );
+
+
+    if (stationFilter) {
+
+        stationFilter.value =
+            AlertsState.filters.station_id;
+
+
+        stationFilter.addEventListener(
+            "change",
+            event => {
+
+                AlertsState.filters.station_id =
+                    event.target.value;
+
+                loadAlerts();
+
+            }
+        );
+
+    }
+
+
+    if (severityFilter) {
+
+        severityFilter.value =
+            AlertsState.filters.severity;
+
+
+        severityFilter.addEventListener(
+            "change",
+            event => {
+
+                AlertsState.filters.severity =
+                    event.target.value;
+
+                loadAlerts();
+
+            }
+        );
+
+    }
+
+
+    if (statusFilter) {
+
+        statusFilter.value =
+            AlertsState.filters.status;
+
+
+        statusFilter.addEventListener(
+            "change",
+            event => {
+
+                AlertsState.filters.status =
+                    event.target.value;
+
+                loadAlerts();
+
+            }
+        );
+
+    }
+
+
+    if (typeFilter) {
+
+        typeFilter.value =
+            AlertsState.filters.type;
+
+
+        typeFilter.addEventListener(
+            "change",
+            event => {
+
+                AlertsState.filters.type =
+                    event.target.value;
+
+                loadAlerts();
+
+            }
+        );
+
+    }
+
+
+    if (searchInput) {
+
+        searchInput.addEventListener(
+            "input",
+            event => {
+
+                AlertsState.filters.search =
+                    event.target.value;
+
+                applyAlertFilters();
+
+            }
+        );
+
+    }
+
+
+    if (refreshButton) {
+
+        refreshButton.addEventListener(
+            "click",
+            () => {
+
+                loadAlerts();
+
+            }
+        );
+
+    }
+
+
+    if (createButton) {
+
+        createButton.addEventListener(
+            "click",
+            openCreateAlertModal
+        );
+
+    }
+
+
+    attachAlertTableEvents();
+
+}
+
+
+/* =========================================================
+   RENDER LOADING
+========================================================= */
+
+function renderAlertsLoading() {
+
+    const container =
+        document.getElementById(
+            "pageContent"
+        );
+
+
+    if (!container) {
+        return;
+    }
+
+
+    container.innerHTML = `
+
+        <div class="alerts-page">
+
+            <div class="alert-loading">
+
+                Loading alerts...
+
+            </div>
 
         </div>
 
@@ -1038,102 +1854,448 @@ function renderAlertsPage() {
 }
 
 
-/* ==========================================
-   SETUP EVENTS
-========================================== */
+/* =========================================================
+   RENDER ERROR
+========================================================= */
 
-function setupAlertEvents() {
+function renderAlertsError(
+    message
+) {
 
-    const refreshButton =
+    const container =
         document.getElementById(
-            "refreshAlertsButton"
+            "pageContent"
         );
 
 
-    const clearFiltersButton =
-        document.getElementById(
-            "clearAlertFiltersButton"
-        );
+    if (!container) {
+        return;
+    }
 
 
-    const statusFilter =
-        document.getElementById(
-            "alertStatusFilter"
-        );
+    container.innerHTML = `
+
+        <div class="alerts-page">
+
+            <div class="alert-empty">
+
+                <strong>
+                    Unable to load alerts
+                </strong>
+
+                <div>
+                    ${escapeAlertHtml(message)}
+                </div>
+
+                <br>
+
+                <button
+                    class="alerts-btn alerts-btn-primary"
+                    type="button"
+                    onclick="window.FuelGapAlerts?.loadAlerts?.()"
+                >
+                    Try Again
+                </button>
+
+            </div>
+
+        </div>
+
+    `;
+
+}
 
 
-    const typeFilter =
-        document.getElementById(
-            "alertTypeFilter"
-        );
+/* =========================================================
+   RENDER ALERT TABLE
+========================================================= */
 
+function renderAlertTable() {
 
-    const severityFilter =
-        document.getElementById(
-            "alertSeverityFilter"
-        );
+    if (
+        !AlertsState.filteredAlerts.length
+    ) {
 
+        return `
 
-    const searchInput =
-        document.getElementById(
-            "alertSearch"
-        );
+            <div class="alert-empty">
 
+                <strong>
+                    No alerts found
+                </strong>
 
-    /*
-       REFRESH
-    */
+                <div>
+                    There are currently no alerts matching your filters.
+                </div>
 
-    if (refreshButton) {
+            </div>
 
-        refreshButton.addEventListener(
-            "click",
-            () => {
-
-                renderAlerts();
-
-            }
-        );
+        `;
 
     }
 
 
-    /*
-       CLEAR FILTERS
-    */
+    return `
 
-    if (clearFiltersButton) {
+        <div class="alerts-table-scroll">
 
-        clearFiltersButton.addEventListener(
-            "click",
-            () => {
+            <table class="alerts-table">
 
-                clearAlertFilters();
+                <thead>
 
-            }
-        );
+                    <tr>
 
+                        <th>
+                            Alert
+                        </th>
+
+                        <th>
+                            Station
+                        </th>
+
+                        <th>
+                            Severity
+                        </th>
+
+                        <th>
+                            Status
+                        </th>
+
+                        <th>
+                            Created
+                        </th>
+
+                        <th>
+                            Actions
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    ${AlertsState.filteredAlerts
+                        .map(
+                            alert =>
+                                renderAlertRow(
+                                    alert
+                                )
+                        )
+                        .join("")}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    `;
+
+}
+
+
+/* =========================================================
+   RENDER ALERT ROW
+========================================================= */
+
+function renderAlertRow(
+    alert
+) {
+
+    const stationName =
+        alert.station?.name ||
+        alert.station_name ||
+        getStationName(
+            alert.station_id
+        ) ||
+        "All stations";
+
+
+    const severity =
+        String(
+            alert.severity ||
+            "warning"
+        ).toLowerCase();
+
+
+    const status =
+        String(
+            alert.status ||
+            "new"
+        ).toLowerCase();
+
+
+    return `
+
+        <tr>
+
+            <td>
+
+                <div class="alert-title">
+
+                    ${escapeAlertHtml(
+                        alert.title ||
+                        "Untitled Alert"
+                    )}
+
+                </div>
+
+                <div class="alert-message-preview">
+
+                    ${escapeAlertHtml(
+                        alert.message ||
+                        ""
+                    )}
+
+                </div>
+
+            </td>
+
+
+            <td>
+
+                ${escapeAlertHtml(
+                    stationName
+                )}
+
+            </td>
+
+
+            <td>
+
+                <span
+                    class="alert-badge alert-badge-${escapeAlertHtml(
+                        severity
+                    )}"
+                >
+                    ${escapeAlertHtml(
+                        severity
+                    )}
+                </span>
+
+            </td>
+
+
+            <td>
+
+                <span
+                    class="alert-badge alert-badge-${escapeAlertHtml(
+                        status
+                    )}"
+                >
+                    ${escapeAlertHtml(
+                        status
+                    )}
+                </span>
+
+            </td>
+
+
+            <td>
+
+                ${escapeAlertHtml(
+                    formatAlertDate(
+                        alert.created_at
+                    )
+                )}
+
+            </td>
+
+
+            <td>
+
+                <div class="alert-actions">
+
+                    <button
+                        class="alert-action-btn"
+                        type="button"
+                        data-alert-action="view"
+                        data-alert-id="${escapeAlertHtml(
+                            alert.id
+                        )}"
+                    >
+                        View
+                    </button>
+
+
+                    ${
+                        status !== "resolved"
+                            ? `
+                                <button
+                                    class="alert-action-btn"
+                                    type="button"
+                                    data-alert-action="acknowledge"
+                                    data-alert-id="${escapeAlertHtml(
+                                        alert.id
+                                    )}"
+                                >
+                                    Acknowledge
+                                </button>
+                            `
+                            : ""
+                    }
+
+
+                    ${
+                        status !== "resolved"
+                            ? `
+                                <button
+                                    class="alert-action-btn"
+                                    type="button"
+                                    data-alert-action="resolve"
+                                    data-alert-id="${escapeAlertHtml(
+                                        alert.id
+                                    )}"
+                                >
+                                    Resolve
+                                </button>
+                            `
+                            : ""
+                    }
+
+
+                    ${
+                        canManageAlerts()
+                            ? `
+                                <button
+                                    class="alert-action-btn danger"
+                                    type="button"
+                                    data-alert-action="delete"
+                                    data-alert-id="${escapeAlertHtml(
+                                        alert.id
+                                    )}"
+                                >
+                                    Delete
+                                </button>
+                            `
+                            : ""
+                    }
+
+                </div>
+
+            </td>
+
+        </tr>
+
+    `;
+
+}
+
+
+/* =========================================================
+   GET STATION NAME
+========================================================= */
+
+function getStationName(
+    stationId
+) {
+
+    if (!stationId) {
+        return "";
     }
 
 
-    /*
-       FILTER EVENTS
-    */
+    const station =
+        AlertsState.stations.find(
+            item =>
+                String(
+                    item.id ||
+                    item.station_id
+                ) ===
+                String(
+                    stationId
+                )
+        );
 
-    [
-        statusFilter,
-        typeFilter,
-        severityFilter
-    ]
-        .filter(Boolean)
+
+    return (
+        station?.name ||
+        station?.station_name ||
+        ""
+    );
+
+}
+
+
+/* =========================================================
+   TABLE EVENTS
+========================================================= */
+
+function attachAlertTableEvents() {
+
+    document
+        .querySelectorAll(
+            "[data-alert-action]"
+        )
         .forEach(
-            element => {
+            button => {
 
-                element.addEventListener(
-                    "change",
-                    () => {
+                button.addEventListener(
+                    "click",
+                    async () => {
 
-                        renderAlerts();
+                        const action =
+                            button.dataset.alertAction;
+
+                        const alertId =
+                            button.dataset.alertId;
+
+
+                        if (!alertId) {
+                            return;
+                        }
+
+
+                        if (
+                            action === "view"
+                        ) {
+
+                            openAlertDetailsModal(
+                                alertId
+                            );
+
+                            return;
+
+                        }
+
+
+                        if (
+                            action === "acknowledge"
+                        ) {
+
+                            await acknowledgeAlert(
+                                alertId
+                            );
+
+                            return;
+
+                        }
+
+
+                        if (
+                            action === "resolve"
+                        ) {
+
+                            await resolveAlert(
+                                alertId
+                            );
+
+                            return;
+
+                        }
+
+
+                        if (
+                            action === "delete"
+                        ) {
+
+                            await deleteAlert(
+                                alertId
+                            );
+
+                        }
 
                     }
                 );
@@ -1141,1211 +2303,19 @@ function setupAlertEvents() {
             }
         );
 
-
-    /*
-       SEARCH
-    */
-
-    if (searchInput) {
-
-        searchInput.addEventListener(
-            "input",
-            () => {
-
-                renderAlerts();
-
-            }
-        );
-
-    }
-
-
-    /*
-       CLOSE MODAL
-    */
-
-    document.addEventListener(
-        "click",
-        event => {
-
-            if (
-
-                event.target.matches(
-                    "[data-close-alert-modal]"
-                )
-
-            ) {
-
-                closeAlertModal();
-
-            }
-
-        }
-    );
-
-
-    /*
-       ESC KEY
-    */
-
-    document.addEventListener(
-        "keydown",
-        event => {
-
-            if (
-                event.key ===
-                "Escape"
-            ) {
-
-                closeAlertModal();
-
-            }
-
-        }
-    );
-
 }
 
 
-/* ==========================================
-   CLEAR FILTERS
-========================================== */
-
-function clearAlertFilters() {
-
-    const filters = [
-
-        "alertStatusFilter",
-
-        "alertTypeFilter",
-
-        "alertSeverityFilter",
-
-        "alertSearch"
-
-    ];
-
-
-    filters.forEach(
-        id => {
-
-            const element =
-                document.getElementById(
-                    id
-                );
-
-
-            if (element) {
-
-                element.value =
-                    "";
-
-            }
-
-        }
-    );
-
-
-    renderAlerts();
-
-}
-
-
-/* ==========================================
-   GET FILTERS
-========================================== */
-
-function getAlertFilters() {
-
-    const statusFilter =
-        document.getElementById(
-            "alertStatusFilter"
-        );
-
-
-    const typeFilter =
-        document.getElementById(
-            "alertTypeFilter"
-        );
-
-
-    const severityFilter =
-        document.getElementById(
-            "alertSeverityFilter"
-        );
-
-
-    const searchInput =
-        document.getElementById(
-            "alertSearch"
-        );
-
-
-    return {
-
-        status:
-            statusFilter
-                ? statusFilter.value
-                : "",
-
-
-        type:
-            typeFilter
-                ? typeFilter.value
-                : "",
-
-
-        severity:
-            severityFilter
-                ? severityFilter.value
-                : "",
-
-
-        search:
-            searchInput
-                ? searchInput.value
-                    .toLowerCase()
-                    .trim()
-                : ""
-
-    };
-
-}
-
-
-/* ==========================================
-   FILTER ALERTS
-========================================== */
-
-function filterAlerts(
-    alerts,
-    filters
-) {
-
-    return alerts.filter(
-        alert => {
-
-            const status =
-                alert.status ||
-                "unresolved";
-
-
-            const severity =
-                getAlertSeverity(
-                    alert
-                );
-
-
-            /*
-               STATUS
-            */
-
-            if (
-
-                filters.status &&
-
-                status !==
-                filters.status
-
-            ) {
-
-                return false;
-
-            }
-
-
-            /*
-               TYPE
-            */
-
-            if (
-
-                filters.type &&
-
-                alert.type !==
-                filters.type
-
-            ) {
-
-                return false;
-
-            }
-
-
-            /*
-               SEVERITY
-            */
-
-            if (
-
-                filters.severity &&
-
-                severity !==
-                filters.severity
-
-            ) {
-
-                return false;
-
-            }
-
-
-            /*
-               SEARCH
-            */
-
-            if (
-                filters.search
-            ) {
-
-                const searchText =
-                    `
-
-                        ${alert.title || ""}
-
-                        ${alert.message || ""}
-
-                        ${alert.stationName || ""}
-
-                        ${alert.shiftName || ""}
-
-                        ${alert.staffName || ""}
-
-                        ${alert.type || ""}
-
-                        ${severity}
-
-                    `
-                        .toLowerCase();
-
-
-                if (
-
-                    !searchText.includes(
-                        filters.search
-                    )
-
-                ) {
-
-                    return false;
-
-                }
-
-            }
-
-
-            return true;
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   GET ALERT SEVERITY
-========================================== */
-
-function getAlertSeverity(
-    alert
-) {
-
-    if (
-        alert.severity
-    ) {
-
-        return String(
-            alert.severity
-        )
-            .toLowerCase();
-
-    }
-
-
-    if (
-
-        alert.type ===
-        "critical_gap"
-
-    ) {
-
-        return "critical";
-
-    }
-
-
-    const variance =
-        Math.abs(
-            Number(
-                alert.variancePercentage
-            ) || 0
-        );
-
-
-    if (
-        variance >= 10
-    ) {
-
-        return "critical";
-
-    }
-
-
-    if (
-        variance >= 5
-    ) {
-
-        return "high";
-
-    }
-
-
-    if (
-        variance >= 2
-    ) {
-
-        return "medium";
-
-    }
-
-
-    return "low";
-
-}
-
-
-/* ==========================================
-   GET ALERT ICON
-========================================== */
-
-function getAlertIcon(
-    type
-) {
-
-    const icons = {
-
-        critical_gap:
-            "🚨",
-
-        variance:
-            "📊",
-
-        payment:
-            "💳",
-
-        reading:
-            "⛽",
-
-        system:
-            "⚙️"
-
-    };
-
-
-    return (
-        icons[type] ||
-        "🔔"
-    );
-
-}
-
-
-/* ==========================================
-   RENDER ALERTS
-========================================== */
-
-function renderAlerts() {
-
-    const alerts =
-        getVisibleAlerts();
-
-
-    const filters =
-        getAlertFilters();
-
-
-    const filteredAlerts =
-        filterAlerts(
-            alerts,
-            filters
-        );
-
-
-    const container =
-        document.getElementById(
-            "alertsContainer"
-        );
-
-
-    const emptyState =
-        document.getElementById(
-            "emptyAlertsState"
-        );
-
-
-    const resultsText =
-        document.getElementById(
-            "alertsResultsText"
-        );
-
-
-    if (!container) {
-
-        return;
-
-    }
-
-
-    /*
-       SORT
-
-       UNRESOLVED FIRST
-       CRITICAL FIRST
-       NEWEST FIRST
-    */
-
-    filteredAlerts.sort(
-        (
-            a,
-            b
-        ) => {
-
-            const statusA =
-                a.status ||
-                "unresolved";
-
-
-            const statusB =
-                b.status ||
-                "unresolved";
-
-
-            if (
-
-                statusA ===
-                "unresolved" &&
-
-                statusB ===
-                "resolved"
-
-            ) {
-
-                return -1;
-
-            }
-
-
-            if (
-
-                statusA ===
-                "resolved" &&
-
-                statusB ===
-                "unresolved"
-
-            ) {
-
-                return 1;
-
-            }
-
-
-            const severityRank = {
-
-                critical: 4,
-
-                high: 3,
-
-                medium: 2,
-
-                low: 1
-
-            };
-
-
-            const severityA =
-                severityRank[
-                    getAlertSeverity(a)
-                ] || 0;
-
-
-            const severityB =
-                severityRank[
-                    getAlertSeverity(b)
-                ] || 0;
-
-
-            if (
-                severityA !==
-                severityB
-            ) {
-
-                return (
-                    severityB -
-                    severityA
-                );
-
-            }
-
-
-            return (
-
-                new Date(
-                    b.createdAt
-                ) -
-
-                new Date(
-                    a.createdAt
-                )
-
-            );
-
-        }
-    );
-
-
-    /*
-       CLEAR
-    */
-
-    container.innerHTML =
-        "";
-
-
-    /*
-       RESULTS TEXT
-    */
-
-    if (resultsText) {
-
-        resultsText.textContent =
-            `${filteredAlerts.length} alert${
-                filteredAlerts.length === 1
-                    ? ""
-                    : "s"
-            } found`;
-
-    }
-
-
-    /*
-       EMPTY STATE
-    */
-
-    if (
-        filteredAlerts.length ===
-        0
-    ) {
-
-        if (emptyState) {
-
-            emptyState.classList.remove(
-                "hidden"
-            );
-
-        }
-
-    } else {
-
-        if (emptyState) {
-
-            emptyState.classList.add(
-                "hidden"
-            );
-
-        }
-
-
-        filteredAlerts.forEach(
-            alert => {
-
-                const severity =
-                    getAlertSeverity(
-                        alert
-                    );
-
-
-                const status =
-                    alert.status ||
-                    "unresolved";
-
-
-                const alertItem =
-                    document.createElement(
-                        "article"
-                    );
-
-
-                alertItem.className =
-                    `
-                        alert-item
-                        alert-status-${status}
-                        alert-severity-${severity}
-                    `;
-
-
-                alertItem.innerHTML = `
-
-                    <div
-                        class="alert-item-main"
-                    >
-
-
-                        <div
-                            class="alert-type-icon"
-                        >
-
-                            ${getAlertIcon(
-                                alert.type
-                            )}
-
-                        </div>
-
-
-                        <div
-                            class="alert-content"
-                        >
-
-
-                            <div
-                                class="alert-item-top"
-                            >
-
-
-                                <div>
-
-                                    <div
-                                        class="alert-badge-row"
-                                    >
-
-                                        ${renderAlertSeverity(
-                                            severity
-                                        )}
-
-
-                                        ${renderAlertStatus(
-                                            status
-                                        )}
-
-                                    </div>
-
-
-                                    <h3>
-
-                                        ${escapeAlertHTML(
-                                            alert.title ||
-                                            "System Alert"
-                                        )}
-
-                                    </h3>
-
-                                </div>
-
-
-                                <span
-                                    class="alert-time"
-                                >
-
-                                    ${formatAlertRelativeDate(
-                                        alert.createdAt
-                                    )}
-
-                                </span>
-
-
-                            </div>
-
-
-                            <p
-                                class="alert-message"
-                            >
-
-                                ${escapeAlertHTML(
-                                    alert.message ||
-                                    "No alert message available."
-                                )}
-
-                            </p>
-
-
-
-                            <div
-                                class="alert-info-grid"
-                            >
-
-
-                                <div
-                                    class="alert-info-card"
-                                >
-
-                                    <span>
-
-                                        Station
-
-                                    </span>
-
-
-                                    <strong>
-
-                                        ${escapeAlertHTML(
-                                            alert.stationName ||
-                                            "System"
-                                        )}
-
-                                    </strong>
-
-                                </div>
-
-
-
-                                <div
-                                    class="alert-info-card"
-                                >
-
-                                    <span>
-
-                                        Shift
-
-                                    </span>
-
-
-                                    <strong>
-
-                                        ${escapeAlertHTML(
-                                            alert.shiftName ||
-                                            "N/A"
-                                        )}
-
-                                    </strong>
-
-                                </div>
-
-
-
-                                <div
-                                    class="alert-info-card"
-                                >
-
-                                    <span>
-
-                                        Staff
-
-                                    </span>
-
-
-                                    <strong>
-
-                                        ${escapeAlertHTML(
-                                            alert.staffName ||
-                                            "N/A"
-                                        )}
-
-                                    </strong>
-
-                                </div>
-
-
-
-                                <div
-                                    class="alert-info-card"
-                                >
-
-                                    <span>
-
-                                        Financial Impact
-
-                                    </span>
-
-
-                                    <strong>
-
-                                        ${formatAlertCurrency(
-                                            alert.amount
-                                        )}
-
-                                    </strong>
-
-                                </div>
-
-
-                            </div>
-
-
-
-                            <div
-                                class="alert-actions"
-                            >
-
-                                ${renderAlertActions(
-                                    alert
-                                )}
-
-                            </div>
-
-
-                        </div>
-
-
-                    </div>
-
-                `;
-
-
-                container.appendChild(
-                    alertItem
-                );
-
-            }
-        );
-
-
-        setupAlertActionButtons();
-
-    }
-
-
-    /*
-       UPDATE SUMMARY
-    */
-
-    updateAlertSummary(
-        alerts
-    );
-
-}
-
-
-/* ==========================================
-   RENDER SEVERITY
-========================================== */
-
-function renderAlertSeverity(
-    severity
-) {
-
-    const labels = {
-
-        critical:
-            "Critical",
-
-        high:
-            "High Priority",
-
-        medium:
-            "Medium",
-
-        low:
-            "Low"
-
-    };
-
-
-    return `
-
-        <span
-            class="
-                alert-severity-badge
-                severity-${severity}
-            "
-        >
-
-            ${labels[severity] ||
-            "Alert"}
-
-        </span>
-
-    `;
-
-}
-
-
-/* ==========================================
-   RENDER STATUS
-========================================== */
-
-function renderAlertStatus(
-    status
-) {
-
-    if (
-        status ===
-        "resolved"
-    ) {
-
-        return `
-
-            <span
-                class="
-                    status-badge
-                    status-online
-                "
-            >
-
-                Resolved
-
-            </span>
-
-        `;
-
-    }
-
-
-    return `
-
-        <span
-            class="
-                status-badge
-                status-pending
-            "
-        >
-
-            Open
-
-        </span>
-
-    `;
-
-}
-
-
-/* ==========================================
-   RENDER ACTIONS
-========================================== */
-
-function renderAlertActions(
-    alert
-) {
-
-    const alertId =
-        escapeAlertAttribute(
-            alert.id
-        );
-
-
-    if (
-
-        alert.status ===
-        "resolved"
-
-    ) {
-
-        return `
-
-            <button
-                type="button"
-                class="
-                    btn
-                    btn-outline
-                    btn-small
-                "
-                data-view-alert="${alertId}"
-            >
-
-                View Details
-
-            </button>
-
-        `;
-
-    }
-
-
-    return `
-
-        <button
-            type="button"
-            class="
-                btn
-                btn-primary
-                btn-small
-            "
-            data-resolve-alert="${alertId}"
-        >
-
-            ✓ Mark Resolved
-
-        </button>
-
-
-        <button
-            type="button"
-            class="
-                btn
-                btn-outline
-                btn-small
-            "
-            data-view-alert="${alertId}"
-        >
-
-            View Details
-
-        </button>
-
-    `;
-
-}
-
-
-/* ==========================================
-   SETUP ACTION BUTTONS
-========================================== */
-
-function setupAlertActionButtons() {
-
-    const resolveButtons =
-        document.querySelectorAll(
-            "[data-resolve-alert]"
-        );
-
-
-    resolveButtons.forEach(
-        button => {
-
-            button.addEventListener(
-                "click",
-                () => {
-
-                    resolveAlert(
-                        button.getAttribute(
-                            "data-resolve-alert"
-                        )
-                    );
-
-                }
-            );
-
-        }
-    );
-
-
-    const viewButtons =
-        document.querySelectorAll(
-            "[data-view-alert]"
-        );
-
-
-    viewButtons.forEach(
-        button => {
-
-            button.addEventListener(
-                "click",
-                () => {
-
-                    viewAlertDetails(
-                        button.getAttribute(
-                            "data-view-alert"
-                        )
-                    );
-
-                }
-            );
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   RESOLVE ALERT
-========================================== */
-
-function resolveAlert(
+/* =========================================================
+   OPEN DETAILS MODAL
+========================================================= */
+
+function openAlertDetailsModal(
     alertId
 ) {
-
-    const currentUser =
-        getAlertsCurrentUser();
-
-
-    if (!currentUser) {
-
-        return;
-
-    }
-
-
-    const confirmed =
-        window.confirm(
-            "Mark this alert as resolved?"
-        );
-
-
-    if (!confirmed) {
-
-        return;
-
-    }
-
-
-    const alerts =
-        getAlerts();
-
-
-    const alertIndex =
-        alerts.findIndex(
-            alert =>
-                String(alert.id) ===
-                String(alertId)
-        );
-
-
-    if (
-        alertIndex ===
-        -1
-    ) {
-
-        return;
-
-    }
-
-
-    alerts[
-        alertIndex
-    ].status =
-        "resolved";
-
-
-    alerts[
-        alertIndex
-    ].resolvedAt =
-        new Date()
-            .toISOString();
-
-
-    alerts[
-        alertIndex
-    ].resolvedBy =
-        currentUser.id ||
-        currentUser.email ||
-        "Unknown User";
-
-
-    saveAlertsStorageData(
-        ALERTS_STORAGE_KEY,
-        alerts
-    );
-
-
-    renderAlerts();
-
-}
-
-
-/* ==========================================
-   VIEW ALERT DETAILS
-========================================== */
-
-function viewAlertDetails(
-    alertId
-) {
-
-    const alerts =
-        getVisibleAlerts();
-
 
     const alert =
-        alerts.find(
+        AlertsState.alerts.find(
             item =>
                 String(item.id) ===
                 String(alertId)
@@ -2354,520 +2324,620 @@ function viewAlertDetails(
 
     if (!alert) {
 
+        showAlertsToast(
+            "Alert could not be found.",
+            "error"
+        );
+
         return;
 
     }
+
+
+    AlertsState.selectedAlert =
+        alert;
+
+
+    const stationName =
+        alert.station?.name ||
+        alert.station_name ||
+        getStationName(
+            alert.station_id
+        ) ||
+        "All stations";
 
 
     const modal =
-        document.getElementById(
-            "alertDetailsModal"
-        );
+        document.createElement("div");
 
 
-    const content =
-        document.getElementById(
-            "alertDetailsContent"
-        );
+    modal.className =
+        "alerts-modal-overlay";
 
 
-    if (
-        !modal ||
-        !content
-    ) {
-
-        return;
-
-    }
+    modal.id =
+        "alertDetailsModal";
 
 
-    const severity =
-        getAlertSeverity(
-            alert
-        );
+    modal.innerHTML = `
 
+        <div class="alerts-modal">
 
-    const status =
-        alert.status ||
-        "unresolved";
+            <div class="alerts-modal-header">
 
+                <h2>
+                    Alert Details
+                </h2>
 
-    content.innerHTML = `
-
-        <div
-            class="alert-modal-header"
-        >
-
-
-            <div
-                class="alert-modal-icon"
-            >
-
-                ${getAlertIcon(
-                    alert.type
-                )}
+                <button
+                    class="alerts-modal-close"
+                    type="button"
+                    id="closeAlertDetails"
+                >
+                    ×
+                </button>
 
             </div>
 
 
-            <div>
+            <div class="alerts-modal-body">
 
-                <div
-                    class="alert-badge-row"
-                >
+                <div class="alert-detail-grid">
 
-                    ${renderAlertSeverity(
-                        severity
-                    )}
+                    <div class="alert-detail-item">
 
-                    ${renderAlertStatus(
-                        status
-                    )}
+                        <div class="alert-detail-label">
+                            Title
+                        </div>
+
+                        <div class="alert-detail-value">
+                            ${escapeAlertHtml(
+                                alert.title
+                            )}
+                        </div>
+
+                    </div>
+
+
+                    <div class="alert-detail-item">
+
+                        <div class="alert-detail-label">
+                            Type
+                        </div>
+
+                        <div class="alert-detail-value">
+                            ${escapeAlertHtml(
+                                alert.type
+                            )}
+                        </div>
+
+                    </div>
+
+
+                    <div class="alert-detail-item">
+
+                        <div class="alert-detail-label">
+                            Station
+                        </div>
+
+                        <div class="alert-detail-value">
+                            ${escapeAlertHtml(
+                                stationName
+                            )}
+                        </div>
+
+                    </div>
+
+
+                    <div class="alert-detail-item">
+
+                        <div class="alert-detail-label">
+                            Severity
+                        </div>
+
+                        <div class="alert-detail-value">
+
+                            <span
+                                class="alert-badge alert-badge-${escapeAlertHtml(
+                                    alert.severity
+                                )}"
+                            >
+                                ${escapeAlertHtml(
+                                    alert.severity
+                                )}
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="alert-detail-item">
+
+                        <div class="alert-detail-label">
+                            Status
+                        </div>
+
+                        <div class="alert-detail-value">
+
+                            <span
+                                class="alert-badge alert-badge-${escapeAlertHtml(
+                                    alert.status
+                                )}"
+                            >
+                                ${escapeAlertHtml(
+                                    alert.status
+                                )}
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="alert-detail-item">
+
+                        <div class="alert-detail-label">
+                            Created
+                        </div>
+
+                        <div class="alert-detail-value">
+                            ${escapeAlertHtml(
+                                formatAlertDate(
+                                    alert.created_at
+                                )
+                            )}
+                        </div>
+
+                    </div>
 
                 </div>
 
 
-                <h2>
+                <div style="height:15px;"></div>
 
-                    ${escapeAlertHTML(
-                        alert.title ||
-                        "System Alert"
+
+                <div class="alert-detail-label">
+                    Message
+                </div>
+
+                <div class="alert-detail-message">
+
+                    ${escapeAlertHtml(
+                        alert.message
                     )}
 
-                </h2>
+                </div>
 
             </div>
 
 
-        </div>
+            <div class="alerts-modal-footer">
+
+                ${
+                    alert.status !== "resolved"
+                        ? `
+                            <button
+                                class="alerts-btn alerts-btn-warning"
+                                type="button"
+                                id="modalAcknowledgeAlert"
+                            >
+                                Acknowledge
+                            </button>
+
+                            <button
+                                class="alerts-btn alerts-btn-success"
+                                type="button"
+                                id="modalResolveAlert"
+                            >
+                                Resolve
+                            </button>
+                        `
+                        : ""
+                }
 
 
-
-        <div
-            class="alert-modal-message"
-        >
-
-            ${escapeAlertHTML(
-                alert.message ||
-                "No message available."
-            )}
-
-        </div>
-
-
-
-        <div
-            class="alert-details-grid"
-        >
-
-
-            <div
-                class="alert-detail-card"
-            >
-
-                <span>
-
-                    Station
-
-                </span>
-
-
-                <strong>
-
-                    ${escapeAlertHTML(
-                        alert.stationName ||
-                        "System"
-                    )}
-
-                </strong>
+                <button
+                    class="alerts-btn alerts-btn-secondary"
+                    type="button"
+                    id="modalCloseAlert"
+                >
+                    Close
+                </button>
 
             </div>
-
-
-
-            <div
-                class="alert-detail-card"
-            >
-
-                <span>
-
-                    Shift
-
-                </span>
-
-
-                <strong>
-
-                    ${escapeAlertHTML(
-                        alert.shiftName ||
-                        "N/A"
-                    )}
-
-                </strong>
-
-            </div>
-
-
-
-            <div
-                class="alert-detail-card"
-            >
-
-                <span>
-
-                    Staff
-
-                </span>
-
-
-                <strong>
-
-                    ${escapeAlertHTML(
-                        alert.staffName ||
-                        "N/A"
-                    )}
-
-                </strong>
-
-            </div>
-
-
-
-            <div
-                class="alert-detail-card"
-            >
-
-                <span>
-
-                    Amount
-
-                </span>
-
-
-                <strong>
-
-                    ${formatAlertCurrency(
-                        alert.amount
-                    )}
-
-                </strong>
-
-            </div>
-
-
-
-            <div
-                class="alert-detail-card"
-            >
-
-                <span>
-
-                    Variance
-
-                </span>
-
-
-                <strong>
-
-                    ${Number(
-                        alert.variancePercentage || 0
-                    ).toFixed(2)}%
-
-                </strong>
-
-            </div>
-
-
-
-            <div
-                class="alert-detail-card"
-            >
-
-                <span>
-
-                    Created
-
-                </span>
-
-
-                <strong>
-
-                    ${formatAlertDate(
-                        alert.createdAt
-                    )}
-
-                </strong>
-
-            </div>
-
-
-            ${alert.resolvedAt
-                ? `
-
-                    <div
-                        class="alert-detail-card"
-                    >
-
-                        <span>
-
-                            Resolved
-
-                        </span>
-
-
-                        <strong>
-
-                            ${formatAlertDate(
-                                alert.resolvedAt
-                            )}
-
-                        </strong>
-
-                    </div>
-
-                `
-                : ""
-            }
-
-
-        </div>
-
-
-
-        <div
-            class="alert-modal-footer"
-        >
-
-
-            ${status !== "resolved"
-                ? `
-
-                    <button
-                        type="button"
-                        class="
-                            btn
-                            btn-primary
-                        "
-                        data-modal-resolve="${escapeAlertAttribute(
-                            alert.id
-                        )}"
-                    >
-
-                        ✓ Mark Resolved
-
-                    </button>
-
-                `
-                : ""
-            }
-
-
-            <button
-                type="button"
-                class="
-                    btn
-                    btn-outline
-                "
-                data-close-alert-modal
-            >
-
-                Close
-
-            </button>
-
 
         </div>
 
     `;
 
 
-    modal.classList.remove(
-        "hidden"
+    document.body.appendChild(
+        modal
     );
 
 
-    const resolveButton =
-        content.querySelector(
-            "[data-modal-resolve]"
+    const close =
+        () => {
+
+            modal.remove();
+
+            AlertsState.selectedAlert =
+                null;
+
+        };
+
+
+    document
+        .getElementById(
+            "closeAlertDetails"
+        )
+        ?.addEventListener(
+            "click",
+            close
         );
 
 
-    if (resolveButton) {
-
-        resolveButton.addEventListener(
+    document
+        .getElementById(
+            "modalCloseAlert"
+        )
+        ?.addEventListener(
             "click",
-            () => {
-
-                const id =
-                    resolveButton.getAttribute(
-                        "data-modal-resolve"
-                    );
+            close
+        );
 
 
-                closeAlertModal();
+    document
+        .getElementById(
+            "modalAcknowledgeAlert"
+        )
+        ?.addEventListener(
+            "click",
+            async () => {
 
-                resolveAlert(
-                    id
+                await acknowledgeAlert(
+                    alert.id
                 );
+
+                close();
 
             }
         );
 
-    }
+
+    document
+        .getElementById(
+            "modalResolveAlert"
+        )
+        ?.addEventListener(
+            "click",
+            async () => {
+
+                await resolveAlert(
+                    alert.id
+                );
+
+                close();
+
+            }
+        );
+
+
+    modal.addEventListener(
+        "click",
+        event => {
+
+            if (
+                event.target === modal
+            ) {
+
+                close();
+
+            }
+
+        }
+    );
 
 }
 
 
-/* ==========================================
-   CLOSE MODAL
-========================================== */
+/* =========================================================
+   OPEN CREATE ALERT MODAL
+========================================================= */
 
-function closeAlertModal() {
+function openCreateAlertModal() {
+
+    console.log(
+        "FUELGAP ALERTS - OPEN CREATE MODAL"
+    );
+
+
+    if (!canManageAlerts()) {
+
+        showAlertsToast(
+            "Only owner, admin or manager can create alerts.",
+            "error"
+        );
+
+        return;
+
+    }
+
 
     const modal =
-        document.getElementById(
-            "alertDetailsModal"
+        document.createElement("div");
+
+
+    modal.className =
+        "alerts-modal-overlay";
+
+
+    modal.id =
+        "createAlertModal";
+
+
+    modal.innerHTML = `
+
+        <div class="alerts-modal">
+
+            <div class="alerts-modal-header">
+
+                <h2>
+                    Create Alert
+                </h2>
+
+                <button
+                    class="alerts-modal-close"
+                    type="button"
+                    id="closeCreateAlertModal"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <div class="alerts-modal-body">
+
+                <form id="createAlertForm">
+
+                    <div class="alerts-form-grid">
+
+                        <div class="alerts-field alerts-form-full">
+
+                            <label>
+                                Alert Title
+                            </label>
+
+                            <input
+                                type="text"
+                                id="createAlertTitle"
+                                required
+                                maxlength="255"
+                                placeholder="Enter alert title"
+                            >
+
+                        </div>
+
+
+                        <div class="alerts-field">
+
+                            <label>
+                                Type
+                            </label>
+
+                            <select
+                                id="createAlertType"
+                            >
+
+                                <option value="gap_variance">
+                                    Gap Variance
+                                </option>
+
+                                <option value="operational">
+                                    Operational
+                                </option>
+
+                                <option value="payment">
+                                    Payment
+                                </option>
+
+                                <option value="meter">
+                                    Meter
+                                </option>
+
+                                <option value="system">
+                                    System
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="alerts-field">
+
+                            <label>
+                                Severity
+                            </label>
+
+                            <select
+                                id="createAlertSeverity"
+                            >
+
+                                <option value="info">
+                                    Info
+                                </option>
+
+                                <option value="warning" selected>
+                                    Warning
+                                </option>
+
+                                <option value="high">
+                                    High
+                                </option>
+
+                                <option value="critical">
+                                    Critical
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="alerts-field alerts-form-full">
+
+                            <label>
+                                Station
+                            </label>
+
+                            <select
+                                id="createAlertStation"
+                            >
+
+                                <option value="">
+                                    No specific station
+                                </option>
+
+                                ${AlertsState.stations
+                                    .map(
+                                        station => {
+
+                                            const id =
+                                                station.id ||
+                                                station.station_id;
+
+                                            const name =
+                                                station.name ||
+                                                station.station_name ||
+                                                `Station ${id}`;
+
+                                            return `
+
+                                                <option
+                                                    value="${escapeAlertHtml(
+                                                        id
+                                                    )}"
+                                                >
+                                                    ${escapeAlertHtml(
+                                                        name
+                                                    )}
+                                                </option>
+
+                                            `;
+
+                                        }
+                                    )
+                                    .join("")}
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="alerts-field alerts-form-full">
+
+                            <label>
+                                Message
+                            </label>
+
+                            <textarea
+                                id="createAlertMessage"
+                                required
+                                placeholder="Describe the alert and required action..."
+                            ></textarea>
+
+                        </div>
+
+                    </div>
+
+                </form>
+
+            </div>
+
+
+            <div class="alerts-modal-footer">
+
+                <button
+                    class="alerts-btn alerts-btn-secondary"
+                    type="button"
+                    id="cancelCreateAlert"
+                >
+                    Cancel
+                </button>
+
+
+                <button
+                    class="alerts-btn alerts-btn-primary"
+                    type="button"
+                    id="submitCreateAlert"
+                >
+                    Create Alert
+                </button>
+
+            </div>
+
+        </div>
+
+    `;
+
+
+    document.body.appendChild(
+        modal
+    );
+
+
+    const closeModal =
+        () => {
+
+            modal.remove();
+
+        };
+
+
+    document
+        .getElementById(
+            "closeCreateAlertModal"
+        )
+        ?.addEventListener(
+            "click",
+            closeModal
         );
 
 
-    if (modal) {
-
-        modal.classList.add(
-            "hidden"
-        );
-
-    }
-
-}
-
-
-/* ==========================================
-   UPDATE SUMMARY
-========================================== */
-
-function updateAlertSummary(
-    alerts
-) {
-
-    const total =
-        alerts.length;
-
-
-    const unresolved =
-        alerts.filter(
-            alert =>
-
-                (alert.status ||
-                    "unresolved") !==
-                "resolved"
+    document
+        .getElementById(
+            "cancelCreateAlert"
         )
-            .length;
-
-
-    const resolved =
-        alerts.filter(
-            alert =>
-                alert.status ===
-                "resolved"
-        )
-            .length;
-
-
-    const critical =
-        alerts.filter(
-            alert =>
-
-                (alert.status ||
-                    "unresolved") !==
-                "resolved" &&
-
-                getAlertSeverity(
-                    alert
-                ) ===
-                "critical"
-        )
-            .length;
-
-
-    updateAlertSummaryElement(
-        "totalAlertsCount",
-        total
-    );
-
-
-    updateAlertSummaryElement(
-        "unresolvedAlertsCount",
-        unresolved
-    );
-
-
-    updateAlertSummaryElement(
-        "criticalAlertsCount",
-        critical
-    );
-
-
-    updateAlertSummaryElement(
-        "resolvedAlertsCount",
-        resolved
-    );
-
-}
-
-
-/* ==========================================
-   UPDATE SUMMARY ELEMENT
-========================================== */
-
-function updateAlertSummaryElement(
-    id,
-    value
-) {
-
-    const element =
-        document.getElementById(
-            id
+        ?.addEventListener(
+            "click",
+            closeModal
         );
 
 
-    if (element) {
-
-        element.textContent =
-            value;
-
-    }
-
-}
-
-
-/* ==========================================
-   FORMAT CURRENCY
-========================================== */
-
-function formatAlertCurrency(
-    amount
-) {
-
-    const value =
-        Number(amount) ||
-        0;
+    document
+        .getElementById(
+            "submitCreateAlert"
+        )
+        ?.addEventListener(
+            "click",
+            submitCreateAlert
+        );
 
 
-    return value.toLocaleString(
-        "en-NG",
-        {
+    modal.addEventListener(
+        "click",
+        event => {
 
-            style:
-                "currency",
+            if (
+                event.target === modal
+            ) {
 
-            currency:
-                "NGN",
+                closeModal();
 
-            minimumFractionDigits:
-                2,
-
-            maximumFractionDigits:
-                2
+            }
 
         }
     );
@@ -2875,199 +2945,691 @@ function formatAlertCurrency(
 }
 
 
-/* ==========================================
-   FORMAT DATE
-========================================== */
+/* =========================================================
+   SUBMIT CREATE ALERT
+========================================================= */
 
-function formatAlertDate(
-    date
-) {
-
-    if (!date) {
-
-        return "N/A";
-
-    }
-
-
-    const parsedDate =
-        new Date(date);
-
+async function submitCreateAlert() {
 
     if (
-
-        Number.isNaN(
-            parsedDate.getTime()
-        )
-
+        AlertsState.isCreating
     ) {
+        return;
+    }
 
-        return "N/A";
+
+    if (!canManageAlerts()) {
+
+        showAlertsToast(
+            "You do not have permission to create alerts.",
+            "error"
+        );
+
+        return;
 
     }
 
 
-    return parsedDate.toLocaleString(
-        "en-NG",
-        {
+    const title =
+        document
+            .getElementById(
+                "createAlertTitle"
+            )
+            ?.value
+            .trim();
 
-            dateStyle:
-                "medium",
 
-            timeStyle:
-                "short"
+    const type =
+        document
+            .getElementById(
+                "createAlertType"
+            )
+            ?.value ||
+        "gap_variance";
+
+
+    const severity =
+        document
+            .getElementById(
+                "createAlertSeverity"
+            )
+            ?.value ||
+        "warning";
+
+
+    const station_id =
+        document
+            .getElementById(
+                "createAlertStation"
+            )
+            ?.value ||
+        "";
+
+
+    const message =
+        document
+            .getElementById(
+                "createAlertMessage"
+            )
+            ?.value
+            .trim();
+
+
+    if (!title) {
+
+        showAlertsToast(
+            "Please enter an alert title.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    if (!message) {
+
+        showAlertsToast(
+            "Please enter an alert message.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    const submitButton =
+        document.getElementById(
+            "submitCreateAlert"
+        );
+
+
+    AlertsState.isCreating =
+        true;
+
+
+    if (submitButton) {
+
+        submitButton.disabled =
+            true;
+
+        submitButton.textContent =
+            "Creating...";
+
+    }
+
+
+    try {
+
+        const payload = {
+
+            type,
+
+            severity,
+
+            title,
+
+            message,
+
+            status: "new"
+
+        };
+
+
+        if (station_id) {
+
+            payload.station_id =
+                station_id;
 
         }
-    );
+
+
+        console.log(
+            "FUELGAP ALERTS - CREATE PAYLOAD:",
+            payload
+        );
+
+
+        const response =
+            await FuelGapAPI.createAlert(
+                payload
+            );
+
+
+        console.log(
+            "FUELGAP ALERTS - CREATE RESPONSE:",
+            response
+        );
+
+
+        showAlertsToast(
+            "Alert created successfully.",
+            "success"
+        );
+
+
+        document
+            .getElementById(
+                "createAlertModal"
+            )
+            ?.remove();
+
+
+        await loadAlerts();
+
+
+    } catch (error) {
+
+        console.error(
+            "FUELGAP ALERTS - CREATE ERROR:",
+            error
+        );
+
+
+        showAlertsToast(
+            error.message ||
+            "Unable to create alert.",
+            "error"
+        );
+
+
+    } finally {
+
+        AlertsState.isCreating =
+            false;
+
+
+        if (submitButton) {
+
+            submitButton.disabled =
+                false;
+
+            submitButton.textContent =
+                "Create Alert";
+
+        }
+
+    }
 
 }
 
 
-/* ==========================================
-   FORMAT RELATIVE DATE
-========================================== */
+/* =========================================================
+   ACKNOWLEDGE ALERT
+========================================================= */
 
-function formatAlertRelativeDate(
-    date
-) {
-
-    if (!date) {
-
-        return "Unknown time";
-
-    }
-
-
-    const created =
-        new Date(date);
-
-
-    const now =
-        new Date();
-
-
-    const difference =
-        now -
-        created;
-
-
-    const seconds =
-        Math.floor(
-            difference / 1000
-        );
-
-
-    const minutes =
-        Math.floor(
-            seconds / 60
-        );
-
-
-    const hours =
-        Math.floor(
-            minutes / 60
-        );
-
-
-    const days =
-        Math.floor(
-            hours / 24
-        );
-
-
-    if (
-        seconds < 60
-    ) {
-
-        return "Just now";
-
-    }
-
-
-    if (
-        minutes < 60
-    ) {
-
-        return `${minutes}m ago`;
-
-    }
-
-
-    if (
-        hours < 24
-    ) {
-
-        return `${hours}h ago`;
-
-    }
-
-
-    if (
-        days < 7
-    ) {
-
-        return `${days}d ago`;
-
-    }
-
-
-    return formatAlertDate(
-        date
-    );
-
-}
-
-
-/* ==========================================
-   ESCAPE HTML
-========================================== */
-
-function escapeAlertHTML(
-    value
+async function acknowledgeAlert(
+    alertId
 ) {
 
     if (
-
-        value === null ||
-
-        value === undefined
-
+        AlertsState.isProcessing
     ) {
+        return;
+    }
 
-        return "";
+
+    if (!alertId) {
+        return;
+    }
+
+
+    AlertsState.isProcessing =
+        true;
+
+
+    try {
+
+        await FuelGapAPI.acknowledgeAlert(
+            alertId
+        );
+
+
+        showAlertsToast(
+            "Alert acknowledged successfully.",
+            "success"
+        );
+
+
+        await loadAlerts();
+
+
+    } catch (error) {
+
+        console.error(
+            "FUELGAP ALERTS - ACKNOWLEDGE ERROR:",
+            error
+        );
+
+
+        showAlertsToast(
+            error.message ||
+            "Unable to acknowledge alert.",
+            "error"
+        );
+
+
+    } finally {
+
+        AlertsState.isProcessing =
+            false;
+
+    }
+
+}
+
+
+/* =========================================================
+   RESOLVE ALERT
+========================================================= */
+
+async function resolveAlert(
+    alertId
+) {
+
+    if (
+        AlertsState.isProcessing
+    ) {
+        return;
+    }
+
+
+    if (!alertId) {
+        return;
+    }
+
+
+    AlertsState.isProcessing =
+        true;
+
+
+    try {
+
+        await FuelGapAPI.resolveAlert(
+            alertId
+        );
+
+
+        showAlertsToast(
+            "Alert resolved successfully.",
+            "success"
+        );
+
+
+        await loadAlerts();
+
+
+    } catch (error) {
+
+        console.error(
+            "FUELGAP ALERTS - RESOLVE ERROR:",
+            error
+        );
+
+
+        showAlertsToast(
+            error.message ||
+            "Unable to resolve alert.",
+            "error"
+        );
+
+
+    } finally {
+
+        AlertsState.isProcessing =
+            false;
+
+    }
+
+}
+
+
+/* =========================================================
+   DELETE ALERT
+========================================================= */
+
+async function deleteAlert(
+    alertId
+) {
+
+    if (
+        AlertsState.isProcessing
+    ) {
+        return;
+    }
+
+
+    if (!canManageAlerts()) {
+
+        showAlertsToast(
+            "You do not have permission to delete alerts.",
+            "error"
+        );
+
+        return;
 
     }
 
 
-    const div =
-        document.createElement(
-            "div"
+    if (!alertId) {
+        return;
+    }
+
+
+    const confirmed =
+        window.confirm(
+            "Are you sure you want to permanently delete this alert?"
         );
 
 
-    div.textContent =
-        String(value);
+    if (!confirmed) {
+        return;
+    }
 
 
-    return div.innerHTML;
+    AlertsState.isProcessing =
+        true;
+
+
+    try {
+
+        await FuelGapAPI.deleteAlert(
+            alertId
+        );
+
+
+        showAlertsToast(
+            "Alert deleted successfully.",
+            "success"
+        );
+
+
+        await loadAlerts();
+
+
+    } catch (error) {
+
+        console.error(
+            "FUELGAP ALERTS - DELETE ERROR:",
+            error
+        );
+
+
+        showAlertsToast(
+            error.message ||
+            "Unable to delete alert.",
+            "error"
+        );
+
+
+    } finally {
+
+        AlertsState.isProcessing =
+            false;
+
+    }
 
 }
 
 
-/* ==========================================
-   ESCAPE ATTRIBUTE
-========================================== */
+/* =========================================================
+   AUTO REFRESH
+========================================================= */
 
-function escapeAlertAttribute(
-    value
-) {
+function startAlertsAutoRefresh() {
 
-    return escapeAlertHTML(
-        value
-    )
-        .replace(
-            /"/g,
-            "&quot;"
+    stopAlertsAutoRefresh();
+
+
+    AlertsState.autoRefreshTimer =
+        setInterval(
+            async () => {
+
+                try {
+
+                    await loadAlerts();
+
+                } catch (error) {
+
+                    console.warn(
+                        "Alerts auto-refresh failed:",
+                        error
+                    );
+
+                }
+
+            },
+            30000
         );
 
 }
+
+
+/* =========================================================
+   STOP AUTO REFRESH
+========================================================= */
+
+function stopAlertsAutoRefresh() {
+
+    if (
+        AlertsState.autoRefreshTimer
+    ) {
+
+        clearInterval(
+            AlertsState.autoRefreshTimer
+        );
+
+
+        AlertsState.autoRefreshTimer =
+            null;
+
+    }
+
+}
+
+
+/* =========================================================
+   INITIALIZE ALERTS
+========================================================= */
+
+async function initializeAlerts() {
+
+    try {
+
+        console.log(
+            "=============================================="
+        );
+
+        console.log(
+            "FUELGAP ALERTS - INITIALIZING"
+        );
+
+        console.log(
+            "=============================================="
+        );
+
+
+        /* =================================================
+           GET CURRENT USER
+        ================================================= */
+
+        AlertsState.currentUser =
+            await getAlertsCurrentUser();
+
+
+        console.log(
+            "FUELGAP ALERTS - INITIALIZED USER:",
+            AlertsState.currentUser
+        );
+
+
+        console.log(
+            "FUELGAP ALERTS - CAN MANAGE:",
+            canManageAlerts()
+        );
+
+
+        if (
+            !AlertsState.currentUser
+        ) {
+
+            console.warn(
+                "FuelGap Alerts: current user not available."
+            );
+
+        }
+
+
+        /* =================================================
+           INITIAL RENDER
+        ================================================= */
+
+        renderAlertsPage();
+
+
+        /* =================================================
+           LOAD STATIONS
+        ================================================= */
+
+        await loadAlertStations();
+
+
+        populateAlertStationFilter();
+
+
+        /* =================================================
+           LOAD ALERTS
+        ================================================= */
+
+        await loadAlerts();
+
+
+        /* =================================================
+           AUTO REFRESH
+        ================================================= */
+
+        startAlertsAutoRefresh();
+
+
+        console.log(
+            "FUELGAP ALERTS - INITIALIZATION COMPLETE"
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "FuelGap Alerts initialization error:",
+            error
+        );
+
+
+        renderAlertsError(
+            error.message ||
+            "Unable to initialize alerts."
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   PAGE CLEANUP
+========================================================= */
+
+function destroyAlerts() {
+
+    stopAlertsAutoRefresh();
+
+
+    AlertsState.alerts = [];
+
+    AlertsState.filteredAlerts = [];
+
+    AlertsState.stations = [];
+
+    AlertsState.selectedAlert = null;
+
+}
+
+
+/* =========================================================
+   GLOBAL EXPORT
+========================================================= */
+
+window.FuelGapAlerts = {
+
+    initialize:
+        initializeAlerts,
+
+    destroy:
+        destroyAlerts,
+
+    loadAlerts:
+        loadAlerts,
+
+    loadStations:
+        loadAlertStations,
+
+    createAlert:
+        openCreateAlertModal,
+
+    acknowledgeAlert:
+        acknowledgeAlert,
+
+    resolveAlert:
+        resolveAlert,
+
+    deleteAlert:
+        deleteAlert,
+
+    canManageAlerts:
+        canManageAlerts
+
+};
+
+
+/* =========================================================
+   AUTO INITIALIZATION
+========================================================= */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    () => {
+
+        /*
+            The dashboard/page loader may insert
+            #pageContent after DOMContentLoaded.
+
+            We therefore wait briefly before checking.
+        */
+
+        const start =
+            () => {
+
+                if (
+                    document.getElementById(
+                        "pageContent"
+                    )
+                ) {
+
+                    initializeAlerts();
+
+                } else {
+
+                    setTimeout(
+                        start,
+                        250
+                    );
+
+                }
+
+            };
+
+
+        start();
+
+    }
+);

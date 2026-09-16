@@ -1,2777 +1,3606 @@
-/* ==========================================
+/* =========================================================
    FUELGAP - GAPS & VARIANCE
-   PREMIUM RECONCILIATION SYSTEM
-========================================== */
+   COMPLETE BACKEND CONNECTED VERSION
+   INLINE CSS
+   NO LOCALSTORAGE
+========================================================= */
+
+(function () {
+
+    "use strict";
+
+    /* =====================================================
+       STATE
+    ===================================================== */
+
+    const GapsState = {
+
+        currentUser: null,
+
+        stations: [],
+        pumps: [],
+        nozzles: [],
+        shifts: [],
+        gaps: [],
+
+        filteredGaps: [],
+
+        selectedStation: "",
+        selectedPump: "",
+        selectedNozzle: "",
+        selectedShift: "",
+
+        search: "",
+        status: "",
+
+        isLoading: false,
+        isSubmitting: false,
+        initialized: false
+    };
 
 
-/* ==========================================
-   STORAGE KEYS
-========================================== */
+    /* =====================================================
+       INLINE CSS
+    ===================================================== */
 
-const GAPS_SALES_STORAGE_KEY =
-    "fuelgap_sales";
+    function injectGapsStyles() {
 
-const GAPS_PAYMENTS_STORAGE_KEY =
-    "fuelgap_payments";
-
-const GAPS_STATIONS_STORAGE_KEY =
-    "fuelgap_stations";
-
-const GAPS_SHIFTS_STORAGE_KEY =
-    "fuelgap_shifts";
-
-const GAPS_STAFF_STORAGE_KEY =
-    "fuelgap_staff";
-
-const GAPS_ALERTS_STORAGE_KEY =
-    "fuelgap_alerts";
-
-
-/* ==========================================
-   PAGE LOAD
-========================================== */
-
-document.addEventListener(
-    "DOMContentLoaded",
-    () => {
-
-        const currentUser =
-            FuelGapUtils.getCurrentUser();
-
-
-        if (!currentUser) {
-
-            window.location.href =
-                "../login.html";
-
+        if (document.getElementById("fuelgap-gaps-inline-css")) {
             return;
+        }
 
+        const style = document.createElement("style");
+
+        style.id = "fuelgap-gaps-inline-css";
+
+        style.textContent = `
+
+        /* ================================================
+           GAPS PAGE
+        ================================================ */
+
+        .fg-gaps-page {
+            width: 100%;
+            min-height: 100%;
+            background: #f7f8fa;
+            color: #171717;
+            font-family:
+                Inter,
+                Arial,
+                Helvetica,
+                sans-serif;
+        }
+
+        .fg-gaps-page *,
+        .fg-gaps-page *::before,
+        .fg-gaps-page *::after {
+            box-sizing: border-box;
+        }
+
+        .fg-gaps-container {
+            width: 100%;
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .fg-gaps-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .fg-gaps-title-wrap h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 800;
+            color: #171717;
+        }
+
+        .fg-gaps-title-wrap p {
+            margin: 7px 0 0;
+            color: #737373;
+            font-size: 14px;
+        }
+
+        .fg-gaps-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .fg-btn {
+            border: 1px solid #e5e5e5;
+            background: #ffffff;
+            color: #222222;
+            border-radius: 9px;
+            padding: 11px 16px;
+            min-height: 42px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: .2s ease;
+        }
+
+        .fg-btn:hover {
+            border-color: #f2c300;
+            transform: translateY(-1px);
+        }
+
+        .fg-btn:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .fg-btn-primary {
+            background: #f5c400;
+            border-color: #f5c400;
+            color: #111111;
+        }
+
+        .fg-btn-primary:hover {
+            background: #eab900;
+            border-color: #eab900;
+        }
+
+        /* ================================================
+           STAT CARDS
+        ================================================ */
+
+        .fg-gaps-stats {
+            display: grid;
+            grid-template-columns:
+                repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+
+        .fg-stat-card {
+            background: #ffffff;
+            border: 1px solid #e8e8e8;
+            border-radius: 14px;
+            padding: 18px;
+            box-shadow:
+                0 3px 12px rgba(0,0,0,.04);
+        }
+
+        .fg-stat-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .fg-stat-label {
+            color: #737373;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .fg-stat-icon {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            border-radius: 9px;
+            background: #fff8d6;
+            color: #8a6b00;
+            font-weight: 800;
+        }
+
+        .fg-stat-value {
+            margin-top: 9px;
+            font-size: 25px;
+            font-weight: 800;
+            color: #171717;
+        }
+
+        .fg-stat-sub {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #8a8a8a;
+        }
+
+        /* ================================================
+           CARDS
+        ================================================ */
+
+        .fg-gaps-card {
+            background: #ffffff;
+            border: 1px solid #e8e8e8;
+            border-radius: 14px;
+            box-shadow:
+                0 3px 12px rgba(0,0,0,.04);
+            overflow: hidden;
+        }
+
+        /* ================================================
+           FILTER HEADER
+        ================================================ */
+
+        .fg-filter-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid #eeeeee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .fg-filter-header h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        .fg-filter-body {
+            padding: 18px 20px;
+        }
+
+        .fg-filter-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(5, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        /* ================================================
+           FORM FIELDS
+        ================================================ */
+
+        .fg-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .fg-field label {
+            font-size: 12px;
+            color: #626262;
+            font-weight: 700;
+        }
+
+        .fg-input,
+        .fg-select {
+            width: 100%;
+            height: 42px;
+            border: 1px solid #dcdcdc;
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 0 12px;
+            outline: none;
+            color: #202020;
+            font-size: 13px;
+            transition: .2s ease;
+        }
+
+        .fg-input:focus,
+        .fg-select:focus {
+            border-color: #f0c000;
+            box-shadow:
+                0 0 0 3px rgba(245,196,0,.12);
+        }
+
+        .fg-select:disabled {
+            background: #f5f5f5;
+            color: #999999;
+            cursor: not-allowed;
+        }
+
+        /* ================================================
+           TABLE
+        ================================================ */
+
+        .fg-table-wrap {
+            overflow-x: auto;
+        }
+
+        .fg-table {
+            width: 100%;
+            min-width: 1050px;
+            border-collapse: collapse;
+        }
+
+        .fg-table th {
+            background: #fafafa;
+            color: #737373;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            font-weight: 800;
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid #eeeeee;
+            white-space: nowrap;
+        }
+
+        .fg-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+            color: #303030;
+            white-space: nowrap;
+        }
+
+        .fg-table tbody tr:hover {
+            background: #fffdf0;
+        }
+
+        .fg-empty {
+            text-align: center;
+            padding: 50px 20px;
+            color: #858585;
+        }
+
+        .fg-empty strong {
+            display: block;
+            color: #404040;
+            margin-bottom: 5px;
+            font-size: 15px;
+        }
+
+        /* ================================================
+           BADGES
+        ================================================ */
+
+        .fg-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            padding: 5px 9px;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .fg-badge-normal {
+            background: #eaf8ef;
+            color: #177245;
+        }
+
+        .fg-badge-warning {
+            background: #fff7db;
+            color: #896900;
+        }
+
+        .fg-badge-critical {
+            background: #ffecec;
+            color: #b42318;
+        }
+
+        .fg-number-positive {
+            color: #177245;
+            font-weight: 800;
+        }
+
+        .fg-number-negative {
+            color: #b42318;
+            font-weight: 800;
+        }
+
+        .fg-number-zero {
+            color: #555555;
+            font-weight: 800;
+        }
+
+        /* ================================================
+           MODAL
+        ================================================ */
+
+        .fg-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.48);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 99999;
+        }
+
+        .fg-modal-overlay.active {
+            display: flex;
+        }
+
+        .fg-modal {
+            width: 100%;
+            max-width: 620px;
+            max-height: 92vh;
+            overflow-y: auto;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow:
+                0 20px 60px rgba(0,0,0,.2);
+        }
+
+        .fg-modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #eeeeee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .fg-modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        .fg-modal-close {
+            border: 0;
+            background: #f3f3f3;
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        .fg-modal-body {
+            padding: 20px;
+        }
+
+        .fg-form-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(2, minmax(0, 1fr));
+            gap: 15px;
+        }
+
+        .fg-full {
+            grid-column: 1 / -1;
+        }
+
+        .fg-modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid #eeeeee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .fg-help {
+            margin-top: 6px;
+            color: #888888;
+            font-size: 11px;
+        }
+
+        /* ================================================
+           LOADING
+        ================================================ */
+
+        .fg-loading {
+            padding: 60px 20px;
+            text-align: center;
+            color: #777777;
+        }
+
+        .fg-spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #eeeeee;
+            border-top-color: #f5c400;
+            border-radius: 50%;
+            animation: fgSpin .8s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes fgSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ================================================
+           ALERT
+        ================================================ */
+
+        .fg-alert {
+            margin-bottom: 18px;
+            padding: 13px 15px;
+            border-radius: 9px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .fg-alert.show {
+            display: block;
+        }
+
+        .fg-alert-error {
+            background: #fff1f1;
+            border: 1px solid #ffd2d2;
+            color: #a51d1d;
+        }
+
+        .fg-alert-success {
+            background: #ecfdf3;
+            border: 1px solid #c9efd9;
+            color: #176b3a;
+        }
+
+        /* ================================================
+           RESPONSIVE
+        ================================================ */
+
+        @media (max-width: 1100px) {
+
+            .fg-gaps-stats {
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
+            }
+
+            .fg-filter-grid {
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 700px) {
+
+            .fg-gaps-container {
+                padding: 15px;
+            }
+
+            .fg-gaps-header {
+                flex-direction: column;
+            }
+
+            .fg-gaps-actions {
+                width: 100%;
+            }
+
+            .fg-btn {
+                flex: 1;
+            }
+
+            .fg-gaps-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .fg-filter-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .fg-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .fg-full {
+                grid-column: auto;
+            }
+
+            .fg-modal {
+                max-height: 95vh;
+            }
+        }
+
+        `;
+
+        document.head.appendChild(style);
+    }
+
+
+    /* =====================================================
+       HELPERS
+    ===================================================== */
+
+    function escapeHTML(value) {
+
+        return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+
+    function number(value) {
+
+        const n = Number(value);
+
+        return Number.isFinite(n) ? n : 0;
+    }
+
+
+    function formatNumber(value) {
+
+        return number(value).toLocaleString(
+            "en-NG",
+            {
+                maximumFractionDigits: 2
+            }
+        );
+    }
+
+
+    function formatMoney(value) {
+
+        return "₦" + number(value).toLocaleString(
+            "en-NG",
+            {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }
+        );
+    }
+
+
+    function formatDate(value) {
+
+        if (!value) return "—";
+
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return escapeHTML(value);
+        }
+
+        return date.toLocaleString(
+            "en-NG",
+            {
+                dateStyle: "medium",
+                timeStyle: "short"
+            }
+        );
+    }
+
+
+    function getId(item, type) {
+
+        if (!item) return "";
+
+        return String(
+            item.id ||
+            item[`${type}_id`] ||
+            item[`${type}Id`] ||
+            ""
+        );
+    }
+
+
+    function extractData(response, keys = []) {
+
+        if (!response) return [];
+
+        if (Array.isArray(response)) {
+            return response;
+        }
+
+        for (const key of keys) {
+
+            if (Array.isArray(response[key])) {
+                return response[key];
+            }
+        }
+
+        if (response.data) {
+
+            if (Array.isArray(response.data)) {
+                return response.data;
+            }
+
+            for (const key of keys) {
+
+                if (
+                    response.data &&
+                    Array.isArray(response.data[key])
+                ) {
+                    return response.data[key];
+                }
+            }
+        }
+
+        return [];
+    }
+
+
+    function getCurrentUser() {
+
+        if (
+            window.FuelGapUtils &&
+            typeof FuelGapUtils.getCurrentUser === "function"
+        ) {
+            return FuelGapUtils.getCurrentUser();
+        }
+
+        return window.currentUser || null;
+    }
+
+
+    /* =====================================================
+       BACKEND LOADERS
+    ===================================================== */
+
+    async function loadStations() {
+
+        if (
+            !window.FuelGapAPI ||
+            typeof FuelGapAPI.getStations !== "function"
+        ) {
+            throw new Error(
+                "FuelGapAPI.getStations() is unavailable."
+            );
+        }
+
+        const response =
+            await FuelGapAPI.getStations();
+
+        GapsState.stations =
+            extractData(
+                response,
+                ["stations", "data", "records"]
+            );
+
+        console.log(
+            "Gaps Stations:",
+            GapsState.stations
+        );
+    }
+
+
+    async function loadPumps() {
+
+        if (
+            !window.FuelGapAPI ||
+            typeof FuelGapAPI.getPumps !== "function"
+        ) {
+            throw new Error(
+                "FuelGapAPI.getPumps() is unavailable."
+            );
+        }
+
+        const response =
+            await FuelGapAPI.getPumps();
+
+        GapsState.pumps =
+            extractData(
+                response,
+                ["pumps", "data", "records"]
+            );
+
+        console.log(
+            "Gaps Pumps:",
+            GapsState.pumps
+        );
+    }
+
+
+    async function loadNozzles() {
+
+        if (
+            !window.FuelGapAPI ||
+            typeof FuelGapAPI.getNozzles !== "function"
+        ) {
+            throw new Error(
+                "FuelGapAPI.getNozzles() is unavailable."
+            );
+        }
+
+        const response =
+            await FuelGapAPI.getNozzles();
+
+        GapsState.nozzles =
+            extractData(
+                response,
+                ["nozzles", "data", "records"]
+            );
+
+        console.log(
+            "Gaps Nozzles:",
+            GapsState.nozzles
+        );
+    }
+
+
+    async function loadShifts() {
+
+        if (
+            !window.FuelGapAPI ||
+            typeof FuelGapAPI.getShifts !== "function"
+        ) {
+            throw new Error(
+                "FuelGapAPI.getShifts() is unavailable."
+            );
+        }
+
+        const response =
+            await FuelGapAPI.getShifts();
+
+        GapsState.shifts =
+            extractData(
+                response,
+                ["shifts", "data", "records"]
+            );
+
+        console.log(
+            "Gaps Shifts:",
+            GapsState.shifts
+        );
+    }
+
+
+    async function loadGaps() {
+
+        if (
+            !window.FuelGapAPI ||
+            typeof FuelGapAPI.getGaps !== "function"
+        ) {
+            throw new Error(
+                "FuelGapAPI.getGaps() is unavailable."
+            );
+        }
+
+        const response =
+            await FuelGapAPI.getGaps();
+
+        GapsState.gaps =
+            extractData(
+                response,
+                ["gaps", "records", "data"]
+            );
+
+        console.log(
+            "Gaps Records:",
+            GapsState.gaps
+        );
+    }
+
+
+    async function loadAllData() {
+
+        GapsState.isLoading = true;
+
+        try {
+
+            await Promise.all([
+                loadStations(),
+                loadPumps(),
+                loadNozzles(),
+                loadShifts(),
+                loadGaps()
+            ]);
+
+            populateAllSelects();
+            applyFilters();
+
+        } finally {
+
+            GapsState.isLoading = false;
+        }
+    }
+
+
+    /* =====================================================
+       RELATION HELPERS
+    ===================================================== */
+
+    function getPumpsForStation(stationId) {
+
+        if (!stationId) return [];
+
+        return GapsState.pumps.filter(pump => {
+
+            const id = String(
+                pump.station_id ||
+                pump.stationId ||
+                pump.station?.id ||
+                ""
+            );
+
+            return id === String(stationId);
+        });
+    }
+
+
+    function getNozzlesForPump(pumpId) {
+
+        if (!pumpId) return [];
+
+        return GapsState.nozzles.filter(nozzle => {
+
+            const id = String(
+                nozzle.pump_id ||
+                nozzle.pumpId ||
+                nozzle.pump?.id ||
+                ""
+            );
+
+            return id === String(pumpId);
+        });
+    }
+
+
+    function getShiftsForStation(stationId) {
+
+        if (!stationId) return [];
+
+        return GapsState.shifts.filter(shift => {
+
+            const id = String(
+                shift.station_id ||
+                shift.stationId ||
+                shift.station?.id ||
+                ""
+            );
+
+            return id === String(stationId);
+        });
+    }
+
+
+    /* =====================================================
+       OPTION BUILDERS
+    ===================================================== */
+
+    function stationOptions(selected = "") {
+
+        let html =
+            `<option value="">All stations</option>`;
+
+        GapsState.stations.forEach(station => {
+
+            const id =
+                getId(station, "station");
+
+            const name =
+                station.name ||
+                station.station_name ||
+                station.stationName ||
+                `Station ${id}`;
+
+            html += `
+                <option
+                    value="${escapeHTML(id)}"
+                    ${String(id) === String(selected)
+                        ? "selected"
+                        : ""}
+                >
+                    ${escapeHTML(name)}
+                </option>
+            `;
+        });
+
+        return html;
+    }
+
+
+    function pumpOptions(stationId, selected = "") {
+
+        if (!stationId) {
+
+            return `
+                <option value="">
+                    Select station first
+                </option>
+            `;
+        }
+
+        const pumps =
+            getPumpsForStation(stationId);
+
+        if (!pumps.length) {
+
+            return `
+                <option value="">
+                    No pumps available
+                </option>
+            `;
+        }
+
+        let html =
+            `<option value="">All pumps</option>`;
+
+        pumps.forEach(pump => {
+
+            const id =
+                getId(pump, "pump");
+
+            const pumpNumber =
+                pump.pump_number ||
+                pump.pumpNumber ||
+                pump.number ||
+                id;
+
+            const brand =
+                pump.brand || "";
+
+            const model =
+                pump.model || "";
+
+            const details =
+                [brand, model]
+                    .filter(Boolean)
+                    .join(" ");
+
+            const label =
+                details
+                    ? `Pump ${pumpNumber} - ${details}`
+                    : `Pump ${pumpNumber}`;
+
+            html += `
+                <option
+                    value="${escapeHTML(id)}"
+                    ${String(id) === String(selected)
+                        ? "selected"
+                        : ""}
+                >
+                    ${escapeHTML(label)}
+                </option>
+            `;
+        });
+
+        return html;
+    }
+
+
+    function nozzleOptions(pumpId, selected = "") {
+
+        if (!pumpId) {
+
+            return `
+                <option value="">
+                    Select pump first
+                </option>
+            `;
+        }
+
+        const nozzles =
+            getNozzlesForPump(pumpId);
+
+        if (!nozzles.length) {
+
+            return `
+                <option value="">
+                    No nozzles available
+                </option>
+            `;
+        }
+
+        let html =
+            `<option value="">All nozzles</option>`;
+
+        nozzles.forEach(nozzle => {
+
+            const id =
+                getId(nozzle, "nozzle");
+
+            const nozzleNumber =
+                nozzle.nozzle_number ||
+                nozzle.nozzleNumber ||
+                nozzle.number ||
+                id;
+
+            const product =
+                nozzle.product ||
+                nozzle.product_name ||
+                nozzle.productName ||
+                "";
+
+            const price =
+                nozzle.price_per_litre ||
+                nozzle.pricePerLitre ||
+                nozzle.price ||
+                "";
+
+            let label =
+                `Nozzle ${nozzleNumber}`;
+
+            if (product) {
+                label += ` - ${product}`;
+            }
+
+            if (price) {
+                label +=
+                    ` - ₦${formatNumber(price)}/L`;
+            }
+
+            html += `
+                <option
+                    value="${escapeHTML(id)}"
+                    ${String(id) === String(selected)
+                        ? "selected"
+                        : ""}
+                >
+                    ${escapeHTML(label)}
+                </option>
+            `;
+        });
+
+        return html;
+    }
+
+
+    function shiftOptions(stationId, selected = "") {
+
+        if (!stationId) {
+
+            return `
+                <option value="">
+                    Select station first
+                </option>
+            `;
+        }
+
+        const shifts =
+            getShiftsForStation(stationId);
+
+        if (!shifts.length) {
+
+            return `
+                <option value="">
+                    No shifts available
+                </option>
+            `;
+        }
+
+        let html =
+            `<option value="">All shifts</option>`;
+
+        shifts.forEach(shift => {
+
+            const id =
+                getId(shift, "shift");
+
+            const name =
+                shift.name ||
+                shift.shift_name ||
+                shift.shiftName ||
+                "";
+
+            const date =
+                shift.shift_date ||
+                shift.shiftDate ||
+                shift.date ||
+                "";
+
+            let label =
+                name || `Shift ${id}`;
+
+            if (date) {
+                label += ` - ${date}`;
+            }
+
+            html += `
+                <option
+                    value="${escapeHTML(id)}"
+                    ${String(id) === String(selected)
+                        ? "selected"
+                        : ""}
+                >
+                    ${escapeHTML(label)}
+                </option>
+            `;
+        });
+
+        return html;
+    }
+
+
+    /* =====================================================
+       POPULATE ALL SELECTS
+    ===================================================== */
+
+    function populateAllSelects() {
+
+        const station =
+            document.getElementById(
+                "gapsStationFilter"
+            );
+
+        const pump =
+            document.getElementById(
+                "gapsPumpFilter"
+            );
+
+        const nozzle =
+            document.getElementById(
+                "gapsNozzleFilter"
+            );
+
+        const shift =
+            document.getElementById(
+                "gapsShiftFilter"
+            );
+
+
+        if (station) {
+
+            station.innerHTML =
+                stationOptions(
+                    GapsState.selectedStation
+                );
+
+            station.value =
+                GapsState.selectedStation;
         }
 
 
-        if (
-            !hasPermission(
-                currentUser.role,
-                "gaps"
+        if (pump) {
+
+            pump.innerHTML =
+                pumpOptions(
+                    GapsState.selectedStation,
+                    GapsState.selectedPump
+                );
+
+            pump.value =
+                GapsState.selectedPump;
+
+            pump.disabled =
+                !GapsState.selectedStation;
+        }
+
+
+        if (nozzle) {
+
+            nozzle.innerHTML =
+                nozzleOptions(
+                    GapsState.selectedPump,
+                    GapsState.selectedNozzle
+                );
+
+            nozzle.value =
+                GapsState.selectedNozzle;
+
+            nozzle.disabled =
+                !GapsState.selectedPump;
+        }
+
+
+        if (shift) {
+
+            shift.innerHTML =
+                shiftOptions(
+                    GapsState.selectedStation,
+                    GapsState.selectedShift
+                );
+
+            shift.value =
+                GapsState.selectedShift;
+
+            shift.disabled =
+                !GapsState.selectedStation;
+        }
+
+
+        populateModalSelects();
+    }
+
+
+    function populateModalSelects() {
+
+        const station =
+            document.getElementById(
+                "gapFormStation"
+            );
+
+        const pump =
+            document.getElementById(
+                "gapFormPump"
+            );
+
+        const nozzle =
+            document.getElementById(
+                "gapFormNozzle"
+            );
+
+        const shift =
+            document.getElementById(
+                "gapFormShift"
+            );
+
+
+        if (station) {
+
+            station.innerHTML = `
+                <option value="">
+                    Select station
+                </option>
+            `;
+
+            GapsState.stations.forEach(item => {
+
+                const id =
+                    getId(item, "station");
+
+                const name =
+                    item.name ||
+                    item.station_name ||
+                    item.stationName ||
+                    `Station ${id}`;
+
+                station.innerHTML += `
+                    <option value="${escapeHTML(id)}">
+                        ${escapeHTML(name)}
+                    </option>
+                `;
+            });
+        }
+
+
+        if (pump) {
+
+            pump.innerHTML = `
+                <option value="">
+                    Select station first
+                </option>
+            `;
+
+            pump.disabled = true;
+        }
+
+
+        if (nozzle) {
+
+            nozzle.innerHTML = `
+                <option value="">
+                    Select pump first
+                </option>
+            `;
+
+            nozzle.disabled = true;
+        }
+
+
+        if (shift) {
+
+            shift.innerHTML = `
+                <option value="">
+                    Select station first
+                </option>
+            `;
+
+            shift.disabled = true;
+        }
+    }
+
+
+    /* =====================================================
+       FILTER EVENTS
+    ===================================================== */
+
+    function setupFilterEvents() {
+
+        const station =
+            document.getElementById(
+                "gapsStationFilter"
+            );
+
+        const pump =
+            document.getElementById(
+                "gapsPumpFilter"
+            );
+
+        const nozzle =
+            document.getElementById(
+                "gapsNozzleFilter"
+            );
+
+        const shift =
+            document.getElementById(
+                "gapsShiftFilter"
+            );
+
+        const status =
+            document.getElementById(
+                "gapsStatusFilter"
+            );
+
+        const search =
+            document.getElementById(
+                "gapsSearch"
+            );
+
+
+        if (station) {
+
+            station.onchange = function () {
+
+                GapsState.selectedStation =
+                    this.value;
+
+                GapsState.selectedPump = "";
+                GapsState.selectedNozzle = "";
+                GapsState.selectedShift = "";
+
+                populateAllSelects();
+
+                applyFilters();
+            };
+        }
+
+
+        if (pump) {
+
+            pump.onchange = function () {
+
+                GapsState.selectedPump =
+                    this.value;
+
+                GapsState.selectedNozzle = "";
+
+                populateAllSelects();
+
+                applyFilters();
+            };
+        }
+
+
+        if (nozzle) {
+
+            nozzle.onchange = function () {
+
+                GapsState.selectedNozzle =
+                    this.value;
+
+                applyFilters();
+            };
+        }
+
+
+        if (shift) {
+
+            shift.onchange = function () {
+
+                GapsState.selectedShift =
+                    this.value;
+
+                applyFilters();
+            };
+        }
+
+
+        if (status) {
+
+            status.onchange = function () {
+
+                GapsState.status =
+                    this.value;
+
+                applyFilters();
+            };
+        }
+
+
+        if (search) {
+
+            search.oninput = function () {
+
+                GapsState.search =
+                    this.value
+                        .trim()
+                        .toLowerCase();
+
+                applyFilters();
+            };
+        }
+    }
+
+
+    /* =====================================================
+       FILTER RECORDS
+    ===================================================== */
+
+    function applyFilters() {
+
+        let records =
+            [...GapsState.gaps];
+
+
+        if (GapsState.selectedStation) {
+
+            records =
+                records.filter(record =>
+                    String(
+                        record.station_id ||
+                        record.stationId ||
+                        ""
+                    ) ===
+                    String(
+                        GapsState.selectedStation
+                    )
+                );
+        }
+
+
+        if (GapsState.selectedPump) {
+
+            records =
+                records.filter(record =>
+                    String(
+                        record.pump_id ||
+                        record.pumpId ||
+                        ""
+                    ) ===
+                    String(
+                        GapsState.selectedPump
+                    )
+                );
+        }
+
+
+        if (GapsState.selectedNozzle) {
+
+            records =
+                records.filter(record =>
+                    String(
+                        record.nozzle_id ||
+                        record.nozzleId ||
+                        ""
+                    ) ===
+                    String(
+                        GapsState.selectedNozzle
+                    )
+                );
+        }
+
+
+        if (GapsState.selectedShift) {
+
+            records =
+                records.filter(record =>
+                    String(
+                        record.shift_id ||
+                        record.shiftId ||
+                        ""
+                    ) ===
+                    String(
+                        GapsState.selectedShift
+                    )
+                );
+        }
+
+
+        if (GapsState.status) {
+
+            records =
+                records.filter(record =>
+                    String(
+                        record.status || ""
+                    ).toLowerCase() ===
+                    GapsState.status
+                        .toLowerCase()
+                );
+        }
+
+
+        if (GapsState.search) {
+
+            records =
+                records.filter(record => {
+
+                    const text =
+                        JSON.stringify(record)
+                            .toLowerCase();
+
+                    return text.includes(
+                        GapsState.search
+                    );
+                });
+        }
+
+
+        GapsState.filteredGaps =
+            records;
+
+        renderStats();
+        renderTable();
+    }
+
+
+    /* =====================================================
+       DISPLAY HELPERS
+    ===================================================== */
+
+    function stationName(id) {
+
+        const station =
+            GapsState.stations.find(
+                item =>
+                    String(
+                        getId(item, "station")
+                    ) === String(id)
+            );
+
+        return station
+            ? (
+                station.name ||
+                station.station_name ||
+                `Station ${id}`
             )
-        ) {
+            : "Unknown station";
+    }
 
-            window.location.href =
-                "./dashboard.html";
+
+    function pumpName(id) {
+
+        const pump =
+            GapsState.pumps.find(
+                item =>
+                    String(
+                        getId(item, "pump")
+                    ) === String(id)
+            );
+
+        if (!pump) {
+            return "Unknown pump";
+        }
+
+        const number =
+            pump.pump_number ||
+            pump.pumpNumber ||
+            pump.number ||
+            id;
+
+        return `Pump ${number}`;
+    }
+
+
+    function nozzleName(id) {
+
+        const nozzle =
+            GapsState.nozzles.find(
+                item =>
+                    String(
+                        getId(item, "nozzle")
+                    ) === String(id)
+            );
+
+        if (!nozzle) {
+            return "Unknown nozzle";
+        }
+
+        const number =
+            nozzle.nozzle_number ||
+            nozzle.nozzleNumber ||
+            nozzle.number ||
+            id;
+
+        const product =
+            nozzle.product ||
+            nozzle.product_name ||
+            "";
+
+        return product
+            ? `Nozzle ${number} - ${product}`
+            : `Nozzle ${number}`;
+    }
+
+
+    function shiftName(id) {
+
+        const shift =
+            GapsState.shifts.find(
+                item =>
+                    String(
+                        getId(item, "shift")
+                    ) === String(id)
+            );
+
+        if (!shift) {
+            return "Unknown shift";
+        }
+
+        return (
+            shift.name ||
+            shift.shift_name ||
+            shift.shiftName ||
+            `Shift ${id}`
+        );
+    }
+
+
+    function getStatus(record) {
+
+        const expected =
+            number(
+                record.expected_litres
+            );
+
+        const actual =
+            number(
+                record.actual_litres
+            );
+
+        const variance =
+            record.variance_litres !== undefined
+                ? number(
+                    record.variance_litres
+                )
+                : actual - expected;
+
+        const stored =
+            String(
+                record.status || ""
+            ).toLowerCase();
+
+
+        if (
+            stored === "normal" ||
+            stored === "warning" ||
+            stored === "critical"
+        ) {
+            return stored;
+        }
+
+
+        const absolute =
+            Math.abs(variance);
+
+
+        if (absolute <= 0.01) {
+            return "normal";
+        }
+
+
+        if (absolute <= 5) {
+            return "warning";
+        }
+
+
+        return "critical";
+    }
+
+
+    function statusBadge(status) {
+
+        const label =
+            status.charAt(0).toUpperCase() +
+            status.slice(1);
+
+        return `
+            <span class="
+                fg-badge
+                fg-badge-${escapeHTML(status)}
+            ">
+                ${escapeHTML(label)}
+            </span>
+        `;
+    }
+
+
+    /* =====================================================
+       STATS
+    ===================================================== */
+
+    function renderStats() {
+
+        const records =
+            GapsState.filteredGaps;
+
+        const total =
+            records.length;
+
+        const normal =
+            records.filter(
+                r => getStatus(r) === "normal"
+            ).length;
+
+        const warning =
+            records.filter(
+                r => getStatus(r) === "warning"
+            ).length;
+
+        const critical =
+            records.filter(
+                r => getStatus(r) === "critical"
+            ).length;
+
+
+        const totalVariance =
+            records.reduce(
+                (sum, record) => {
+
+                    const expected =
+                        number(
+                            record.expected_litres
+                        );
+
+                    const actual =
+                        number(
+                            record.actual_litres
+                        );
+
+                    const variance =
+                        record.variance_litres !== undefined
+                            ? number(
+                                record.variance_litres
+                            )
+                            : actual - expected;
+
+                    return sum + variance;
+
+                },
+                0
+            );
+
+
+        const totalEl =
+            document.getElementById(
+                "gapsTotal"
+            );
+
+        const normalEl =
+            document.getElementById(
+                "gapsNormal"
+            );
+
+        const warningEl =
+            document.getElementById(
+                "gapsWarning"
+            );
+
+        const criticalEl =
+            document.getElementById(
+                "gapsCritical"
+            );
+
+        const varianceEl =
+            document.getElementById(
+                "gapsVariance"
+            );
+
+
+        if (totalEl) {
+            totalEl.textContent =
+                formatNumber(total);
+        }
+
+        if (normalEl) {
+            normalEl.textContent =
+                formatNumber(normal);
+        }
+
+        if (warningEl) {
+            warningEl.textContent =
+                formatNumber(warning);
+        }
+
+        if (criticalEl) {
+            criticalEl.textContent =
+                formatNumber(critical);
+        }
+
+        if (varianceEl) {
+
+            varianceEl.textContent =
+                formatNumber(
+                    totalVariance
+                ) + " L";
+        }
+    }
+
+
+    /* =====================================================
+       TABLE
+    ===================================================== */
+
+    function renderTable() {
+
+        const body =
+            document.getElementById(
+                "gapsTableBody"
+            );
+
+        if (!body) return;
+
+
+        if (!GapsState.filteredGaps.length) {
+
+            body.innerHTML = `
+                <tr>
+
+                    <td colspan="10">
+
+                        <div class="fg-empty">
+
+                            <strong>
+                                No gap records found
+                            </strong>
+
+                            Try changing your filters
+                            or record a new gap.
+
+                        </div>
+
+                    </td>
+
+                </tr>
+            `;
 
             return;
-
         }
 
 
-        setTimeout(
-            () => {
+        body.innerHTML =
+            GapsState.filteredGaps
+                .map(record => {
 
-                renderGapsPage();
+                    const expected =
+                        number(
+                            record.expected_litres
+                        );
 
-                setupGapEvents();
+                    const actual =
+                        number(
+                            record.actual_litres
+                        );
 
-                renderGaps();
+                    const variance =
+                        record.variance_litres !== undefined
+                            ? number(
+                                record.variance_litres
+                            )
+                            : actual - expected;
 
-            },
-            0
-        );
+                    const status =
+                        getStatus(record);
 
-    }
-);
 
+                    const varianceClass =
+                        variance > 0
+                            ? "fg-number-positive"
+                            : variance < 0
+                                ? "fg-number-negative"
+                                : "fg-number-zero";
 
-/* ==========================================
-   SAFE STORAGE HELPER
-========================================== */
 
-function getGapStorageData(
-    storageKey
-) {
+                    const stationId =
+                        record.station_id ||
+                        record.stationId;
 
-    try {
+                    const pumpId =
+                        record.pump_id ||
+                        record.pumpId;
 
-        const data =
-            localStorage.getItem(
-                storageKey
-            );
+                    const nozzleId =
+                        record.nozzle_id ||
+                        record.nozzleId;
 
+                    const shiftId =
+                        record.shift_id ||
+                        record.shiftId;
 
-        if (!data) {
 
-            return [];
-
-        }
-
-
-        const parsed =
-            JSON.parse(data);
-
-
-        return Array.isArray(parsed)
-            ? parsed
-            : [];
-
-    } catch (error) {
-
-        console.error(
-            `Unable to load ${storageKey}:`,
-            error
-        );
-
-        return [];
-
-    }
-
-}
-
-
-/* ==========================================
-   SAVE STORAGE DATA
-========================================== */
-
-function saveGapStorageData(
-    storageKey,
-    data
-) {
-
-    try {
-
-        localStorage.setItem(
-            storageKey,
-            JSON.stringify(data)
-        );
-
-    } catch (error) {
-
-        console.error(
-            `Unable to save ${storageKey}:`,
-            error
-        );
-
-    }
-
-}
-
-
-/* ==========================================
-   GET SYSTEM DATA
-========================================== */
-
-function getGapSales() {
-
-    return getGapStorageData(
-        GAPS_SALES_STORAGE_KEY
-    );
-
-}
-
-
-function getGapPayments() {
-
-    return getGapStorageData(
-        GAPS_PAYMENTS_STORAGE_KEY
-    );
-
-}
-
-
-function getGapStations() {
-
-    return getGapStorageData(
-        GAPS_STATIONS_STORAGE_KEY
-    );
-
-}
-
-
-function getGapShifts() {
-
-    return getGapStorageData(
-        GAPS_SHIFTS_STORAGE_KEY
-    );
-
-}
-
-
-function getGapStaff() {
-
-    return getGapStorageData(
-        GAPS_STAFF_STORAGE_KEY
-    );
-
-}
-
-
-function getGapAlerts() {
-
-    return getGapStorageData(
-        GAPS_ALERTS_STORAGE_KEY
-    );
-
-}
-
-
-/* ==========================================
-   GET CURRENT USER
-========================================== */
-
-function getGapCurrentUser() {
-
-    return FuelGapUtils.getCurrentUser();
-
-}
-
-
-/* ==========================================
-   GET VISIBLE STATIONS
-========================================== */
-
-function getGapVisibleStations() {
-
-    const currentUser =
-        getGapCurrentUser();
-
-
-    const stations =
-        getGapStations();
-
-
-    if (!currentUser) {
-
-        return [];
-
-    }
-
-
-    /*
-       ADMIN
-    */
-
-    if (
-        currentUser.role ===
-        "admin"
-    ) {
-
-        return stations;
-
-    }
-
-
-    /*
-       OWNER
-    */
-
-    if (
-        currentUser.role ===
-        "owner"
-    ) {
-
-        return stations.filter(
-            station =>
-                station.organizationId ===
-                currentUser.organizationId
-        );
-
-    }
-
-
-    /*
-       MANAGER
-    */
-
-    if (
-        currentUser.role ===
-        "manager"
-    ) {
-
-        if (
-            currentUser.stationId
-        ) {
-
-            return stations.filter(
-                station =>
-                    station.id ===
-                    currentUser.stationId
-            );
-
-        }
-
-
-        return stations.filter(
-            station =>
-                station.organizationId ===
-                currentUser.organizationId
-        );
-
-    }
-
-
-    /*
-       ATTENDANT
-    */
-
-    if (
-        currentUser.role ===
-            "attendant" ||
-
-        currentUser.role ===
-            "staff"
-    ) {
-
-        if (
-            currentUser.stationId
-        ) {
-
-            return stations.filter(
-                station =>
-                    station.id ===
-                    currentUser.stationId
-            );
-
-        }
-
-    }
-
-
-    return [];
-
-}
-
-
-/* ==========================================
-   GET VISIBLE STATION IDS
-========================================== */
-
-function getGapVisibleStationIds() {
-
-    return getGapVisibleStations()
-        .map(
-            station =>
-                station.id
-        );
-
-}
-
-
-/* ==========================================
-   GET VISIBLE SALES
-========================================== */
-
-function getGapVisibleSales() {
-
-    const stationIds =
-        getGapVisibleStationIds();
-
-
-    return getGapSales()
-        .filter(
-            sale =>
-                stationIds.includes(
-                    sale.stationId
-                )
-        );
-
-}
-
-
-/* ==========================================
-   GET VISIBLE PAYMENTS
-========================================== */
-
-function getGapVisiblePayments() {
-
-    const stationIds =
-        getGapVisibleStationIds();
-
-
-    return getGapPayments()
-        .filter(
-            payment =>
-                stationIds.includes(
-                    payment.stationId
-                )
-        );
-
-}
-
-
-/* ==========================================
-   RENDER PAGE
-========================================== */
-
-function renderGapsPage() {
-
-    const pageContent =
-        document.getElementById(
-            "pageContent"
-        );
-
-
-    if (!pageContent) {
-
-        return;
-
-    }
-
-
-    pageContent.innerHTML = `
-
-        <!-- =====================================
-             PAGE HEADER
-        ====================================== -->
-
-        <div class="page-header">
-
-            <div>
-
-                <p class="page-eyebrow">
-                    SALES RECONCILIATION
-                </p>
-
-
-                <h1>
-                    Gaps & Variance
-                </h1>
-
-
-                <p>
-                    Monitor expected sales, recorded
-                    payments and financial variances
-                    across your fuel stations.
-                </p>
-
-            </div>
-
-
-            <button
-                type="button"
-                class="btn btn-primary"
-                id="refreshGapsButton"
-            >
-                Refresh Analysis
-            </button>
-
-        </div>
-
-
-
-        <!-- =====================================
-             PREMIUM STAT CARDS
-        ====================================== -->
-
-        <section class="pump-stats">
-
-
-            <!-- EXPECTED SALES -->
-
-            <div class="pump-stat-card">
-
-                <span>
-                    Expected Sales
-                </span>
-
-
-                <strong
-                    id="totalExpectedSales"
-                >
-                    ₦0.00
-                </strong>
-
-
-                <small
-                    class="stat-subtext"
-                    id="expectedSalesSubtext"
-                >
-                    Sales recorded across shifts
-                </small>
-
-            </div>
-
-
-
-            <!-- PAYMENTS -->
-
-            <div class="pump-stat-card">
-
-                <span>
-                    Payments Received
-                </span>
-
-
-                <strong
-                    id="totalPaymentsReceived"
-                >
-                    ₦0.00
-                </strong>
-
-
-                <small
-                    class="stat-subtext"
-                    id="paymentsReceivedSubtext"
-                >
-                    No payment records yet
-                </small>
-
-            </div>
-
-
-
-            <!-- GAP -->
-
-            <div class="pump-stat-card">
-
-                <span>
-                    Total Gap
-                </span>
-
-
-                <strong
-                    id="totalGapAmount"
-                >
-                    ₦0.00
-                </strong>
-
-
-                <small
-                    class="stat-subtext"
-                    id="totalGapSubtext"
-                >
-                    No financial gap detected
-                </small>
-
-            </div>
-
-
-
-            <!-- CRITICAL -->
-
-            <div class="pump-stat-card">
-
-                <span>
-                    Critical Variances
-                </span>
-
-
-                <strong
-                    id="criticalVarianceCount"
-                >
-                    0
-                </strong>
-
-
-                <small
-                    class="stat-subtext"
-                    id="criticalVarianceSubtext"
-                >
-                    No critical issues detected
-                </small>
-
-            </div>
-
-
-        </section>
-
-
-
-        <!-- =====================================
-             RECONCILIATION SECTION
-        ====================================== -->
-
-        <section class="pump-section">
-
-
-            <div class="section-header">
-
-                <div>
-
-                    <h2>
-                        Shift Reconciliation
-                    </h2>
-
-
-                    <p>
-                        Compare expected fuel sales
-                        against recorded payments.
-                    </p>
-
-                </div>
-
-            </div>
-
-
-
-            <!-- =====================================
-                 FILTERS
-            ====================================== -->
-
-            <div class="sales-filters">
-
-
-                <select
-                    id="gapStationFilter"
-                >
-
-                    <option value="">
-                        All Stations
-                    </option>
-
-                </select>
-
-
-
-                <select
-                    id="gapShiftFilter"
-                >
-
-                    <option value="">
-                        All Shifts
-                    </option>
-
-                </select>
-
-
-
-                <select
-                    id="gapStatusFilter"
-                >
-
-                    <option value="">
-                        All Statuses
-                    </option>
-
-
-                    <option value="normal">
-                        Normal
-                    </option>
-
-
-                    <option value="variance">
-                        Variance
-                    </option>
-
-
-                    <option value="critical">
-                        Critical Gap
-                    </option>
-
-
-                    <option value="surplus">
-                        Surplus
-                    </option>
-
-                </select>
-
-
-
-                <input
-                    type="search"
-                    id="gapSearch"
-                    placeholder="Search station, shift or attendant..."
-                >
-
-
-            </div>
-
-
-
-            <!-- =====================================
-                 RECONCILIATION TABLE
-            ====================================== -->
-
-            <div class="table-wrapper">
-
-
-                <table
-                    class="pump-table"
-                >
-
-
-                    <thead>
-
+                    return `
                         <tr>
 
-                            <th>
-                                Station
-                            </th>
+                            <td>
+                                ${escapeHTML(
+                                    stationName(
+                                        stationId
+                                    )
+                                )}
+                            </td>
 
+                            <td>
+                                ${escapeHTML(
+                                    pumpName(
+                                        pumpId
+                                    )
+                                )}
+                            </td>
 
-                            <th>
-                                Shift
-                            </th>
+                            <td>
+                                ${escapeHTML(
+                                    nozzleName(
+                                        nozzleId
+                                    )
+                                )}
+                            </td>
 
+                            <td>
+                                ${escapeHTML(
+                                    shiftName(
+                                        shiftId
+                                    )
+                                )}
+                            </td>
 
-                            <th>
-                                Attendant
-                            </th>
+                            <td>
+                                ${formatNumber(
+                                    expected
+                                )} L
+                            </td>
 
+                            <td>
+                                ${formatNumber(
+                                    actual
+                                )} L
+                            </td>
 
-                            <th>
-                                Expected Sales
-                            </th>
+                            <td>
 
+                                <span
+                                    class="${varianceClass}"
+                                >
+                                    ${variance > 0 ? "+" : ""}
+                                    ${formatNumber(
+                                        variance
+                                    )} L
+                                </span>
 
-                            <th>
-                                Payments
-                            </th>
+                            </td>
 
+                            <td>
+                                ${statusBadge(status)}
+                            </td>
 
-                            <th>
-                                Difference
-                            </th>
+                            <td>
+                                ${formatDate(
+                                    record.created_at ||
+                                    record.createdAt ||
+                                    record.recorded_at ||
+                                    record.recordedAt
+                                )}
+                            </td>
 
-
-                            <th>
-                                Variance
-                            </th>
-
-
-                            <th>
-                                Status
-                            </th>
-
-
-                            <th>
-                                Action
-                            </th>
+                            <td>
+                                ${escapeHTML(
+                                    record.recorded_by_name ||
+                                    record.recordedByName ||
+                                    record.recorded_by ||
+                                    "—"
+                                )}
+                            </td>
 
                         </tr>
+                    `;
 
-                    </thead>
-
-
-                    <tbody
-                        id="gapsTableBody"
-                    ></tbody>
+                })
+                .join("");
+    }
 
 
-                </table>
+    /* =====================================================
+       PAGE HTML
+    ===================================================== */
+
+    function renderPage() {
+
+        const container =
+            document.getElementById(
+                "pageContent"
+            );
+
+        if (!container) {
+
+            console.error(
+                "FuelGap: #pageContent not found."
+            );
+
+            return;
+        }
 
 
-            </div>
+        container.innerHTML = `
+
+            <div class="fg-gaps-page">
+
+                <div class="fg-gaps-container">
+
+                    <div
+                        id="gapsAlert"
+                        class="fg-alert"
+                    ></div>
 
 
+                    <!-- HEADER -->
 
-            <!-- =====================================
-                 EMPTY STATE
-            ====================================== -->
+                    <div class="fg-gaps-header">
 
-            <div
-                id="emptyGapsState"
-                class="empty-state hidden"
-            >
+                        <div
+                            class="fg-gaps-title-wrap"
+                        >
 
-                <h3>
-                    No reconciliation data yet
-                </h3>
+                            <h1>
+                                Gaps & Variance
+                            </h1>
 
+                            <p>
+                                Monitor fuel movement,
+                                meter differences and
+                                station variances.
+                            </p>
 
-                <p>
-                    Add sales and payment records
-                    to begin analysing gaps and
-                    variances.
-                </p>
-
-            </div>
+                        </div>
 
 
-        </section>
+                        <div class="fg-gaps-actions">
 
+                            <button
+                                class="fg-btn"
+                                id="gapsRefreshBtn"
+                                type="button"
+                            >
+                                ↻ Refresh
+                            </button>
 
+                            <button
+                                class="fg-btn fg-btn-primary"
+                                id="gapsRecordBtn"
+                                type="button"
+                            >
+                                + Record Gap
+                            </button>
 
-        <!-- =====================================
-             GAP DETAILS MODAL
-        ====================================== -->
-
-        <div
-            class="modal-overlay"
-            id="gapDetailsModal"
-        >
-
-            <div
-                class="modal"
-            >
-
-
-                <div
-                    class="modal-header"
-                >
-
-                    <div>
-
-                        <h2>
-                            Gap Details
-                        </h2>
-
-
-                        <p>
-                            Complete sales and payment
-                            reconciliation information.
-                        </p>
+                        </div>
 
                     </div>
 
 
-                    <button
-                        type="button"
-                        class="modal-close"
-                        id="closeGapDetailsModal"
+                    <!-- STATISTICS -->
+
+                    <div class="fg-gaps-stats">
+
+                        <div class="fg-stat-card">
+
+                            <div class="fg-stat-top">
+
+                                <span class="fg-stat-label">
+                                    Total Records
+                                </span>
+
+                                <span class="fg-stat-icon">
+                                    #
+                                </span>
+
+                            </div>
+
+                            <div
+                                class="fg-stat-value"
+                                id="gapsTotal"
+                            >
+                                0
+                            </div>
+
+                            <div class="fg-stat-sub">
+                                Filtered records
+                            </div>
+
+                        </div>
+
+
+                        <div class="fg-stat-card">
+
+                            <div class="fg-stat-top">
+
+                                <span class="fg-stat-label">
+                                    Normal
+                                </span>
+
+                                <span class="fg-stat-icon">
+                                    ✓
+                                </span>
+
+                            </div>
+
+                            <div
+                                class="fg-stat-value"
+                                id="gapsNormal"
+                            >
+                                0
+                            </div>
+
+                            <div class="fg-stat-sub">
+                                Within expected range
+                            </div>
+
+                        </div>
+
+
+                        <div class="fg-stat-card">
+
+                            <div class="fg-stat-top">
+
+                                <span class="fg-stat-label">
+                                    Warnings
+                                </span>
+
+                                <span class="fg-stat-icon">
+                                    !
+                                </span>
+
+                            </div>
+
+                            <div
+                                class="fg-stat-value"
+                                id="gapsWarning"
+                            >
+                                0
+                            </div>
+
+                            <div class="fg-stat-sub">
+                                Requires attention
+                            </div>
+
+                        </div>
+
+
+                        <div class="fg-stat-card">
+
+                            <div class="fg-stat-top">
+
+                                <span class="fg-stat-label">
+                                    Critical
+                                </span>
+
+                                <span class="fg-stat-icon">
+                                    !
+                                </span>
+
+                            </div>
+
+                            <div
+                                class="fg-stat-value"
+                                id="gapsCritical"
+                            >
+                                0
+                            </div>
+
+                            <div class="fg-stat-sub">
+                                Significant variance
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- FILTERS -->
+
+                    <div class="fg-gaps-card">
+
+                        <div class="fg-filter-header">
+
+                            <h2>
+                                Filters
+                            </h2>
+
+                            <span
+                                style="
+                                    font-size:12px;
+                                    color:#888;
+                                "
+                            >
+                                Total variance:
+
+                                <strong
+                                    id="gapsVariance"
+                                >
+                                    0 L
+                                </strong>
+
+                            </span>
+
+                        </div>
+
+
+                        <div class="fg-filter-body">
+
+                            <div class="fg-filter-grid">
+
+                                <div class="fg-field">
+
+                                    <label>
+                                        Station
+                                    </label>
+
+                                    <select
+                                        id="gapsStationFilter"
+                                        class="fg-select"
+                                    >
+                                        <option>
+                                            Loading...
+                                        </option>
+                                    </select>
+
+                                </div>
+
+
+                                <div class="fg-field">
+
+                                    <label>
+                                        Pump
+                                    </label>
+
+                                    <select
+                                        id="gapsPumpFilter"
+                                        class="fg-select"
+                                        disabled
+                                    >
+                                        <option>
+                                            Select station first
+                                        </option>
+                                    </select>
+
+                                </div>
+
+
+                                <div class="fg-field">
+
+                                    <label>
+                                        Nozzle
+                                    </label>
+
+                                    <select
+                                        id="gapsNozzleFilter"
+                                        class="fg-select"
+                                        disabled
+                                    >
+                                        <option>
+                                            Select pump first
+                                        </option>
+                                    </select>
+
+                                </div>
+
+
+                                <div class="fg-field">
+
+                                    <label>
+                                        Shift
+                                    </label>
+
+                                    <select
+                                        id="gapsShiftFilter"
+                                        class="fg-select"
+                                        disabled
+                                    >
+                                        <option>
+                                            Select station first
+                                        </option>
+                                    </select>
+
+                                </div>
+
+
+                                <div class="fg-field">
+
+                                    <label>
+                                        Status
+                                    </label>
+
+                                    <select
+                                        id="gapsStatusFilter"
+                                        class="fg-select"
+                                    >
+
+                                        <option value="">
+                                            All statuses
+                                        </option>
+
+                                        <option value="normal">
+                                            Normal
+                                        </option>
+
+                                        <option value="warning">
+                                            Warning
+                                        </option>
+
+                                        <option value="critical">
+                                            Critical
+                                        </option>
+
+                                    </select>
+
+                                </div>
+
+                            </div>
+
+
+                            <div
+                                class="fg-field"
+                                style="
+                                    margin-top:14px;
+                                    max-width:450px;
+                                "
+                            >
+
+                                <label>
+                                    Search
+                                </label>
+
+                                <input
+                                    id="gapsSearch"
+                                    class="fg-input"
+                                    type="search"
+                                    placeholder="Search gaps..."
+                                >
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- GAP TABLE -->
+
+                    <div
+                        class="fg-gaps-card"
+                        style="margin-top:20px;"
                     >
-                        ×
-                    </button>
+
+                        <div class="fg-filter-header">
+
+                            <h2>
+                                Gap Records
+                            </h2>
+
+                        </div>
+
+
+                        <div class="fg-table-wrap">
+
+                            <table class="fg-table">
+
+                                <thead>
+
+                                    <tr>
+
+                                        <th>
+                                            Station
+                                        </th>
+
+                                        <th>
+                                            Pump
+                                        </th>
+
+                                        <th>
+                                            Nozzle
+                                        </th>
+
+                                        <th>
+                                            Shift
+                                        </th>
+
+                                        <th>
+                                            Expected
+                                        </th>
+
+                                        <th>
+                                            Actual
+                                        </th>
+
+                                        <th>
+                                            Variance
+                                        </th>
+
+                                        <th>
+                                            Status
+                                        </th>
+
+                                        <th>
+                                            Recorded
+                                        </th>
+
+                                        <th>
+                                            Recorded By
+                                        </th>
+
+                                    </tr>
+
+                                </thead>
+
+
+                                <tbody
+                                    id="gapsTableBody"
+                                >
+
+                                    <tr>
+
+                                        <td colspan="10">
+
+                                            <div
+                                                class="fg-loading"
+                                            >
+
+                                                <div
+                                                    class="fg-spinner"
+                                                ></div>
+
+                                                Loading gap records...
+
+                                            </div>
+
+                                        </td>
+
+                                    </tr>
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
 
                 </div>
 
 
+                <!-- =================================================
+                     RECORD GAP MODAL
+                ================================================== -->
 
                 <div
-                    id="gapDetailsContent"
-                ></div>
-
-
-
-                <div
-                    class="modal-actions"
+                    class="fg-modal-overlay"
+                    id="gapsModal"
                 >
 
-                    <button
-                        type="button"
-                        class="btn btn-outline"
-                        id="closeGapDetailsButton"
-                    >
-                        Close
-                    </button>
+                    <div class="fg-modal">
+
+                        <div class="fg-modal-header">
+
+                            <h3>
+                                Record Fuel Gap
+                            </h3>
+
+                            <button
+                                class="fg-modal-close"
+                                id="gapsModalClose"
+                                type="button"
+                            >
+                                ×
+                            </button>
+
+                        </div>
+
+
+                        <form
+                            id="gapForm"
+                        >
+
+                            <div class="fg-modal-body">
+
+                                <div class="fg-form-grid">
+
+
+                                    <!-- STATION -->
+
+                                    <div class="fg-field">
+
+                                        <label>
+                                            Station *
+                                        </label>
+
+                                        <select
+                                            id="gapFormStation"
+                                            class="fg-select"
+                                            required
+                                        >
+
+                                            <option value="">
+                                                Select station
+                                            </option>
+
+                                        </select>
+
+                                    </div>
+
+
+                                    <!-- PUMP -->
+
+                                    <div class="fg-field">
+
+                                        <label>
+                                            Pump *
+                                        </label>
+
+                                        <select
+                                            id="gapFormPump"
+                                            class="fg-select"
+                                            required
+                                            disabled
+                                        >
+
+                                            <option value="">
+                                                Select station first
+                                            </option>
+
+                                        </select>
+
+                                    </div>
+
+
+                                    <!-- NOZZLE -->
+
+                                    <div class="fg-field">
+
+                                        <label>
+                                            Nozzle *
+                                        </label>
+
+                                        <select
+                                            id="gapFormNozzle"
+                                            class="fg-select"
+                                            required
+                                            disabled
+                                        >
+
+                                            <option value="">
+                                                Select pump first
+                                            </option>
+
+                                        </select>
+
+                                    </div>
+
+
+                                    <!-- SHIFT -->
+
+                                    <div class="fg-field">
+
+                                        <label>
+                                            Shift *
+                                        </label>
+
+                                        <select
+                                            id="gapFormShift"
+                                            class="fg-select"
+                                            required
+                                            disabled
+                                        >
+
+                                            <option value="">
+                                                Select station first
+                                            </option>
+
+                                        </select>
+
+                                    </div>
+
+
+                                    <!-- EXPECTED -->
+
+                                    <div class="fg-field">
+
+                                        <label>
+                                            Expected Litres *
+                                        </label>
+
+                                        <input
+                                            id="gapExpected"
+                                            class="fg-input"
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="0.00"
+                                            required
+                                        >
+
+                                        <div class="fg-help">
+                                            Expected fuel volume.
+                                        </div>
+
+                                    </div>
+
+
+                                    <!-- ACTUAL -->
+
+                                    <div class="fg-field">
+
+                                        <label>
+                                            Actual Litres *
+                                        </label>
+
+                                        <input
+                                            id="gapActual"
+                                            class="fg-input"
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="0.00"
+                                            required
+                                        >
+
+                                        <div class="fg-help">
+                                            Actual measured volume.
+                                        </div>
+
+                                    </div>
+
+
+                                    <!-- PREVIEW -->
+
+                                    <div class="fg-field fg-full">
+
+                                        <div
+                                            id="gapPreview"
+                                            style="
+                                                padding:14px;
+                                                background:#fafafa;
+                                                border:1px solid #eee;
+                                                border-radius:9px;
+                                                font-size:13px;
+                                            "
+                                        >
+                                            Variance will be calculated
+                                            automatically.
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="fg-modal-footer">
+
+                                <button
+                                    type="button"
+                                    class="fg-btn"
+                                    id="gapsCancelBtn"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    class="fg-btn fg-btn-primary"
+                                    id="gapsSubmitBtn"
+                                >
+                                    Save Gap
+                                </button>
+
+                            </div>
+
+                        </form>
+
+                    </div>
 
                 </div>
 
-
             </div>
+        `;
 
 
-        </div>
-
-    `;
-
-
-    loadGapFilters();
-
-}
-
-
-/* ==========================================
-   SETUP EVENTS
-========================================== */
-
-function setupGapEvents() {
-
-    const refreshButton =
-        document.getElementById(
-            "refreshGapsButton"
-        );
-
-
-    if (refreshButton) {
-
-        refreshButton.addEventListener(
-            "click",
-            () => {
-
-                renderGaps();
-
-            }
-        );
-
+        setupFilterEvents();
+        setupModalEvents();
     }
 
 
-    const stationFilter =
-        document.getElementById(
-            "gapStationFilter"
-        );
+    /* =====================================================
+       MODAL
+    ===================================================== */
 
+    function openModal() {
 
-    const shiftFilter =
-        document.getElementById(
-            "gapShiftFilter"
-        );
+        const modal =
+            document.getElementById(
+                "gapsModal"
+            );
 
+        if (!modal) return;
 
-    const statusFilter =
-        document.getElementById(
-            "gapStatusFilter"
-        );
+        resetGapForm();
 
-
-    const searchInput =
-        document.getElementById(
-            "gapSearch"
-        );
-
-
-    if (stationFilter) {
-
-        stationFilter.addEventListener(
-            "change",
-            () => {
-
-                renderGaps();
-
-            }
-        );
-
+        modal.classList.add("active");
     }
 
 
-    if (shiftFilter) {
+    function closeModal() {
 
-        shiftFilter.addEventListener(
-            "change",
-            () => {
+        const modal =
+            document.getElementById(
+                "gapsModal"
+            );
 
-                renderGaps();
+        if (modal) {
 
-            }
-        );
-
+            modal.classList.remove(
+                "active"
+            );
+        }
     }
 
 
-    if (statusFilter) {
+    function resetGapForm() {
 
-        statusFilter.addEventListener(
-            "change",
-            () => {
+        const form =
+            document.getElementById(
+                "gapForm"
+            );
 
-                renderGaps();
+        if (form) {
+            form.reset();
+        }
 
-            }
-        );
 
+        const pump =
+            document.getElementById(
+                "gapFormPump"
+            );
+
+        const nozzle =
+            document.getElementById(
+                "gapFormNozzle"
+            );
+
+        const shift =
+            document.getElementById(
+                "gapFormShift"
+            );
+
+
+        if (pump) {
+
+            pump.innerHTML = `
+                <option value="">
+                    Select station first
+                </option>
+            `;
+
+            pump.disabled = true;
+        }
+
+
+        if (nozzle) {
+
+            nozzle.innerHTML = `
+                <option value="">
+                    Select pump first
+                </option>
+            `;
+
+            nozzle.disabled = true;
+        }
+
+
+        if (shift) {
+
+            shift.innerHTML = `
+                <option value="">
+                    Select station first
+                </option>
+            `;
+
+            shift.disabled = true;
+        }
+
+
+        updateVariancePreview();
     }
 
 
-    if (searchInput) {
+    function setupModalEvents() {
 
-        searchInput.addEventListener(
-            "input",
-            () => {
+        const open =
+            document.getElementById(
+                "gapsRecordBtn"
+            );
 
-                renderGaps();
+        const close =
+            document.getElementById(
+                "gapsModalClose"
+            );
 
-            }
-        );
+        const cancel =
+            document.getElementById(
+                "gapsCancelBtn"
+            );
 
-    }
+        const modal =
+            document.getElementById(
+                "gapsModal"
+            );
+
+        const form =
+            document.getElementById(
+                "gapForm"
+            );
+
+        const station =
+            document.getElementById(
+                "gapFormStation"
+            );
+
+        const pump =
+            document.getElementById(
+                "gapFormPump"
+            );
+
+        const nozzle =
+            document.getElementById(
+                "gapFormNozzle"
+            );
+
+        const expected =
+            document.getElementById(
+                "gapExpected"
+            );
+
+        const actual =
+            document.getElementById(
+                "gapActual"
+            );
 
 
-    setupGapModalEvents();
-
-}
-
-
-/* ==========================================
-   LOAD FILTERS
-========================================== */
-
-function loadGapFilters() {
-
-    const stationSelect =
-        document.getElementById(
-            "gapStationFilter"
-        );
+        if (open) {
+            open.onclick = openModal;
+        }
 
 
-    const shiftSelect =
-        document.getElementById(
-            "gapShiftFilter"
-        );
+        if (close) {
+            close.onclick = closeModal;
+        }
 
 
-    if (stationSelect) {
+        if (cancel) {
+            cancel.onclick = closeModal;
+        }
 
-        getGapVisibleStations()
-            .forEach(
-                station => {
 
-                    const option =
-                        document.createElement(
-                            "option"
+        if (modal) {
+
+            modal.onclick = function (event) {
+
+                if (event.target === modal) {
+                    closeModal();
+                }
+
+            };
+        }
+
+
+        /* ==============================================
+           MODAL STATION
+        ============================================== */
+
+        if (station) {
+
+            station.onchange = function () {
+
+                const stationId =
+                    this.value;
+
+
+                if (pump) {
+
+                    pump.innerHTML =
+                        pumpOptions(
+                            stationId
                         );
 
-
-                    option.value =
-                        station.id;
-
-
-                    option.textContent =
-                        station.name ||
-                        "Unnamed Station";
+                    pump.disabled =
+                        !stationId;
+                }
 
 
-                    stationSelect.appendChild(
-                        option
+                if (nozzle) {
+
+                    nozzle.innerHTML = `
+                        <option value="">
+                            Select pump first
+                        </option>
+                    `;
+
+                    nozzle.disabled = true;
+                }
+
+
+                const shift =
+                    document.getElementById(
+                        "gapFormShift"
                     );
 
-                }
-            );
 
+                if (shift) {
+
+                    shift.innerHTML =
+                        shiftOptions(
+                            stationId
+                        );
+
+                    shift.disabled =
+                        !stationId;
+                }
+
+            };
+        }
+
+
+        /* ==============================================
+           MODAL PUMP
+        ============================================== */
+
+        if (pump) {
+
+            pump.onchange = function () {
+
+                const pumpId =
+                    this.value;
+
+
+                if (nozzle) {
+
+                    nozzle.innerHTML =
+                        nozzleOptions(
+                            pumpId
+                        );
+
+                    nozzle.disabled =
+                        !pumpId;
+                }
+
+            };
+        }
+
+
+        if (expected) {
+
+            expected.oninput =
+                updateVariancePreview;
+        }
+
+
+        if (actual) {
+
+            actual.oninput =
+                updateVariancePreview;
+        }
+
+
+        if (form) {
+
+            form.onsubmit =
+                submitGap;
+        }
     }
 
 
-    if (shiftSelect) {
-
-        const visibleStationIds =
-            getGapVisibleStationIds();
-
-
-        getGapShifts()
-            .filter(
-                shift =>
-                    visibleStationIds.includes(
-                        shift.stationId
-                    )
-            )
-            .forEach(
-                shift => {
-
-                    const option =
-                        document.createElement(
-                            "option"
-                        );
-
-
-                    option.value =
-                        shift.id;
-
-
-                    option.textContent =
-                        shift.name ||
-                        "Unnamed Shift";
-
-
-                    shiftSelect.appendChild(
-                        option
-                    );
-
-                }
-            );
-
-    }
-
-}
-
-
-/* ==========================================
-   BUILD GAP RECORDS
-========================================== */
-
-function buildGapRecords() {
-
-    const sales =
-        getGapVisibleSales();
-
-
-    const payments =
-        getGapVisiblePayments();
-
-
-    const shifts =
-        getGapShifts();
-
-
-    const staff =
-        getGapStaff();
-
-
-    const stations =
-        getGapStations();
-
-
-    const combinations =
-        {};
-
-
-    /*
-       ADD SALES
-    */
-
-    sales.forEach(
-        sale => {
-
-            const stationId =
-                sale.stationId;
-
-
-            const shiftId =
-                sale.shiftId ||
-                "NO_SHIFT";
-
-
-            const key =
-                `${stationId}_${shiftId}`;
-
-
-            if (!combinations[key]) {
-
-                combinations[key] = {
-
-                    stationId,
-
-                    shiftId,
-
-                    staffId:
-                        sale.staffId ||
-                        null,
-
-                    expectedSales:
-                        0,
-
-                    payments:
-                        0
-
-                };
-
-            }
-
-
-            const saleAmount =
-                Number(
-                    sale.amount ||
-                    sale.totalAmount ||
-                    sale.saleAmount ||
-                    sale.total ||
-                    0
-                );
-
-
-            combinations[key]
-                .expectedSales +=
-                saleAmount;
-
-
-            if (sale.staffId) {
-
-                combinations[key]
-                    .staffId =
-                    sale.staffId;
-
-            }
-
-        }
-    );
-
-
-    /*
-       ADD PAYMENTS
-    */
-
-    payments.forEach(
-        payment => {
-
-            const stationId =
-                payment.stationId;
-
-
-            const shiftId =
-                payment.shiftId ||
-                "NO_SHIFT";
-
-
-            const key =
-                `${stationId}_${shiftId}`;
-
-
-            if (!combinations[key]) {
-
-                combinations[key] = {
-
-                    stationId,
-
-                    shiftId,
-
-                    staffId:
-                        payment.staffId ||
-                        null,
-
-                    expectedSales:
-                        0,
-
-                    payments:
-                        0
-
-                };
-
-            }
-
-
-            const paymentAmount =
-                Number(
-                    payment.amount ||
-                    payment.totalAmount ||
-                    payment.total ||
-                    0
-                );
-
-
-            combinations[key]
-                .payments +=
-                paymentAmount;
-
-
-            if (payment.staffId) {
-
-                combinations[key]
-                    .staffId =
-                    payment.staffId;
-
-            }
-
-        }
-    );
-
-
-    /*
-       CONVERT TO RECORDS
-    */
-
-    const records =
-        Object.values(
-            combinations
-        )
-            .map(
-                item => {
-
-                    const station =
-                        stations.find(
-                            station =>
-                                station.id ===
-                                item.stationId
-                        );
-
-
-                    const shift =
-                        shifts.find(
-                            shift =>
-                                shift.id ===
-                                item.shiftId
-                        );
-
-
-                    const staffMember =
-                        staff.find(
-                            member =>
-                                member.id ===
-                                item.staffId
-                        );
-
-
-                    /*
-                       POSITIVE = GAP
-                       NEGATIVE = SURPLUS
-                    */
-
-                    const difference =
-                        item.expectedSales -
-                        item.payments;
-
-
-                    let variancePercentage =
-                        0;
-
-
-                    if (
-                        item.expectedSales > 0
-                    ) {
-
-                        variancePercentage =
-                            (
-                                Math.abs(
-                                    difference
-                                ) /
-                                item.expectedSales
-                            ) *
-                            100;
-
-                    }
-
-
-                    const status =
-                        calculateGapStatus(
-                            difference,
-                            variancePercentage
-                        );
-
-
-                    return {
-
-                        id:
-                            `${item.stationId}_${item.shiftId}`,
-
-                        stationId:
-                            item.stationId,
-
-                        stationName:
-                            station
-                                ? station.name
-                                : "Unknown Station",
-
-                        shiftId:
-                            item.shiftId,
-
-                        shiftName:
-                            item.shiftId ===
-                            "NO_SHIFT"
-
-                                ? "No Shift"
-
-                                : shift
-                                    ? shift.name
-                                    : "Unknown Shift",
-
-                        staffId:
-                            item.staffId,
-
-                        staffName:
-                            staffMember
-                                ? (
-                                    staffMember.fullName ||
-                                    staffMember.name ||
-                                    "Unknown Staff"
-                                )
-                                : "Not Assigned",
-
-                        expectedSales:
-                            item.expectedSales,
-
-                        payments:
-                            item.payments,
-
-                        difference,
-
-                        variancePercentage,
-
-                        status
-
-                    };
-
-                }
+    /* =====================================================
+       VARIANCE PREVIEW
+    ===================================================== */
+
+    function updateVariancePreview() {
+
+        const expected =
+            number(
+                document.getElementById(
+                    "gapExpected"
+                )?.value
             );
 
 
-    /*
-       CREATE CRITICAL ALERTS
-    */
+        const actual =
+            number(
+                document.getElementById(
+                    "gapActual"
+                )?.value
+            );
 
-    records.forEach(
-        record => {
+
+        const variance =
+            actual - expected;
+
+
+        const status =
+            Math.abs(variance) <= 0.01
+                ? "normal"
+                : Math.abs(variance) <= 5
+                    ? "warning"
+                    : "critical";
+
+
+        const preview =
+            document.getElementById(
+                "gapPreview"
+            );
+
+
+        if (!preview) return;
+
+
+        preview.innerHTML = `
+
+            <strong>
+                Variance:
+            </strong>
+
+            <span
+                style="
+                    margin-left:8px;
+                    font-weight:800;
+                "
+            >
+                ${variance > 0 ? "+" : ""}
+                ${formatNumber(variance)}
+                L
+            </span>
+
+            <span
+                style="
+                    margin-left:15px;
+                "
+            >
+                ${statusBadge(status)}
+            </span>
+
+        `;
+    }
+
+
+    /* =====================================================
+       SUBMIT GAP
+    ===================================================== */
+
+    async function submitGap(event) {
+
+        event.preventDefault();
+
+
+        if (GapsState.isSubmitting) {
+            return;
+        }
+
+
+        const stationId =
+            document.getElementById(
+                "gapFormStation"
+            )?.value;
+
+
+        const pumpId =
+            document.getElementById(
+                "gapFormPump"
+            )?.value;
+
+
+        const nozzleId =
+            document.getElementById(
+                "gapFormNozzle"
+            )?.value;
+
+
+        const shiftId =
+            document.getElementById(
+                "gapFormShift"
+            )?.value;
+
+
+        const expected =
+            number(
+                document.getElementById(
+                    "gapExpected"
+                )?.value
+            );
+
+
+        const actual =
+            number(
+                document.getElementById(
+                    "gapActual"
+                )?.value
+            );
+
+
+        if (
+            !stationId ||
+            !pumpId ||
+            !nozzleId ||
+            !shiftId
+        ) {
+
+            showAlert(
+                "Please select station, pump, nozzle and shift.",
+                "error"
+            );
+
+            return;
+        }
+
+
+        if (
+            expected < 0 ||
+            actual < 0
+        ) {
+
+            showAlert(
+                "Litres cannot be negative.",
+                "error"
+            );
+
+            return;
+        }
+
+
+        const variance =
+            actual - expected;
+
+
+        const status =
+            Math.abs(variance) <= 0.01
+                ? "normal"
+                : Math.abs(variance) <= 5
+                    ? "warning"
+                    : "critical";
+
+
+        const payload = {
+
+            station_id:
+                stationId,
+
+            pump_id:
+                pumpId,
+
+            nozzle_id:
+                nozzleId,
+
+            shift_id:
+                shiftId,
+
+            expected_litres:
+                expected,
+
+            actual_litres:
+                actual,
+
+            variance_litres:
+                variance,
+
+            status:
+                status
+        };
+
+
+        const button =
+            document.getElementById(
+                "gapsSubmitBtn"
+            );
+
+
+        try {
+
+            GapsState.isSubmitting =
+                true;
+
+
+            if (button) {
+
+                button.disabled = true;
+
+                button.textContent =
+                    "Saving...";
+            }
+
 
             if (
-                record.status ===
-                "critical"
+                !window.FuelGapAPI ||
+                typeof FuelGapAPI.createGap !==
+                    "function"
             ) {
 
-                createCriticalGapAlert(
-                    record
+                throw new Error(
+                    "FuelGapAPI.createGap() is unavailable."
                 );
+            }
 
+
+            await FuelGapAPI.createGap(
+                payload
+            );
+
+
+            closeModal();
+
+
+            showAlert(
+                "Gap record saved successfully.",
+                "success"
+            );
+
+
+            await loadAllData();
+
+
+        } catch (error) {
+
+            console.error(
+                "Create gap error:",
+                error
+            );
+
+
+            showAlert(
+                error.message ||
+                "Unable to save gap record.",
+                "error"
+            );
+
+
+        } finally {
+
+            GapsState.isSubmitting =
+                false;
+
+
+            if (button) {
+
+                button.disabled = false;
+
+                button.textContent =
+                    "Save Gap";
             }
 
         }
-    );
+    }
 
 
-    return records;
+    /* =====================================================
+       ALERT
+    ===================================================== */
 
-}
-
-
-/* ==========================================
-   CALCULATE STATUS
-========================================== */
-
-function calculateGapStatus(
-    difference,
-    variancePercentage
-) {
-
-    /*
-       PAYMENT HIGHER THAN SALES
-    */
-
-    if (
-        difference < 0
+    function showAlert(
+        message,
+        type = "error"
     ) {
 
-        return "surplus";
+        const alert =
+            document.getElementById(
+                "gapsAlert"
+            );
 
+
+        if (!alert) return;
+
+
+        alert.className =
+            `fg-alert show fg-alert-${type}`;
+
+
+        alert.textContent =
+            message;
+
+
+        setTimeout(() => {
+
+            alert.classList.remove(
+                "show"
+            );
+
+        }, 4000);
     }
 
 
-    /*
-       PERFECT RECONCILIATION
-    */
+    /* =====================================================
+       REFRESH
+    ===================================================== */
 
-    if (
-        difference === 0
-    ) {
+    async function refreshPage() {
 
-        return "normal";
+        try {
 
+            const button =
+                document.getElementById(
+                    "gapsRefreshBtn"
+                );
+
+
+            if (button) {
+
+                button.disabled = true;
+
+                button.textContent =
+                    "Refreshing...";
+            }
+
+
+            await loadAllData();
+
+
+            showAlert(
+                "Gaps data refreshed successfully.",
+                "success"
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "Gaps refresh error:",
+                error
+            );
+
+
+            showAlert(
+                error.message ||
+                "Unable to refresh gaps.",
+                "error"
+            );
+
+
+        } finally {
+
+            const button =
+                document.getElementById(
+                    "gapsRefreshBtn"
+                );
+
+
+            if (button) {
+
+                button.disabled = false;
+
+                button.textContent =
+                    "↻ Refresh";
+            }
+
+        }
     }
 
 
-    /*
-       SMALL GAP
-    */
+    /* =====================================================
+       INITIALIZE
+    ===================================================== */
 
-    if (
-        variancePercentage <= 2
-    ) {
+    async function initGapsPage() {
 
-        return "variance";
-
-    }
-
-
-    /*
-       CRITICAL GAP
-    */
-
-    return "critical";
-
-}
-
-
-/* ==========================================
-   CREATE CRITICAL ALERT
-========================================== */
-
-function createCriticalGapAlert(
-    record
-) {
-
-    const alerts =
-        getGapAlerts();
-
-
-    const existingAlert =
-        alerts.find(
-            alert =>
-
-                alert.type ===
-                    "critical_gap" &&
-
-                alert.stationId ===
-                    record.stationId &&
-
-                alert.shiftId ===
-                    record.shiftId &&
-
-                alert.status ===
-                    "unresolved"
+        console.log(
+            "OPENING GAPS PAGE..."
         );
 
 
-    if (existingAlert) {
-
-        return;
-
-    }
-
-
-    const alert = {
-
-        id:
-            `ALERT-${Date.now()}-${Math.floor(
-                Math.random() *
-                100000
-            )}`,
-
-        type:
-            "critical_gap",
-
-        title:
-            "Critical Fuel Gap Detected",
-
-        message:
-            `A critical gap of ${formatGapCurrency(
-                record.difference
-            )} was detected at ${record.stationName} during ${record.shiftName}.`,
-
-        stationId:
-            record.stationId,
-
-        stationName:
-            record.stationName,
-
-        shiftId:
-            record.shiftId,
-
-        shiftName:
-            record.shiftName,
-
-        staffId:
-            record.staffId,
-
-        staffName:
-            record.staffName,
-
-        amount:
-            record.difference,
-
-        variancePercentage:
-            record.variancePercentage,
-
-        status:
-            "unresolved",
-
-        createdAt:
-            new Date()
-                .toISOString()
-
-    };
+        const page =
+            document.getElementById(
+                "pageContent"
+            );
 
 
-    alerts.push(
-        alert
-    );
+        if (!page) {
+
+            console.error(
+                "Gaps pageContent not found."
+            );
+
+            return false;
+        }
 
 
-    saveGapStorageData(
-        GAPS_ALERTS_STORAGE_KEY,
-        alerts
-    );
-
-}
+        injectGapsStyles();
 
 
-/* ==========================================
-   GET FILTER VALUES
-========================================== */
+        GapsState.currentUser =
+            getCurrentUser();
 
-function getGapFilters() {
 
-    const stationFilter =
-        document.getElementById(
-            "gapStationFilter"
+        console.log(
+            "Gaps current user:",
+            GapsState.currentUser
         );
 
 
-    const shiftFilter =
-        document.getElementById(
-            "gapShiftFilter"
-        );
+        renderPage();
 
 
-    const statusFilter =
-        document.getElementById(
-            "gapStatusFilter"
-        );
+        const refresh =
+            document.getElementById(
+                "gapsRefreshBtn"
+            );
 
 
-    const searchInput =
-        document.getElementById(
-            "gapSearch"
-        );
+        if (refresh) {
+
+            refresh.onclick =
+                refreshPage;
+        }
 
 
-    return {
+        try {
 
-        stationId:
-            stationFilter
-                ? stationFilter.value
-                : "",
-
-        shiftId:
-            shiftFilter
-                ? shiftFilter.value
-                : "",
-
-        status:
-            statusFilter
-                ? statusFilter.value
-                : "",
-
-        search:
-            searchInput
-                ? searchInput.value
-                    .toLowerCase()
-                    .trim()
-                : ""
-
-    };
-
-}
+            await loadAllData();
 
 
-/* ==========================================
-   FILTER RECORDS
-========================================== */
-
-function filterGapRecords(
-    records,
-    filters
-) {
-
-    return records.filter(
-        record => {
-
-            if (
-                filters.stationId &&
-                record.stationId !==
-                filters.stationId
-            ) {
-
-                return false;
-
-            }
+            GapsState.initialized =
+                true;
 
 
-            if (
-                filters.shiftId &&
-                record.shiftId !==
-                filters.shiftId
-            ) {
-
-                return false;
-
-            }
-
-
-            if (
-                filters.status &&
-                record.status !==
-                filters.status
-            ) {
-
-                return false;
-
-            }
-
-
-            if (
-                filters.search
-            ) {
-
-                const searchText =
-                    `
-                        ${record.stationName}
-                        ${record.shiftName}
-                        ${record.staffName}
-                    `
-                        .toLowerCase();
-
-
-                if (
-                    !searchText.includes(
-                        filters.search
-                    )
-                ) {
-
-                    return false;
-
-                }
-
-            }
+            console.log(
+                "GAPS PAGE READY"
+            );
 
 
             return true;
 
+
+        } catch (error) {
+
+            console.error(
+                "Gaps page load error:",
+                error
+            );
+
+
+            const body =
+                document.getElementById(
+                    "gapsTableBody"
+                );
+
+
+            if (body) {
+
+                body.innerHTML = `
+
+                    <tr>
+
+                        <td colspan="10">
+
+                            <div class="fg-empty">
+
+                                <strong>
+                                    Unable to load Gaps
+                                </strong>
+
+                                ${escapeHTML(
+                                    error.message ||
+                                    "Backend data could not be loaded."
+                                )}
+
+                                <br><br>
+
+                                <button
+                                    class="
+                                        fg-btn
+                                        fg-btn-primary
+                                    "
+                                    onclick="
+                                        window.initializeGapsPage()
+                                    "
+                                >
+                                    Try Again
+                                </button>
+
+                            </div>
+
+                        </td>
+
+                    </tr>
+
+                `;
+            }
+
+
+            return false;
         }
-    );
-
-}
-
-
-/* ==========================================
-   RENDER GAPS
-========================================== */
-
-function renderGaps() {
-
-    const records =
-        buildGapRecords();
-
-
-    const filters =
-        getGapFilters();
-
-
-    const filteredRecords =
-        filterGapRecords(
-            records,
-            filters
-        );
-
-
-    const tableBody =
-        document.getElementById(
-            "gapsTableBody"
-        );
-
-
-    const emptyState =
-        document.getElementById(
-            "emptyGapsState"
-        );
-
-
-    if (!tableBody) {
-
-        return;
-
     }
 
 
-    tableBody.innerHTML =
-        "";
+    /* =====================================================
+       GLOBAL EXPORTS
+    ===================================================== */
+
+    window.GapsState =
+        GapsState;
 
 
-    if (
-        filteredRecords.length === 0
-    ) {
-
-        if (emptyState) {
-
-            emptyState.classList.remove(
-                "hidden"
-            );
-
-        }
-
-    } else {
-
-        if (emptyState) {
-
-            emptyState.classList.add(
-                "hidden"
-            );
-
-        }
+    window.initializeGapsPage =
+        initGapsPage;
 
 
-        filteredRecords
-            .sort(
-                (a, b) =>
+    window.GapsPage = {
 
-                    Math.abs(
-                        b.difference
-                    ) -
+        init:
+            initGapsPage,
 
-                    Math.abs(
-                        a.difference
-                    )
-            )
-            .forEach(
-                record => {
+        refresh:
+            refreshPage,
 
-                    const row =
-                        document.createElement(
-                            "tr"
-                        );
-
-
-                    row.innerHTML = `
-
-                        <td>
-                            ${escapeGapHTML(
-                                record.stationName
-                            )}
-                        </td>
-
-
-                        <td>
-                            <strong>
-                                ${escapeGapHTML(
-                                    record.shiftName
-                                )}
-                            </strong>
-                        </td>
-
-
-                        <td>
-                            ${escapeGapHTML(
-                                record.staffName
-                            )}
-                        </td>
-
-
-                        <td>
-                            ${formatGapCurrency(
-                                record.expectedSales
-                            )}
-                        </td>
-
-
-                        <td>
-                            ${formatGapCurrency(
-                                record.payments
-                            )}
-                        </td>
-
-
-                        <td>
-                            <strong>
-                                ${formatGapDifference(
-                                    record.difference
-                                )}
-                            </strong>
-                        </td>
-
-
-                        <td>
-                            ${record.variancePercentage
-                                .toFixed(2)}%
-                        </td>
-
-
-                        <td>
-
-                            ${renderGapStatus(
-                                record.status
-                            )}
-
-                        </td>
-
-
-                        <td>
-
-                            <button
-                                type="button"
-                                class="btn btn-outline btn-small"
-                                data-gap-details="${record.id}"
-                            >
-                                View
-                            </button>
-
-                        </td>
-
-                    `;
-
-
-                    tableBody.appendChild(
-                        row
-                    );
-
-                }
-            );
-
-
-        setupGapDetailButtons(
-            records
-        );
-
-    }
-
-
-    /*
-       UPDATE PREMIUM CARDS
-    */
-
-    updateGapStats(
-        records
-    );
-
-}
-
-
-/* ==========================================
-   STATUS BADGE
-========================================== */
-
-function renderGapStatus(
-    status
-) {
-
-    const labels = {
-
-        normal:
-            "Normal",
-
-        variance:
-            "Variance",
-
-        critical:
-            "Critical Gap",
-
-        surplus:
-            "Surplus"
+        load:
+            loadAllData
 
     };
 
 
-    return `
-
-        <span
-            class="status-badge gap-status-${status}"
-        >
-
-            ${labels[status]}
-
-        </span>
-
-    `;
-
-}
-
-
-/* ==========================================
-   DETAILS BUTTONS
-========================================== */
-
-function setupGapDetailButtons(
-    records
-) {
-
-    const buttons =
-        document.querySelectorAll(
-            "[data-gap-details]"
-        );
-
-
-    buttons.forEach(
-        button => {
-
-            button.addEventListener(
-                "click",
-                () => {
-
-                    const recordId =
-                        button.getAttribute(
-                            "data-gap-details"
-                        );
-
-
-                    const record =
-                        records.find(
-                            item =>
-                                item.id ===
-                                recordId
-                        );
-
-
-                    if (record) {
-
-                        openGapDetails(
-                            record
-                        );
-
-                    }
-
-                }
-            );
-
-        }
+    console.log(
+        "FuelGap gaps.js loaded successfully."
     );
 
-}
-
-
-/* ==========================================
-   MODAL EVENTS
-========================================== */
-
-function setupGapModalEvents() {
-
-    const modal =
-        document.getElementById(
-            "gapDetailsModal"
-        );
-
-
-    const closeButton =
-        document.getElementById(
-            "closeGapDetailsModal"
-        );
-
-
-    const closeBottomButton =
-        document.getElementById(
-            "closeGapDetailsButton"
-        );
-
-
-    if (closeButton) {
-
-        closeButton.addEventListener(
-            "click",
-            closeGapDetails
-        );
-
-    }
-
-
-    if (closeBottomButton) {
-
-        closeBottomButton.addEventListener(
-            "click",
-            closeGapDetails
-        );
-
-    }
-
-
-    if (modal) {
-
-        modal.addEventListener(
-            "click",
-            event => {
-
-                if (
-                    event.target ===
-                    modal
-                ) {
-
-                    closeGapDetails();
-
-                }
-
-            }
-        );
-
-    }
-
-}
-
-
-/* ==========================================
-   OPEN DETAILS
-========================================== */
-
-function openGapDetails(
-    record
-) {
-
-    const modal =
-        document.getElementById(
-            "gapDetailsModal"
-        );
-
-
-    const content =
-        document.getElementById(
-            "gapDetailsContent"
-        );
-
-
-    if (
-        !modal ||
-        !content
-    ) {
-
-        return;
-
-    }
-
-
-    content.innerHTML = `
-
-        <div
-            class="gap-details-grid"
-        >
-
-
-            <div class="gap-detail-item">
-
-                <span>
-                    Station
-                </span>
-
-                <strong>
-                    ${escapeGapHTML(
-                        record.stationName
-                    )}
-                </strong>
-
-            </div>
-
-
-
-            <div class="gap-detail-item">
-
-                <span>
-                    Shift
-                </span>
-
-                <strong>
-                    ${escapeGapHTML(
-                        record.shiftName
-                    )}
-                </strong>
-
-            </div>
-
-
-
-            <div class="gap-detail-item">
-
-                <span>
-                    Attendant
-                </span>
-
-                <strong>
-                    ${escapeGapHTML(
-                        record.staffName
-                    )}
-                </strong>
-
-            </div>
-
-
-
-            <div class="gap-detail-item">
-
-                <span>
-                    Expected Sales
-                </span>
-
-                <strong>
-                    ${formatGapCurrency(
-                        record.expectedSales
-                    )}
-                </strong>
-
-            </div>
-
-
-
-            <div class="gap-detail-item">
-
-                <span>
-                    Payments Received
-                </span>
-
-                <strong>
-                    ${formatGapCurrency(
-                        record.payments
-                    )}
-                </strong>
-
-            </div>
-
-
-
-            <div class="gap-detail-item">
-
-                <span>
-                    Difference
-                </span>
-
-                <strong>
-                    ${formatGapDifference(
-                        record.difference
-                    )}
-                </strong>
-
-            </div>
-
-
-
-            <div class="gap-detail-item">
-
-                <span>
-                    Variance
-                </span>
-
-                <strong>
-                    ${record.variancePercentage
-                        .toFixed(2)}%
-                </strong>
-
-            </div>
-
-
-
-            <div class="gap-detail-item">
-
-                <span>
-                    Status
-                </span>
-
-                <strong>
-
-                    ${renderGapStatus(
-                        record.status
-                    )}
-
-                </strong>
-
-            </div>
-
-
-        </div>
-
-
-        <div
-            class="gap-explanation"
-        >
-
-            <h3>
-                Reconciliation Result
-            </h3>
-
-
-            <p>
-
-                ${getGapExplanation(
-                    record
-                )}
-
-            </p>
-
-        </div>
-
-    `;
-
-
-    modal.classList.add(
-        "active"
-    );
-
-
-    document.body.style.overflow =
-        "hidden";
-
-}
-
-
-/* ==========================================
-   CLOSE DETAILS
-========================================== */
-
-function closeGapDetails() {
-
-    const modal =
-        document.getElementById(
-            "gapDetailsModal"
-        );
-
-
-    if (modal) {
-
-        modal.classList.remove(
-            "active"
-        );
-
-    }
-
-
-    document.body.style.overflow =
-        "";
-
-}
-
-
-/* ==========================================
-   GAP EXPLANATION
-========================================== */
-
-function getGapExplanation(
-    record
-) {
-
-    if (
-        record.status ===
-        "normal"
-    ) {
-
-        return `
-            Sales and payments are fully reconciled.
-            No financial gap was detected for this shift.
-        `;
-
-    }
-
-
-    if (
-        record.status ===
-        "variance"
-    ) {
-
-        return `
-            A small difference was detected between
-            expected fuel sales and recorded payments.
-            The shift should be reviewed for possible
-            missing or delayed payment records.
-        `;
-
-    }
-
-
-    if (
-        record.status ===
-        "critical"
-    ) {
-
-        return `
-            A significant financial difference was detected.
-            This shift requires immediate investigation by
-            the station manager or organization owner.
-        `;
-
-    }
-
-
-    if (
-        record.status ===
-        "surplus"
-    ) {
-
-        return `
-            Payments received are higher than the expected
-            sales recorded for this shift. Review both sales
-            and payment records to identify the source of
-            the surplus.
-        `;
-
-    }
-
-
-    return "";
-
-}
-
-
-/* ==========================================
-   UPDATE PREMIUM STAT CARDS
-========================================== */
-
-function updateGapStats(
-    records
-) {
-
-    const expectedSales =
-        records.reduce(
-            (
-                total,
-                record
-            ) =>
-                total +
-                record.expectedSales,
-            0
-        );
-
-
-    const payments =
-        records.reduce(
-            (
-                total,
-                record
-            ) =>
-                total +
-                record.payments,
-            0
-        );
-
-
-    /*
-       ONLY POSITIVE
-       DIFFERENCES COUNT AS GAP
-    */
-
-    const totalGap =
-        records.reduce(
-            (
-                total,
-                record
-            ) => {
-
-                if (
-                    record.difference > 0
-                ) {
-
-                    return (
-                        total +
-                        record.difference
-                    );
-
-                }
-
-
-                return total;
-
-            },
-            0
-        );
-
-
-    const totalSurplus =
-        records.reduce(
-            (
-                total,
-                record
-            ) => {
-
-                if (
-                    record.difference < 0
-                ) {
-
-                    return (
-                        total +
-                        Math.abs(
-                            record.difference
-                        )
-                    );
-
-                }
-
-
-                return total;
-
-            },
-            0
-        );
-
-
-    const criticalCount =
-        records.filter(
-            record =>
-                record.status ===
-                "critical"
-        ).length;
-
-
-    /*
-       CALCULATE PAYMENT
-       RECONCILIATION RATE
-    */
-
-    let paymentRate =
-        0;
-
-
-    if (
-        expectedSales > 0
-    ) {
-
-        paymentRate =
-            (
-                payments /
-                expectedSales
-            ) *
-            100;
-
-    }
-
-
-    /*
-       GET CARD ELEMENTS
-    */
-
-    const expectedElement =
-        document.getElementById(
-            "totalExpectedSales"
-        );
-
-
-    const paymentsElement =
-        document.getElementById(
-            "totalPaymentsReceived"
-        );
-
-
-    const gapElement =
-        document.getElementById(
-            "totalGapAmount"
-        );
-
-
-    const criticalElement =
-        document.getElementById(
-            "criticalVarianceCount"
-        );
-
-
-    /*
-       GET SUBTEXT ELEMENTS
-    */
-
-    const expectedSubtext =
-        document.getElementById(
-            "expectedSalesSubtext"
-        );
-
-
-    const paymentsSubtext =
-        document.getElementById(
-            "paymentsReceivedSubtext"
-        );
-
-
-    const gapSubtext =
-        document.getElementById(
-            "totalGapSubtext"
-        );
-
-
-    const criticalSubtext =
-        document.getElementById(
-            "criticalVarianceSubtext"
-        );
-
-
-    /*
-       UPDATE VALUES
-    */
-
-    if (expectedElement) {
-
-        expectedElement.textContent =
-            formatGapCurrency(
-                expectedSales
-            );
-
-    }
-
-
-    if (paymentsElement) {
-
-        paymentsElement.textContent =
-            formatGapCurrency(
-                payments
-            );
-
-    }
-
-
-    if (gapElement) {
-
-        gapElement.textContent =
-            formatGapCurrency(
-                totalGap
-            );
-
-    }
-
-
-    if (criticalElement) {
-
-        criticalElement.textContent =
-            criticalCount;
-
-    }
-
-
-    /*
-       EXPECTED SALES SUBTEXT
-    */
-
-    if (expectedSubtext) {
-
-        expectedSubtext.textContent =
-            `${records.length} shift${
-                records.length === 1
-                    ? ""
-                    : "s"
-            } analysed`;
-
-    }
-
-
-    /*
-       PAYMENT SUBTEXT
-    */
-
-    if (paymentsSubtext) {
-
-        if (
-            expectedSales === 0
-        ) {
-
-            paymentsSubtext.textContent =
-                "No expected sales recorded";
-
-        } else {
-
-            paymentsSubtext.textContent =
-                `${paymentRate.toFixed(
-                    1
-                )}% reconciliation rate`;
-
-        }
-
-    }
-
-
-    /*
-       GAP SUBTEXT
-    */
-
-    if (gapSubtext) {
-
-        if (
-            totalGap === 0 &&
-            totalSurplus === 0
-        ) {
-
-            gapSubtext.textContent =
-                "Fully reconciled";
-
-        } else if (
-            totalGap === 0 &&
-            totalSurplus > 0
-        ) {
-
-            gapSubtext.textContent =
-                `Surplus: ${formatGapCurrency(
-                    totalSurplus
-                )}`;
-
-        } else {
-
-            const gapPercentage =
-                expectedSales > 0
-
-                    ? (
-                        totalGap /
-                        expectedSales
-                    ) * 100
-
-                    : 0;
-
-
-            gapSubtext.textContent =
-                `${gapPercentage.toFixed(
-                    2
-                )}% of expected sales`;
-
-        }
-
-    }
-
-
-    /*
-       CRITICAL SUBTEXT
-    */
-
-    if (criticalSubtext) {
-
-        if (
-            criticalCount === 0
-        ) {
-
-            criticalSubtext.textContent =
-                "No critical issues detected";
-
-        } else {
-
-            criticalSubtext.textContent =
-                `${criticalCount} shift${
-                    criticalCount === 1
-                        ? " requires"
-                        : "s require"
-                } attention`;
-
-        }
-
-    }
-
-}
-
-
-/* ==========================================
-   FORMAT CURRENCY
-========================================== */
-
-function formatGapCurrency(
-    amount
-) {
-
-    const value =
-        Number(amount) || 0;
-
-
-    return value.toLocaleString(
-        "en-NG",
-        {
-
-            style:
-                "currency",
-
-            currency:
-                "NGN",
-
-            minimumFractionDigits:
-                2,
-
-            maximumFractionDigits:
-                2
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   FORMAT DIFFERENCE
-========================================== */
-
-function formatGapDifference(
-    amount
-) {
-
-    const value =
-        Number(amount) || 0;
-
-
-    if (
-        value > 0
-    ) {
-
-        return formatGapCurrency(
-            value
-        );
-
-    }
-
-
-    if (
-        value < 0
-    ) {
-
-        return `+${formatGapCurrency(
-            Math.abs(value)
-        )}`;
-
-    }
-
-
-    return formatGapCurrency(
-        0
-    );
-
-}
-
-
-/* ==========================================
-   ESCAPE HTML
-========================================== */
-
-function escapeGapHTML(
-    value
-) {
-
-    if (
-        value === null ||
-        value === undefined
-    ) {
-
-        return "";
-
-    }
-
-
-    const div =
-        document.createElement(
-            "div"
-        );
-
-
-    div.textContent =
-        String(value);
-
-
-    return div.innerHTML;
-
-}
+})();

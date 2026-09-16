@@ -1,337 +1,285 @@
-/* ==========================================
-   FUELGAP - PROFESSIONAL STATION MANAGEMENT
-========================================== */
+/* =========================================================
+   FUELGAP - PROFESSIONAL STATIONS MANAGEMENT
+   BACKEND CONNECTED VERSION
+   NO LOCALSTORAGE
+   COOKIE BASED AUTHENTICATION
+========================================================= */
 
-const STATIONS_STORAGE_KEY = "fuelgap_stations";
-const ORGANIZATIONS_STORAGE_KEY = "fuelgap_organizations";
-
-
-/* ==========================================
-   PAGE INITIALIZATION
-========================================== */
-
-document.addEventListener("DOMContentLoaded", () => {
-
-    const currentUser = FuelGapUtils.getCurrentUser();
-
-
-    /* =========================
-       AUTH CHECK
-    ========================== */
-
-    if (!currentUser) {
-
-        window.location.href = "../login.html";
-        return;
-
-    }
+let StationsState = {
+    stations: [],
+    filteredStations: [],
+    currentUser: null,
+    search: "",
+    status: "all",
+    isLoading: false,
+    isSubmitting: false
+};
 
 
-    /* =========================
-       ROLE ACCESS
-    ========================== */
+/* =========================================================
+   INITIALIZE
+========================================================= */
 
-    if (
-        currentUser.role !== "admin" &&
-        currentUser.role !== "owner"
-    ) {
+document.addEventListener("DOMContentLoaded", async () => {
 
-        window.location.href = "./dashboard.html";
-        return;
+    try {
 
-    }
+        if (typeof FuelGapAPI === "undefined") {
+
+            console.error(
+                "FuelGapAPI is not loaded."
+            );
+
+            showPageError(
+                "FuelGap API is not available. Check that api.js is loaded."
+            );
+
+            return;
+
+        }
 
 
-    /* =========================
-       WAIT FOR PAGE CONTAINER
-    ========================== */
+        /*
+         * IMPORTANT:
+         * Authentication is now handled by the backend
+         * using the HttpOnly cookie.
+         *
+         * DO NOT use:
+         *
+         * FuelGapUtils.getCurrentUser()
+         *
+         * as a synchronous function.
+         */
 
-    setTimeout(() => {
+        const authResponse =
+            await FuelGapAPI.getCurrentUser();
+
+
+        if (
+            !authResponse ||
+            !authResponse.success ||
+            !authResponse.data ||
+            !authResponse.data.user
+        ) {
+
+            console.error(
+                "Invalid authentication response:",
+                authResponse
+            );
+
+            window.location.href =
+                "../login.html";
+
+            return;
+
+        }
+
+
+        const user =
+            authResponse.data.user;
+
+
+        console.log(
+            "STATIONS AUTHENTICATED USER:",
+            user
+        );
+
+
+        StationsState.currentUser =
+            normalizeUser(user);
+
+
+        const allowedRoles = [
+            "owner",
+            "admin",
+            "manager"
+        ];
+
+
+        if (
+            !allowedRoles.includes(
+                StationsState.currentUser.role
+            )
+        ) {
+
+            showPageError(
+                "You do not have permission to manage stations."
+            );
+
+            return;
+
+        }
+
+
+        await waitForPageContent();
+
 
         injectStationsStyles();
 
+
         renderStationsPage();
+
 
         setupStationEvents();
 
-        renderStations();
 
-    }, 0);
+        await loadStations();
+
+
+    } catch (error) {
+
+        console.error(
+            "Stations page initialization error:",
+            error
+        );
+
+
+        showPageError(
+            error.message ||
+            "Unable to load the stations page."
+        );
+
+    }
 
 });
 
 
-/* ==========================================
-   GET ORGANIZATIONS
-========================================== */
+/* =========================================================
+   NORMALIZE USER
+========================================================= */
 
-function getOrganizations() {
+function normalizeUser(user) {
 
-    try {
+    return {
 
-        return JSON.parse(
-            localStorage.getItem(
-                ORGANIZATIONS_STORAGE_KEY
-            )
-        ) || [];
+        id:
+            user.id ||
+            user.user_id ||
+            user.userId ||
+            null,
 
-    } catch (error) {
+        role:
+            String(
+                user.role ||
+                user.user_role ||
+                ""
+            ).toLowerCase(),
 
-        console.error(
-            "Unable to load organizations:",
-            error
-        );
+        fullName:
+            user.fullName ||
+            user.full_name ||
+            user.name ||
+            "User",
 
-        return [];
+        organizationId:
+            user.organizationId ||
+            user.organization_id ||
+            null,
 
-    }
+        email:
+            user.email ||
+            ""
 
-}
-
-
-/* ==========================================
-   GET STATIONS
-========================================== */
-
-function getStations() {
-
-    try {
-
-        return JSON.parse(
-            localStorage.getItem(
-                STATIONS_STORAGE_KEY
-            )
-        ) || [];
-
-    } catch (error) {
-
-        console.error(
-            "Unable to load stations:",
-            error
-        );
-
-        return [];
-
-    }
+    };
 
 }
 
 
-/* ==========================================
-   SAVE STATIONS
-========================================== */
+/* =========================================================
+   WAIT FOR APP SHELL
+========================================================= */
 
-function saveStations(stations) {
+function waitForPageContent() {
 
-    localStorage.setItem(
-        STATIONS_STORAGE_KEY,
-        JSON.stringify(stations)
+    return new Promise(
+        (resolve, reject) => {
+
+            const existing =
+                document.getElementById(
+                    "pageContent"
+                );
+
+
+            if (existing) {
+
+                resolve(existing);
+
+                return;
+
+            }
+
+
+            let attempts = 0;
+
+
+            const interval =
+                setInterval(
+                    () => {
+
+                        const pageContent =
+                            document.getElementById(
+                                "pageContent"
+                            );
+
+
+                        if (pageContent) {
+
+                            clearInterval(
+                                interval
+                            );
+
+                            resolve(
+                                pageContent
+                            );
+
+                            return;
+
+                        }
+
+
+                        attempts++;
+
+
+                        if (attempts >= 100) {
+
+                            clearInterval(
+                                interval
+                            );
+
+                            reject(
+                                new Error(
+                                    "Application shell failed to load."
+                                )
+                            );
+
+                        }
+
+                    },
+                    50
+                );
+
+        }
     );
 
 }
 
 
-/* ==========================================
-   GET USER ORGANIZATION
-========================================== */
-
-function getUserOrganizationId(currentUser) {
-
-    return currentUser.organizationId || "";
-
-}
-
-
-/* ==========================================
-   ICONS
-========================================== */
-
-function stationIcon(name) {
-
-    const icons = {
-
-        station: `
-            <svg viewBox="0 0 24 24" fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round">
-
-                <path d="M3 22V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"></path>
-                <path d="M3 10h10"></path>
-                <path d="M7 4v6"></path>
-                <path d="M17 7h1a3 3 0 0 1 3 3v12"></path>
-                <path d="M17 22v-8"></path>
-
-            </svg>
-        `,
-
-        plus: `
-            <svg viewBox="0 0 24 24" fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round">
-
-                <path d="M12 5v14"></path>
-                <path d="M5 12h14"></path>
-
-            </svg>
-        `,
-
-        search: `
-            <svg viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2">
-
-                <circle cx="11"
-                    cy="11"
-                    r="7"></circle>
-
-                <path d="m20 20-4-4"></path>
-
-            </svg>
-        `,
-
-        location: `
-            <svg viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2">
-
-                <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"></path>
-
-                <circle cx="12"
-                    cy="10"
-                    r="3"></circle>
-
-            </svg>
-        `,
-
-        building: `
-            <svg viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2">
-
-                <rect x="3"
-                    y="3"
-                    width="18"
-                    height="18"
-                    rx="2"></rect>
-
-                <path d="M9 21V9h6v12"></path>
-                <path d="M7 7h.01"></path>
-                <path d="M17 7h.01"></path>
-
-            </svg>
-        `,
-
-        phone: `
-            <svg viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2">
-
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2
-                19.79 19.79 0 0 1-8.63-3.07
-                19.5 19.5 0 0 1-6-6
-                19.79 19.79 0 0 1-3.07-8.67
-                A2 2 0 0 1 4.11 2h3
-                a2 2 0 0 1 2 1.72
-                c.12.9.33 1.78.62 2.63
-                a2 2 0 0 1-.45 2.11
-                L8 9.73a16 16 0 0 0 6 6
-                l1.27-1.27a2 2 0 0 1 2.11-.45
-                c.85.29 1.73.5 2.63.62
-                A2 2 0 0 1 22 16.92z"></path>
-
-            </svg>
-        `,
-
-        active: `
-            <svg viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5">
-
-                <path d="M20 6 9 17l-5-5"></path>
-
-            </svg>
-        `,
-
-        inactive: `
-            <svg viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5">
-
-                <path d="M18 6 6 18"></path>
-                <path d="m6 6 12 12"></path>
-
-            </svg>
-        `,
-
-        dots: `
-            <svg viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2">
-
-                <circle cx="5" cy="12" r="1"></circle>
-                <circle cx="12" cy="12" r="1"></circle>
-                <circle cx="19" cy="12" r="1"></circle>
-
-            </svg>
-        `,
-
-        close: `
-            <svg viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5">
-
-                <path d="M18 6 6 18"></path>
-                <path d="m6 6 12 12"></path>
-
-            </svg>
-        `,
-
-        filter: `
-            <svg viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2">
-
-                <path d="M4 6h16"></path>
-                <path d="M7 12h10"></path>
-                <path d="M10 18h4"></path>
-
-            </svg>
-        `
-
-    };
-
-
-    return icons[name] || "";
-
-}
-
-
-/* ==========================================
-   RENDER PROFESSIONAL PAGE
-========================================== */
+/* =========================================================
+   PAGE HTML
+========================================================= */
 
 function renderStationsPage() {
 
     const pageContent =
-        document.getElementById("pageContent");
+        document.getElementById(
+            "pageContent"
+        );
 
 
     if (!pageContent) {
 
         console.error(
-            "pageContent was not found."
+            "#pageContent was not found."
         );
 
         return;
@@ -341,212 +289,252 @@ function renderStationsPage() {
 
     pageContent.innerHTML = `
 
-        <div class="fg-stations-page">
+        <section class="stations-page">
 
+            <div class="stations-header">
 
-            <!-- =========================
-                 PAGE HEADER
-            ========================== -->
+                <div class="stations-header-left">
 
-            <div class="fg-page-header">
+                    <div class="stations-breadcrumb">
 
-                <div class="fg-header-content">
-
-                    <div class="fg-header-icon">
-
-                        ${stationIcon("station")}
-
-                    </div>
-
-
-                    <div>
-
-                        <div class="fg-breadcrumb">
-
+                        <span>
                             Operations
+                        </span>
 
-                            <span>/</span>
+                        <span class="breadcrumb-separator">
+                            /
+                        </span>
 
-                            Station Management
-
-                        </div>
-
-
-                        <h1>
-                            Fuel Stations
-                        </h1>
-
-
-                        <p>
-                            Manage and monitor all fuel stations
-                            connected to your organization.
-                        </p>
+                        <strong>
+                            Stations
+                        </strong>
 
                     </div>
+
+
+                    <h1>
+                        Fuel Stations
+                    </h1>
+
+
+                    <p>
+                        Manage your fuel stations,
+                        locations and operational status.
+                    </p>
+
+                </div>
+
+
+                <div class="stations-header-actions">
+
+                    <button
+                        type="button"
+                        id="refreshStationsButton"
+                        class="fg-secondary-btn"
+                    >
+
+                        <span class="button-icon">
+                            ↻
+                        </span>
+
+                        <span>
+                            Refresh
+                        </span>
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        id="openStationModal"
+                        class="fg-primary-btn"
+                    >
+
+                        <span class="button-icon">
+                            +
+                        </span>
+
+                        <span>
+                            Create Station
+                        </span>
+
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="stationAlert"
+                class="station-alert hidden"
+            ></div>
+
+
+            <div class="station-stats-grid">
+
+                <div class="station-stat-card">
+
+                    <div class="station-stat-icon">
+                        ⛽
+                    </div>
+
+                    <div class="station-stat-content">
+
+                        <span class="station-stat-label">
+                            Total Stations
+                        </span>
+
+                        <strong
+                            id="totalStationsCount"
+                            class="station-stat-value"
+                        >
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="station-stat-card">
+
+                    <div class="station-stat-icon active">
+                        ✓
+                    </div>
+
+                    <div class="station-stat-content">
+
+                        <span class="station-stat-label">
+                            Active
+                        </span>
+
+                        <strong
+                            id="activeStationsCount"
+                            class="station-stat-value"
+                        >
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="station-stat-card">
+
+                    <div class="station-stat-icon inactive">
+                        ○
+                    </div>
+
+                    <div class="station-stat-content">
+
+                        <span class="station-stat-label">
+                            Inactive
+                        </span>
+
+                        <strong
+                            id="inactiveStationsCount"
+                            class="station-stat-value"
+                        >
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="station-stat-card">
+
+                    <div class="station-stat-icon">
+                        ◉
+                    </div>
+
+                    <div class="station-stat-content">
+
+                        <span class="station-stat-label">
+                            Visible
+                        </span>
+
+                        <strong
+                            id="visibleStationsCount"
+                            class="station-stat-value"
+                        >
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="stations-filter-card">
+
+                <div class="station-search-wrapper">
+
+                    <span class="station-search-icon">
+                        ⌕
+                    </span>
+
+                    <input
+                        type="search"
+                        id="stationSearch"
+                        class="station-search-input"
+                        placeholder="Search station name, city or address..."
+                        autocomplete="off"
+                    >
+
+                </div>
+
+
+                <div class="station-filter-wrapper">
+
+                    <label
+                        for="stationStatusFilter"
+                        class="station-filter-label"
+                    >
+                        Status
+                    </label>
+
+                    <select
+                        id="stationStatusFilter"
+                        class="station-filter-select"
+                    >
+
+                        <option value="all">
+                            All Stations
+                        </option>
+
+                        <option value="active">
+                            Active
+                        </option>
+
+                        <option value="inactive">
+                            Inactive
+                        </option>
+
+                    </select>
 
                 </div>
 
 
                 <button
-                    id="openStationModal"
-                    class="fg-primary-btn"
                     type="button"
+                    id="clearStationFilters"
+                    class="fg-clear-btn"
                 >
-
-                    ${stationIcon("plus")}
-
-                    <span>
-                        Add Station
-                    </span>
-
+                    Clear
                 </button>
 
             </div>
 
 
+            <div class="stations-directory-card">
 
-            <!-- =========================
-                 STATION METRICS
-            ========================== -->
-
-            <section class="fg-station-metrics">
-
-
-                <div class="fg-metric-card">
-
-                    <div class="fg-metric-icon fg-icon-dark">
-
-                        ${stationIcon("station")}
-
-                    </div>
-
-
-                    <div class="fg-metric-content">
-
-                        <span>
-                            Total Stations
-                        </span>
-
-                        <strong
-                            id="totalStations"
-                        >
-                            0
-                        </strong>
-
-                        <small>
-                            All registered stations
-                        </small>
-
-                    </div>
-
-                </div>
-
-
-
-                <div class="fg-metric-card">
-
-                    <div class="fg-metric-icon fg-icon-success">
-
-                        ${stationIcon("active")}
-
-                    </div>
-
-
-                    <div class="fg-metric-content">
-
-                        <span>
-                            Active Stations
-                        </span>
-
-                        <strong
-                            id="activeStations"
-                        >
-                            0
-                        </strong>
-
-                        <small>
-                            Currently operational
-                        </small>
-
-                    </div>
-
-                </div>
-
-
-
-                <div class="fg-metric-card">
-
-                    <div class="fg-metric-icon fg-icon-muted">
-
-                        ${stationIcon("inactive")}
-
-                    </div>
-
-
-                    <div class="fg-metric-content">
-
-                        <span>
-                            Inactive Stations
-                        </span>
-
-                        <strong
-                            id="inactiveStations"
-                        >
-                            0
-                        </strong>
-
-                        <small>
-                            Temporarily unavailable
-                        </small>
-
-                    </div>
-
-                </div>
-
-
-
-                <div class="fg-metric-card">
-
-                    <div class="fg-metric-icon fg-icon-yellow">
-
-                        %
-                    </div>
-
-
-                    <div class="fg-metric-content">
-
-                        <span>
-                            Operational Rate
-                        </span>
-
-                        <strong
-                            id="operationalRate"
-                        >
-                            0%
-                        </strong>
-
-                        <small>
-                            Active station performance
-                        </small>
-
-                    </div>
-
-                </div>
-
-
-            </section>
-
-
-
-            <!-- =========================
-                 STATION MANAGEMENT PANEL
-            ========================== -->
-
-            <section class="fg-station-panel">
-
-
-                <div class="fg-panel-header">
-
+                <div class="stations-directory-header">
 
                     <div>
 
@@ -555,62 +543,189 @@ function renderStationsPage() {
                         </h2>
 
                         <p>
-                            View, search and manage your
-                            fuel station network.
+                            Your registered fuel stations
                         </p>
 
                     </div>
 
 
-                    <div class="fg-station-count">
-
-                        <span
-                            id="visibleStationCount"
-                        >
-                            0
-                        </span>
-
-                        Stations
-
+                    <div
+                        id="stationResultCount"
+                        class="station-result-count"
+                    >
+                        0 stations
                     </div>
-
 
                 </div>
 
 
+                <div
+                    id="stationsTableContainer"
+                    class="stations-table-container"
+                >
 
-                <!-- =====================
-                     TOOLBAR
-                ====================== -->
+                    <div class="stations-loading">
 
-                <div class="fg-toolbar">
+                        <div class="station-spinner"></div>
+
+                        <span>
+                            Loading stations...
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
 
 
-                    <div class="fg-search-box">
+        <div
+            id="stationModal"
+            class="fg-modal hidden"
+            aria-hidden="true"
+        >
 
-                        ${stationIcon("search")}
+            <div
+                class="fg-modal-overlay"
+                data-close-station-modal
+            ></div>
+
+
+            <div
+                class="fg-modal-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="stationModalTitle"
+            >
+
+                <div class="fg-modal-header">
+
+                    <div>
+
+                        <span class="fg-modal-eyebrow">
+                            FUELGAP
+                        </span>
+
+                        <h2 id="stationModalTitle">
+                            Create Station
+                        </h2>
+
+                        <p id="stationModalDescription">
+                            Add a fuel station to your organization.
+                        </p>
+
+                    </div>
+
+
+                    <button
+                        type="button"
+                        class="fg-modal-close"
+                        id="closeStationModal"
+                        aria-label="Close"
+                    >
+                        ×
+                    </button>
+
+                </div>
+
+
+                <form
+                    id="stationForm"
+                    class="station-form"
+                >
+
+                    <input
+                        type="hidden"
+                        id="stationId"
+                    >
+
+
+                    <div class="station-form-group">
+
+                        <label for="stationName">
+                            Station Name
+                            <span>*</span>
+                        </label>
 
                         <input
-                            type="search"
-                            id="stationSearch"
-                            placeholder="Search by station name or location..."
+                            type="text"
+                            id="stationName"
+                            name="name"
+                            placeholder="e.g. FuelGap Airport Station"
+                            maxlength="120"
+                            required
                         >
 
                     </div>
 
 
+                    <div class="station-form-group">
 
-                    <div class="fg-filter-box">
+                        <label for="stationAddress">
+                            Address
+                        </label>
 
-                        ${stationIcon("filter")}
-
-                        <select
-                            id="stationStatusFilter"
+                        <input
+                            type="text"
+                            id="stationAddress"
+                            name="address"
+                            placeholder="e.g. Airport Road"
+                            maxlength="255"
                         >
 
-                            <option value="">
-                                All Status
-                            </option>
+                    </div>
+
+
+                    <div class="station-form-row">
+
+                        <div class="station-form-group">
+
+                            <label for="stationCity">
+                                City
+                            </label>
+
+                            <input
+                                type="text"
+                                id="stationCity"
+                                name="city"
+                                placeholder="e.g. Port Harcourt"
+                                maxlength="100"
+                            >
+
+                        </div>
+
+
+                        <div class="station-form-group">
+
+                            <label for="stationState">
+                                State
+                            </label>
+
+                            <input
+                                type="text"
+                                id="stationState"
+                                name="state"
+                                placeholder="e.g. Rivers"
+                                maxlength="100"
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="station-form-group">
+
+                        <label for="stationStatus">
+                            Status
+                        </label>
+
+                        <select
+                            id="stationStatus"
+                            name="status"
+                        >
 
                             <option value="active">
                                 Active
@@ -625,367 +740,40 @@ function renderStationsPage() {
                     </div>
 
 
-                </div>
+                    <div
+                        id="stationFormError"
+                        class="station-form-error hidden"
+                    ></div>
 
 
-
-                <!-- =====================
-                     TABLE
-                ====================== -->
-
-                <div class="fg-table-wrapper">
-
-                    <table class="fg-station-table">
-
-
-                        <thead>
-
-                            <tr>
-
-                                <th>
-                                    Station
-                                </th>
-
-                                <th>
-                                    Organization
-                                </th>
-
-                                <th>
-                                    Location
-                                </th>
-
-                                <th>
-                                    Contact
-                                </th>
-
-                                <th>
-                                    Status
-                                </th>
-
-                                <th
-                                    class="fg-action-column"
-                                >
-                                    Actions
-                                </th>
-
-                            </tr>
-
-                        </thead>
-
-
-
-                        <tbody
-                            id="stationTableBody"
-                        >
-                        </tbody>
-
-
-                    </table>
-
-
-                </div>
-
-
-
-                <!-- =====================
-                     EMPTY STATE
-                ====================== -->
-
-                <div
-                    id="emptyStationState"
-                    class="fg-empty-state hidden"
-                >
-
-
-                    <div class="fg-empty-icon">
-
-                        ${stationIcon("station")}
-
-                    </div>
-
-
-                    <h3>
-                        No fuel stations found
-                    </h3>
-
-
-                    <p>
-                        Start building your fuel station
-                        network by adding your first station.
-                    </p>
-
-
-                    <button
-                        id="emptyAddStation"
-                        class="fg-primary-btn"
-                        type="button"
-                    >
-
-                        ${stationIcon("plus")}
-
-                        Add Your First Station
-
-                    </button>
-
-
-                </div>
-
-
-            </section>
-
-
-
-            <!-- =========================
-                 STATION MODAL
-            ========================== -->
-
-            <div
-                id="stationModal"
-                class="fg-modal hidden"
-            >
-
-
-                <div
-                    class="fg-modal-overlay"
-                ></div>
-
-
-
-                <div
-                    class="fg-modal-content"
-                >
-
-
-                    <div class="fg-modal-header">
-
-
-                        <div>
-
-                            <div class="fg-modal-eyebrow">
-
-                                STATION SETUP
-
-                            </div>
-
-
-                            <h2>
-                                Add Fuel Station
-                            </h2>
-
-
-                            <p>
-                                Enter the station information
-                                to register it in FuelGap.
-                            </p>
-
-                        </div>
-
-
+                    <div class="fg-modal-footer">
 
                         <button
-                            id="closeStationModal"
-                            class="fg-modal-close"
                             type="button"
+                            id="cancelStationButton"
+                            class="fg-secondary-btn"
                         >
-
-                            ${stationIcon("close")}
-
+                            Cancel
                         </button>
 
 
+                        <button
+                            type="submit"
+                            id="saveStationButton"
+                            class="fg-primary-btn"
+                        >
+
+                            <span>
+                                Create Station
+                            </span>
+
+                        </button>
+
                     </div>
 
-
-
-                    <form
-                        id="stationForm"
-                    >
-
-
-                        <div class="fg-form-grid">
-
-
-                            <!-- STATION NAME -->
-
-                            <div class="fg-form-group fg-full">
-
-                                <label>
-                                    Station Name
-                                </label>
-
-
-                                <input
-                                    type="text"
-                                    name="name"
-                                    placeholder="Example: FuelGap Lekki Station"
-                                    required
-                                >
-
-                            </div>
-
-
-
-                            <!-- ORGANIZATION -->
-
-                            <div
-                                class="fg-form-group"
-                                id="organizationField"
-                            >
-
-                                <label>
-                                    Organization
-                                </label>
-
-
-                                <select
-                                    name="organizationId"
-                                    id="stationOrganization"
-                                    required
-                                >
-
-                                    <option value="">
-                                        Select organization
-                                    </option>
-
-                                </select>
-
-                            </div>
-
-
-
-                            <!-- STATUS -->
-
-                            <div class="fg-form-group">
-
-                                <label>
-                                    Station Status
-                                </label>
-
-
-                                <select
-                                    name="status"
-                                >
-
-                                    <option value="active">
-                                        Active
-                                    </option>
-
-                                    <option value="inactive">
-                                        Inactive
-                                    </option>
-
-                                </select>
-
-                            </div>
-
-
-
-                            <!-- LOCATION -->
-
-                            <div class="fg-form-group">
-
-                                <label>
-                                    City / Area
-                                </label>
-
-
-                                <input
-                                    type="text"
-                                    name="location"
-                                    placeholder="Example: Lekki, Lagos"
-                                    required
-                                >
-
-                            </div>
-
-
-
-                            <!-- PHONE -->
-
-                            <div class="fg-form-group">
-
-                                <label>
-                                    Station Phone
-                                </label>
-
-
-                                <input
-                                    type="tel"
-                                    name="phone"
-                                    placeholder="080XXXXXXXX"
-                                >
-
-                            </div>
-
-
-
-                            <!-- ADDRESS -->
-
-                            <div class="fg-form-group fg-full">
-
-                                <label>
-                                    Full Address
-                                </label>
-
-
-                                <textarea
-                                    name="address"
-                                    placeholder="Enter the complete station address"
-                                    required
-                                ></textarea>
-
-                            </div>
-
-
-                        </div>
-
-
-
-                        <div
-                            id="stationMessage"
-                            class="fg-form-message hidden"
-                        ></div>
-
-
-
-                        <div class="fg-modal-footer">
-
-
-                            <button
-                                id="cancelStationModal"
-                                class="fg-secondary-btn"
-                                type="button"
-                            >
-
-                                Cancel
-
-                            </button>
-
-
-
-                            <button
-                                type="submit"
-                                class="fg-primary-btn"
-                            >
-
-                                ${stationIcon("plus")}
-
-                                Create Station
-
-                            </button>
-
-
-                        </div>
-
-
-                    </form>
-
-
-                </div>
-
+                </form>
 
             </div>
-
 
         </div>
 
@@ -994,44 +782,15 @@ function renderStationsPage() {
 }
 
 
-/* ==========================================
-   SETUP EVENTS
-========================================== */
+/* =========================================================
+   EVENTS
+========================================================= */
 
 function setupStationEvents() {
-
-    setupStationModal();
-
-    setupStationForm();
-
-    setupStationSearch();
-
-    setupStationStatusFilter();
-
-}
-
-
-/* ==========================================
-   MODAL
-========================================== */
-
-function setupStationModal() {
-
-    const modal =
-        document.getElementById(
-            "stationModal"
-        );
-
 
     const openButton =
         document.getElementById(
             "openStationModal"
-        );
-
-
-    const emptyAddButton =
-        document.getElementById(
-            "emptyAddStation"
         );
 
 
@@ -1043,218 +802,15 @@ function setupStationModal() {
 
     const cancelButton =
         document.getElementById(
-            "cancelStationModal"
+            "cancelStationButton"
         );
 
 
-    if (!modal) return;
-
-
-    const openModal = () => {
-
-        loadOrganizationsIntoSelect();
-
-        modal.classList.remove("hidden");
-
-        document.body.style.overflow = "hidden";
-
-    };
-
-
-    const closeModal = () => {
-
-        modal.classList.add("hidden");
-
-        document.body.style.overflow = "";
-
-    };
-
-
-    if (openButton) {
-
-        openButton.addEventListener(
-            "click",
-            openModal
-        );
-
-    }
-
-
-    if (emptyAddButton) {
-
-        emptyAddButton.addEventListener(
-            "click",
-            openModal
-        );
-
-    }
-
-
-    if (closeButton) {
-
-        closeButton.addEventListener(
-            "click",
-            closeModal
-        );
-
-    }
-
-
-    if (cancelButton) {
-
-        cancelButton.addEventListener(
-            "click",
-            closeModal
-        );
-
-    }
-
-
-    const overlay =
-        modal.querySelector(
-            ".fg-modal-overlay"
-        );
-
-
-    if (overlay) {
-
-        overlay.addEventListener(
-            "click",
-            closeModal
-        );
-
-    }
-
-
-    document.addEventListener(
-        "keydown",
-        event => {
-
-            if (
-                event.key === "Escape" &&
-                !modal.classList.contains("hidden")
-            ) {
-
-                closeModal();
-
-            }
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   LOAD ORGANIZATIONS
-========================================== */
-
-function loadOrganizationsIntoSelect() {
-
-    const currentUser =
-        FuelGapUtils.getCurrentUser();
-
-
-    const organizationSelect =
+    const modal =
         document.getElementById(
-            "stationOrganization"
+            "stationModal"
         );
 
-
-    const organizationField =
-        document.getElementById(
-            "organizationField"
-        );
-
-
-    if (!organizationSelect) return;
-
-
-    const organizations =
-        getOrganizations();
-
-
-    if (
-        currentUser.role === "owner"
-    ) {
-
-        const organizationId =
-            getUserOrganizationId(
-                currentUser
-            );
-
-
-        organizationSelect.innerHTML =
-            `<option value="${organizationId}">
-                Your Organization
-            </option>`;
-
-
-        organizationSelect.value =
-            organizationId;
-
-
-        if (organizationField) {
-
-            organizationField.style.display =
-                "none";
-
-        }
-
-
-        return;
-
-    }
-
-
-    if (organizationField) {
-
-        organizationField.style.display =
-            "block";
-
-    }
-
-
-    organizationSelect.innerHTML =
-        `
-            <option value="">
-                Select organization
-            </option>
-        `;
-
-
-    organizations.forEach(
-        organization => {
-
-            const option =
-                document.createElement(
-                    "option"
-                );
-
-
-            option.value =
-                organization.id;
-
-
-            option.textContent =
-                organization.name;
-
-
-            organizationSelect.appendChild(
-                option
-            );
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   CREATE STATION
-========================================== */
-
-function setupStationForm() {
 
     const form =
         document.getElementById(
@@ -1262,255 +818,9 @@ function setupStationForm() {
         );
 
 
-    if (!form) return;
-
-
-    form.addEventListener(
-        "submit",
-        event => {
-
-            event.preventDefault();
-
-
-            const currentUser =
-                FuelGapUtils.getCurrentUser();
-
-
-            const name =
-                form.elements["name"]
-                    .value
-                    .trim();
-
-
-            const location =
-                form.elements["location"]
-                    .value
-                    .trim();
-
-
-            const address =
-                form.elements["address"]
-                    .value
-                    .trim();
-
-
-            const phone =
-                form.elements["phone"]
-                    .value
-                    .trim();
-
-
-            const status =
-                form.elements["status"]
-                    .value;
-
-
-            let organizationId =
-                form.elements["organizationId"]
-                    .value;
-
-
-            if (
-                currentUser.role === "owner"
-            ) {
-
-                organizationId =
-                    currentUser.organizationId;
-
-            }
-
-
-            const message =
-                document.getElementById(
-                    "stationMessage"
-                );
-
-
-            /* VALIDATION */
-
-            if (
-                !name ||
-                !location ||
-                !address ||
-                !organizationId
-            ) {
-
-                showStationMessage(
-                    message,
-                    "Please complete all required fields.",
-                    "error"
-                );
-
-                return;
-
-            }
-
-
-            const stations =
-                getStations();
-
-
-            /* DUPLICATE CHECK */
-
-            const existingStation =
-                stations.find(
-                    station =>
-                        station.organizationId ===
-                        organizationId &&
-
-                        station.name
-                            .toLowerCase() ===
-                        name.toLowerCase()
-                );
-
-
-            if (existingStation) {
-
-                showStationMessage(
-                    message,
-                    "A station with this name already exists in this organization.",
-                    "error"
-                );
-
-                return;
-
-            }
-
-
-            /* CREATE */
-
-            const newStation = {
-
-                id:
-                    `STN-${Date.now()}`,
-
-                name,
-
-                organizationId,
-
-                location,
-
-                address,
-
-                phone,
-
-                status,
-
-                createdAt:
-                    new Date()
-                        .toISOString()
-
-            };
-
-
-            stations.push(
-                newStation
-            );
-
-
-            saveStations(
-                stations
-            );
-
-
-            showStationMessage(
-                message,
-                "Fuel station created successfully.",
-                "success"
-            );
-
-
-            form.reset();
-
-
-            renderStations();
-
-
-            setTimeout(
-                () => {
-
-                    const modal =
-                        document.getElementById(
-                            "stationModal"
-                        );
-
-
-                    if (modal) {
-
-                        modal.classList.add(
-                            "hidden"
-                        );
-
-                        document.body.style.overflow =
-                            "";
-
-                    }
-
-                },
-                800
-            );
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   GET VISIBLE STATIONS
-========================================== */
-
-function getVisibleStations() {
-
-    const currentUser =
-        FuelGapUtils.getCurrentUser();
-
-
-    const stations =
-        getStations();
-
-
-    if (
-        currentUser.role === "admin"
-    ) {
-
-        return stations;
-
-    }
-
-
-    return stations.filter(
-        station =>
-            station.organizationId ===
-            currentUser.organizationId
-    );
-
-}
-
-
-/* ==========================================
-   RENDER STATIONS
-========================================== */
-
-function renderStations() {
-
-    const stations =
-        getVisibleStations();
-
-
-    const organizations =
-        getOrganizations();
-
-
-    const tableBody =
+    const refreshButton =
         document.getElementById(
-            "stationTableBody"
-        );
-
-
-    const emptyState =
-        document.getElementById(
-            "emptyStationState"
+            "refreshStationsButton"
         );
 
 
@@ -1526,51 +836,713 @@ function renderStations() {
         );
 
 
-    const visibleCount =
+    const clearButton =
         document.getElementById(
-            "visibleStationCount"
+            "clearStationFilters"
         );
 
 
-    if (!tableBody) return;
+    if (openButton) {
+
+        openButton.addEventListener(
+            "click",
+            () => {
+
+                openStationModal();
+
+            }
+        );
+
+    }
 
 
-    const search =
-        searchInput
-            ? searchInput.value
-                .toLowerCase()
-                .trim()
-            : "";
+    if (closeButton) {
+
+        closeButton.addEventListener(
+            "click",
+            closeStationModal
+        );
+
+    }
+
+
+    if (cancelButton) {
+
+        cancelButton.addEventListener(
+            "click",
+            closeStationModal
+        );
+
+    }
+
+
+    if (modal) {
+
+        modal.addEventListener(
+            "click",
+            event => {
+
+                if (
+                    event.target.matches(
+                        "[data-close-station-modal]"
+                    )
+                ) {
+
+                    closeStationModal();
+
+                }
+
+            }
+        );
+
+    }
+
+
+    document.addEventListener(
+        "keydown",
+        event => {
+
+            if (
+                event.key === "Escape" &&
+                modal &&
+                !modal.classList.contains(
+                    "hidden"
+                )
+            ) {
+
+                closeStationModal();
+
+            }
+
+        }
+    );
+
+
+    if (form) {
+
+        form.addEventListener(
+            "submit",
+            handleStationSubmit
+        );
+
+    }
+
+
+    if (refreshButton) {
+
+        refreshButton.addEventListener(
+            "click",
+            async () => {
+
+                await loadStations();
+
+            }
+        );
+
+    }
+
+
+    if (searchInput) {
+
+        searchInput.addEventListener(
+            "input",
+            event => {
+
+                StationsState.search =
+                    event.target.value.trim();
+
+                applyStationFilters();
+
+            }
+        );
+
+    }
+
+
+    if (statusFilter) {
+
+        statusFilter.addEventListener(
+            "change",
+            event => {
+
+                StationsState.status =
+                    event.target.value;
+
+                applyStationFilters();
+
+            }
+        );
+
+    }
+
+
+    if (clearButton) {
+
+        clearButton.addEventListener(
+            "click",
+            () => {
+
+                if (searchInput) {
+
+                    searchInput.value =
+                        "";
+
+                }
+
+
+                if (statusFilter) {
+
+                    statusFilter.value =
+                        "all";
+
+                }
+
+
+                StationsState.search =
+                    "";
+
+                StationsState.status =
+                    "all";
+
+
+                applyStationFilters();
+
+            }
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   OPEN MODAL
+========================================================= */
+
+function openStationModal(
+    station = null
+) {
+
+    const modal =
+        document.getElementById(
+            "stationModal"
+        );
+
+
+    if (!modal) {
+
+        console.error(
+            "Station modal not found."
+        );
+
+        return;
+
+    }
+
+
+    resetStationForm();
+
+
+    if (station) {
+
+        document.getElementById(
+            "stationModalTitle"
+        ).textContent =
+            "Edit Station";
+
+
+        document.getElementById(
+            "stationModalDescription"
+        ).textContent =
+            "Update your fuel station information.";
+
+
+        document.getElementById(
+            "saveStationButton"
+        ).innerHTML =
+            "<span>Save Changes</span>";
+
+
+        document.getElementById(
+            "stationId"
+        ).value =
+            station.id || "";
+
+
+        document.getElementById(
+            "stationName"
+        ).value =
+            station.name || "";
+
+
+        document.getElementById(
+            "stationAddress"
+        ).value =
+            station.address || "";
+
+
+        document.getElementById(
+            "stationCity"
+        ).value =
+            station.city || "";
+
+
+        document.getElementById(
+            "stationState"
+        ).value =
+            station.state || "";
+
+
+        document.getElementById(
+            "stationStatus"
+        ).value =
+            station.is_active === false
+                ? "inactive"
+                : "active";
+
+    }
+
+
+    modal.classList.remove(
+        "hidden"
+    );
+
+
+    modal.setAttribute(
+        "aria-hidden",
+        "false"
+    );
+
+
+    document.body.style.overflow =
+        "hidden";
+
+
+    setTimeout(
+        () => {
+
+            const nameInput =
+                document.getElementById(
+                    "stationName"
+                );
+
+
+            if (nameInput) {
+
+                nameInput.focus();
+
+            }
+
+        },
+        100
+    );
+
+}
+
+
+/* =========================================================
+   CLOSE MODAL
+========================================================= */
+
+function closeStationModal() {
+
+    const modal =
+        document.getElementById(
+            "stationModal"
+        );
+
+
+    if (!modal) return;
+
+
+    modal.classList.add(
+        "hidden"
+    );
+
+
+    modal.setAttribute(
+        "aria-hidden",
+        "true"
+    );
+
+
+    document.body.style.overflow =
+        "";
+
+
+    resetStationForm();
+
+}
+
+
+/* =========================================================
+   RESET FORM
+========================================================= */
+
+function resetStationForm() {
+
+    const form =
+        document.getElementById(
+            "stationForm"
+        );
+
+
+    if (form) {
+
+        form.reset();
+
+    }
+
+
+    const stationId =
+        document.getElementById(
+            "stationId"
+        );
+
+
+    if (stationId) {
+
+        stationId.value =
+            "";
+
+    }
 
 
     const status =
-        statusFilter
-            ? statusFilter.value
-            : "";
+        document.getElementById(
+            "stationStatus"
+        );
 
 
-    const filteredStations =
-        stations.filter(
+    if (status) {
+
+        status.value =
+            "active";
+
+    }
+
+
+    const title =
+        document.getElementById(
+            "stationModalTitle"
+        );
+
+
+    if (title) {
+
+        title.textContent =
+            "Create Station";
+
+    }
+
+
+    const description =
+        document.getElementById(
+            "stationModalDescription"
+        );
+
+
+    if (description) {
+
+        description.textContent =
+            "Add a fuel station to your organization.";
+
+    }
+
+
+    const saveButton =
+        document.getElementById(
+            "saveStationButton"
+        );
+
+
+    if (saveButton) {
+
+        saveButton.disabled =
+            false;
+
+        saveButton.innerHTML =
+            "<span>Create Station</span>";
+
+    }
+
+
+    hideFormError();
+
+}
+
+
+/* =========================================================
+   LOAD STATIONS
+========================================================= */
+
+async function loadStations() {
+
+    if (
+        StationsState.isLoading
+    ) {
+
+        return;
+
+    }
+
+
+    StationsState.isLoading =
+        true;
+
+
+    setRefreshLoading(
+        true
+    );
+
+
+    renderLoadingState();
+
+
+    try {
+
+        const response =
+            await FuelGapAPI.getStations();
+
+
+        console.log(
+            "Stations API response:",
+            response
+        );
+
+
+        const stations =
+            extractResponseArray(
+                response,
+                "stations"
+            );
+
+
+        StationsState.stations =
+            stations.map(
+                normalizeStation
+            );
+
+
+        applyStationFilters();
+
+
+        hideAlert();
+
+
+    } catch (error) {
+
+        console.error(
+            "Failed to load stations:",
+            error
+        );
+
+
+        StationsState.stations =
+            [];
+
+        StationsState.filteredStations =
+            [];
+
+
+        renderStationsTable();
+
+
+        showAlert(
+            error.message ||
+            "Unable to load stations.",
+            "error"
+        );
+
+
+    } finally {
+
+        StationsState.isLoading =
+            false;
+
+
+        setRefreshLoading(
+            false
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   NORMALIZE STATION
+========================================================= */
+
+function normalizeStation(
+    station
+) {
+
+    return {
+
+        id:
+            station.id ||
+            station.station_id ||
+            null,
+
+        organizationId:
+            station.organizationId ||
+            station.organization_id ||
+            null,
+
+        name:
+            station.name ||
+            "Unnamed Station",
+
+        address:
+            station.address ||
+            "",
+
+        city:
+            station.city ||
+            "",
+
+        state:
+            station.state ||
+            "",
+
+        is_active:
+            station.is_active !== false,
+
+        created_at:
+            station.created_at ||
+            station.createdAt ||
+            null,
+
+        updated_at:
+            station.updated_at ||
+            station.updatedAt ||
+            null
+
+    };
+
+}
+
+
+/* =========================================================
+   RESPONSE ARRAY HELPER
+========================================================= */
+
+function extractResponseArray(
+    response,
+    preferredKey
+) {
+
+    if (
+        Array.isArray(response)
+    ) {
+
+        return response;
+
+    }
+
+
+    if (
+        response &&
+        Array.isArray(
+            response[preferredKey]
+        )
+    ) {
+
+        return response[
+            preferredKey
+        ];
+
+    }
+
+
+    if (
+        response &&
+        response.data &&
+        Array.isArray(
+            response.data[
+                preferredKey
+            ]
+        )
+    ) {
+
+        return response.data[
+            preferredKey
+        ];
+
+    }
+
+
+    if (
+        response &&
+        response.data &&
+        Array.isArray(
+            response.data
+        )
+    ) {
+
+        return response.data;
+
+    }
+
+
+    return [];
+
+}
+
+
+/* =========================================================
+   APPLY FILTERS
+========================================================= */
+
+function applyStationFilters() {
+
+    const search =
+        StationsState.search
+            .toLowerCase()
+            .trim();
+
+
+    const status =
+        StationsState.status;
+
+
+    StationsState.filteredStations =
+        StationsState.stations.filter(
             station => {
 
-                const stationName =
-                    (station.name || "")
-                        .toLowerCase();
+                const searchableText = [
 
+                    station.name,
 
-                const stationLocation =
-                    (station.location || "")
-                        .toLowerCase();
+                    station.address,
+
+                    station.city,
+
+                    station.state
+
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase();
 
 
                 const matchesSearch =
-                    stationName.includes(search) ||
-                    stationLocation.includes(search);
+                    !search ||
+                    searchableText.includes(
+                        search
+                    );
+
+
+                const stationStatus =
+                    station.is_active
+                        ? "active"
+                        : "inactive";
 
 
                 const matchesStatus =
-                    !status ||
-                    station.status === status;
+                    status === "all" ||
+                    status === stationStatus;
 
 
                 return (
@@ -1582,285 +1554,23 @@ function renderStations() {
         );
 
 
-    tableBody.innerHTML = "";
+    updateStationStats();
 
 
-    if (visibleCount) {
-
-        visibleCount.textContent =
-            filteredStations.length;
-
-    }
-
-
-    if (
-        filteredStations.length === 0
-    ) {
-
-        if (emptyState) {
-
-            emptyState.classList.remove(
-                "hidden"
-            );
-
-        }
-
-    } else {
-
-        if (emptyState) {
-
-            emptyState.classList.add(
-                "hidden"
-            );
-
-        }
-
-
-        filteredStations.forEach(
-            station => {
-
-                const organization =
-                    organizations.find(
-                        item =>
-                            item.id ===
-                            station.organizationId
-                    );
-
-
-                const organizationName =
-                    organization
-                        ? organization.name
-                        : "Unknown Organization";
-
-
-                const initials =
-                    getStationInitials(
-                        station.name
-                    );
-
-
-                const row =
-                    document.createElement(
-                        "tr"
-                    );
-
-
-                row.innerHTML = `
-
-                    <!-- STATION -->
-
-                    <td>
-
-                        <div class="fg-station-cell">
-
-                            <div class="fg-station-avatar">
-
-                                ${initials}
-
-                            </div>
-
-
-                            <div>
-
-                                <strong>
-
-                                    ${escapeHtml(
-                                        station.name
-                                    )}
-
-                                </strong>
-
-
-                                <span>
-
-                                    ID:
-                                    ${station.id}
-
-                                </span>
-
-                            </div>
-
-                        </div>
-
-                    </td>
-
-
-
-                    <!-- ORGANIZATION -->
-
-                    <td>
-
-                        <div class="fg-table-info">
-
-                            <span class="fg-table-icon">
-
-                                ${stationIcon("building")}
-
-                            </span>
-
-
-                            <span>
-
-                                ${escapeHtml(
-                                    organizationName
-                                )}
-
-                            </span>
-
-                        </div>
-
-                    </td>
-
-
-
-                    <!-- LOCATION -->
-
-                    <td>
-
-                        <div class="fg-table-info">
-
-                            <span class="fg-table-icon">
-
-                                ${stationIcon("location")}
-
-                            </span>
-
-
-                            <span>
-
-                                ${escapeHtml(
-                                    station.location
-                                )}
-
-                            </span>
-
-                        </div>
-
-                    </td>
-
-
-
-                    <!-- PHONE -->
-
-                    <td>
-
-                        <div class="fg-table-info">
-
-                            <span class="fg-table-icon">
-
-                                ${stationIcon("phone")}
-
-                            </span>
-
-
-                            <span>
-
-                                ${escapeHtml(
-                                    station.phone || "Not provided"
-                                )}
-
-                            </span>
-
-                        </div>
-
-                    </td>
-
-
-
-                    <!-- STATUS -->
-
-                    <td>
-
-                        <span
-                            class="
-                                fg-status
-                                ${station.status === "active"
-                                    ? "fg-status-active"
-                                    : "fg-status-inactive"}
-                            "
-                        >
-
-                            <span></span>
-
-                            ${capitalize(
-                                station.status
-                            )}
-
-                        </span>
-
-                    </td>
-
-
-
-                    <!-- ACTIONS -->
-
-                    <td class="fg-action-column">
-
-                        <button
-                            type="button"
-                            class="fg-action-btn delete-station-btn"
-                            data-id="${station.id}"
-                            title="Remove station"
-                        >
-
-                            ${stationIcon("dots")}
-
-                        </button>
-
-                    </td>
-
-                `;
-
-
-                tableBody.appendChild(
-                    row
-                );
-
-            }
-        );
-
-    }
-
-
-    updateStationStats(
-        stations
-    );
-
-
-    setupDeleteStationButtons();
+    renderStationsTable();
 
 }
 
 
-/* ==========================================
-   STATION INITIALS
-========================================== */
+/* =========================================================
+   UPDATE STATS
+========================================================= */
 
-function getStationInitials(name) {
+function updateStationStats() {
 
-    if (!name) return "FS";
+    const stations =
+        StationsState.stations;
 
-
-    return name
-        .split(" ")
-        .slice(0, 2)
-        .map(
-            word =>
-                word.charAt(0)
-                    .toUpperCase()
-        )
-        .join("");
-
-}
-
-
-/* ==========================================
-   UPDATE STATISTICS
-========================================== */
-
-function updateStationStats(
-    stations
-) {
 
     const total =
         stations.length;
@@ -1869,94 +1579,482 @@ function updateStationStats(
     const active =
         stations.filter(
             station =>
-                station.status ===
-                "active"
+                station.is_active
         ).length;
 
 
     const inactive =
-        stations.filter(
-            station =>
-                station.status ===
-                "inactive"
-        ).length;
+        total - active;
 
 
-    const operationalRate =
-        total > 0
-            ? Math.round(
-                (active / total) * 100
-            )
-            : 0;
+    const visible =
+        StationsState
+            .filteredStations
+            .length;
 
 
-    const totalElement =
-        document.getElementById(
-            "totalStations"
-        );
+    setText(
+        "totalStationsCount",
+        total
+    );
 
 
-    const activeElement =
-        document.getElementById(
-            "activeStations"
-        );
+    setText(
+        "activeStationsCount",
+        active
+    );
 
 
-    const inactiveElement =
-        document.getElementById(
-            "inactiveStations"
-        );
+    setText(
+        "inactiveStationsCount",
+        inactive
+    );
 
 
-    const operationalRateElement =
-        document.getElementById(
-            "operationalRate"
-        );
+    setText(
+        "visibleStationsCount",
+        visible
+    );
 
 
-    if (totalElement) {
-
-        totalElement.textContent =
-            total;
-
-    }
-
-
-    if (activeElement) {
-
-        activeElement.textContent =
-            active;
-
-    }
-
-
-    if (inactiveElement) {
-
-        inactiveElement.textContent =
-            inactive;
-
-    }
-
-
-    if (operationalRateElement) {
-
-        operationalRateElement.textContent =
-            `${operationalRate}%`;
-
-    }
+    setText(
+        "stationResultCount",
+        `${visible} ${
+            visible === 1
+                ? "station"
+                : "stations"
+        }`
+    );
 
 }
 
 
-/* ==========================================
-   DELETE BUTTONS
-========================================== */
+/* =========================================================
+   RENDER TABLE
+========================================================= */
 
-function setupDeleteStationButtons() {
+function renderStationsTable() {
+
+    const container =
+        document.getElementById(
+            "stationsTableContainer"
+        );
+
+
+    if (!container) return;
+
+
+    const stations =
+        StationsState.filteredStations;
+
+
+    if (
+        StationsState.isLoading &&
+        StationsState.stations.length === 0
+    ) {
+
+        renderLoadingState();
+
+        return;
+
+    }
+
+
+    if (!stations.length) {
+
+        container.innerHTML = `
+
+            <div class="stations-empty-state">
+
+                <div class="stations-empty-icon">
+                    ⛽
+                </div>
+
+
+                <h3>
+
+                    ${
+                        StationsState
+                            .stations
+                            .length
+                            ? "No stations found"
+                            : "No stations yet"
+                    }
+
+                </h3>
+
+
+                <p>
+
+                    ${
+                        StationsState
+                            .stations
+                            .length
+                            ? "Try changing your search or filters."
+                            : "Create your first fuel station to get started."
+                    }
+
+                </p>
+
+
+                ${
+                    StationsState
+                        .stations
+                        .length
+
+                        ? `
+
+                            <button
+                                type="button"
+                                class="fg-secondary-btn"
+                                id="emptyClearFilters"
+                            >
+                                Clear Filters
+                            </button>
+
+                        `
+
+                        : `
+
+                            <button
+                                type="button"
+                                class="fg-primary-btn"
+                                id="emptyCreateStation"
+                            >
+
+                                <span>
+                                    +
+                                </span>
+
+                                Create Station
+
+                            </button>
+
+                        `
+                }
+
+            </div>
+
+        `;
+
+
+        const emptyCreate =
+            document.getElementById(
+                "emptyCreateStation"
+            );
+
+
+        if (emptyCreate) {
+
+            emptyCreate.addEventListener(
+                "click",
+                openStationModal
+            );
+
+        }
+
+
+        const emptyClear =
+            document.getElementById(
+                "emptyClearFilters"
+            );
+
+
+        if (emptyClear) {
+
+            emptyClear.addEventListener(
+                "click",
+                () => {
+
+                    const searchInput =
+                        document.getElementById(
+                            "stationSearch"
+                        );
+
+
+                    const statusFilter =
+                        document.getElementById(
+                            "stationStatusFilter"
+                        );
+
+
+                    if (searchInput) {
+
+                        searchInput.value =
+                            "";
+
+                    }
+
+
+                    if (statusFilter) {
+
+                        statusFilter.value =
+                            "all";
+
+                    }
+
+
+                    StationsState.search =
+                        "";
+
+                    StationsState.status =
+                        "all";
+
+
+                    applyStationFilters();
+
+                }
+            );
+
+        }
+
+
+        return;
+
+    }
+
+
+    container.innerHTML = `
+
+        <div class="stations-table-scroll">
+
+            <table class="stations-table">
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+                            Station
+                        </th>
+
+                        <th>
+                            Location
+                        </th>
+
+                        <th>
+                            Status
+                        </th>
+
+                        <th>
+                            Created
+                        </th>
+
+                        <th>
+                            Actions
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    ${
+                        stations
+                            .map(
+                                station =>
+                                    renderStationRow(
+                                        station
+                                    )
+                            )
+                            .join("")
+                    }
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    `;
+
+
+    setupStationRowEvents();
+
+}
+
+
+/* =========================================================
+   RENDER ROW
+========================================================= */
+
+function renderStationRow(
+    station
+) {
+
+    const location =
+        [
+            station.city,
+            station.state
+        ]
+            .filter(Boolean)
+            .join(", ");
+
+
+    const status =
+        station.is_active
+            ? "active"
+            : "inactive";
+
+
+    const statusLabel =
+        station.is_active
+            ? "Active"
+            : "Inactive";
+
+
+    return `
+
+        <tr
+            data-station-id="${escapeHtml(
+                station.id
+            )}"
+        >
+
+            <td>
+
+                <div class="station-name-cell">
+
+                    <div class="station-table-icon">
+                        ⛽
+                    </div>
+
+
+                    <div>
+
+                        <strong>
+                            ${escapeHtml(
+                                station.name
+                            )}
+                        </strong>
+
+
+                        <span>
+
+                            ${
+                                station.id
+                                    ? formatStationId(
+                                        station.id
+                                    )
+                                    : "Station"
+                            }
+
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </td>
+
+
+            <td>
+
+                <div class="station-location-cell">
+
+                    <strong>
+
+                        ${escapeHtml(
+                            location ||
+                            "Location not provided"
+                        )}
+
+                    </strong>
+
+
+                    <span>
+
+                        ${escapeHtml(
+                            station.address ||
+                            "No address"
+                        )}
+
+                    </span>
+
+                </div>
+
+            </td>
+
+
+            <td>
+
+                <span
+                    class="station-status-badge ${status}"
+                >
+
+                    <span class="status-dot"></span>
+
+                    ${statusLabel}
+
+                </span>
+
+            </td>
+
+
+            <td>
+
+                <span class="station-created-date">
+
+                    ${formatDate(
+                        station.created_at
+                    )}
+
+                </span>
+
+            </td>
+
+
+            <td>
+
+                <div class="station-actions">
+
+                    <button
+                        type="button"
+                        class="station-action-btn edit"
+                        data-action="edit"
+                        data-id="${escapeHtml(
+                            station.id
+                        )}"
+                        title="Edit station"
+                    >
+                        Edit
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="station-action-btn delete"
+                        data-action="delete"
+                        data-id="${escapeHtml(
+                            station.id
+                        )}"
+                        title="Delete station"
+                    >
+                        Delete
+                    </button>
+
+                </div>
+
+            </td>
+
+        </tr>
+
+    `;
+
+}
+
+
+/* =========================================================
+   ROW EVENTS
+========================================================= */
+
+function setupStationRowEvents() {
 
     const buttons =
         document.querySelectorAll(
-            ".delete-station-btn"
+            ".station-action-btn"
         );
 
 
@@ -1965,11 +2063,70 @@ function setupDeleteStationButtons() {
 
             button.addEventListener(
                 "click",
-                () => {
+                async event => {
 
-                    removeStation(
-                        button.dataset.id
-                    );
+                    const action =
+                        event.currentTarget
+                            .dataset
+                            .action;
+
+
+                    const id =
+                        event.currentTarget
+                            .dataset
+                            .id;
+
+
+                    if (!id) {
+
+                        return;
+
+                    }
+
+
+                    const station =
+                        StationsState
+                            .stations
+                            .find(
+                                item =>
+                                    String(
+                                        item.id
+                                    ) ===
+                                    String(
+                                        id
+                                    )
+                            );
+
+
+                    if (!station) {
+
+                        return;
+
+                    }
+
+
+                    if (
+                        action ===
+                        "edit"
+                    ) {
+
+                        openStationModal(
+                            station
+                        );
+
+                    }
+
+
+                    if (
+                        action ===
+                        "delete"
+                    ) {
+
+                        await deleteStation(
+                            station
+                        );
+
+                    }
 
                 }
             );
@@ -1980,155 +2137,742 @@ function setupDeleteStationButtons() {
 }
 
 
-/* ==========================================
-   REMOVE STATION
-========================================== */
+/* =========================================================
+   CREATE / UPDATE STATION
+========================================================= */
 
-function removeStation(
-    stationId
+async function handleStationSubmit(
+    event
 ) {
 
-    const confirmed =
-        confirm(
-            "Are you sure you want to remove this fuel station?"
-        );
+    event.preventDefault();
 
 
-    if (!confirmed) return;
+    if (
+        StationsState.isSubmitting
+    ) {
 
-
-    let stations =
-        getStations();
-
-
-    stations =
-        stations.filter(
-            station =>
-                station.id !==
-                stationId
-        );
-
-
-    saveStations(
-        stations
-    );
-
-
-    renderStations();
-
-}
-
-
-/* ==========================================
-   SEARCH
-========================================== */
-
-function setupStationSearch() {
-
-    const searchInput =
-        document.getElementById(
-            "stationSearch"
-        );
-
-
-    if (!searchInput) return;
-
-
-    searchInput.addEventListener(
-        "input",
-        () => {
-
-            renderStations();
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   STATUS FILTER
-========================================== */
-
-function setupStationStatusFilter() {
-
-    const filter =
-        document.getElementById(
-            "stationStatusFilter"
-        );
-
-
-    if (!filter) return;
-
-
-    filter.addEventListener(
-        "change",
-        () => {
-
-            renderStations();
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   FORM MESSAGE
-========================================== */
-
-function showStationMessage(
-    element,
-    message,
-    type
-) {
-
-    if (!element) {
-
-        alert(message);
         return;
 
     }
 
 
-    element.textContent =
-        message;
+    const stationId =
+        document.getElementById(
+            "stationId"
+        )?.value.trim();
 
 
-    element.className =
-        `fg-form-message ${type}`;
+    const name =
+        document.getElementById(
+            "stationName"
+        )?.value.trim();
 
-}
+
+    const address =
+        document.getElementById(
+            "stationAddress"
+        )?.value.trim();
 
 
-/* ==========================================
-   CAPITALIZE
-========================================== */
+    const city =
+        document.getElementById(
+            "stationCity"
+        )?.value.trim();
 
-function capitalize(value) {
 
-    if (!value) {
+    const state =
+        document.getElementById(
+            "stationState"
+        )?.value.trim();
 
-        return "";
+
+    const status =
+        document.getElementById(
+            "stationStatus"
+        )?.value ||
+        "active";
+
+
+    if (!name) {
+
+        showFormError(
+            "Station name is required."
+        );
+
+
+        document.getElementById(
+            "stationName"
+        )?.focus();
+
+
+        return;
 
     }
 
 
-    return (
-        value.charAt(0)
-            .toUpperCase() +
+    if (
+        name.length < 2
+    ) {
 
-        value.slice(1)
+        showFormError(
+            "Station name must be at least 2 characters."
+        );
+
+        return;
+
+    }
+
+
+    hideFormError();
+
+
+    const payload = {
+
+        name,
+
+        address:
+            address ||
+            null,
+
+        city:
+            city ||
+            null,
+
+        state:
+            state ||
+            null,
+
+        is_active:
+            status === "active"
+
+    };
+
+
+    StationsState.isSubmitting =
+        true;
+
+
+    setSubmitLoading(
+        true
+    );
+
+
+    try {
+
+        let response;
+
+
+        if (stationId) {
+
+            response =
+                await FuelGapAPI.updateStation(
+                    stationId,
+                    payload
+                );
+
+
+            console.log(
+                "Station update response:",
+                response
+            );
+
+
+            showAlert(
+                "Station updated successfully.",
+                "success"
+            );
+
+        } else {
+
+            response =
+                await FuelGapAPI.createStation(
+                    payload
+                );
+
+
+            console.log(
+                "Station create response:",
+                response
+            );
+
+
+            showAlert(
+                "Station created successfully.",
+                "success"
+            );
+
+        }
+
+
+        closeStationModal();
+
+
+        await loadStations();
+
+
+    } catch (error) {
+
+        console.error(
+            "Station save error:",
+            error
+        );
+
+
+        showFormError(
+            error.message ||
+            "Unable to save station."
+        );
+
+
+    } finally {
+
+        StationsState.isSubmitting =
+            false;
+
+
+        setSubmitLoading(
+            false
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   DELETE STATION
+========================================================= */
+
+async function deleteStation(
+    station
+) {
+
+    if (
+        !station ||
+        !station.id
+    ) {
+
+        return;
+
+    }
+
+
+    const confirmed =
+        window.confirm(
+            `Are you sure you want to delete "${station.name}"?\n\nThis action cannot be undone.`
+        );
+
+
+    if (!confirmed) {
+
+        return;
+
+    }
+
+
+    try {
+
+        await FuelGapAPI.deleteStation(
+            station.id
+        );
+
+
+        showAlert(
+            "Station deleted successfully.",
+            "success"
+        );
+
+
+        await loadStations();
+
+
+    } catch (error) {
+
+        console.error(
+            "Delete station error:",
+            error
+        );
+
+
+        showAlert(
+            error.message ||
+            "Unable to delete station.",
+            "error"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   LOADING STATE
+========================================================= */
+
+function renderLoadingState() {
+
+    const container =
+        document.getElementById(
+            "stationsTableContainer"
+        );
+
+
+    if (!container) return;
+
+
+    container.innerHTML = `
+
+        <div class="stations-loading">
+
+            <div class="station-spinner"></div>
+
+            <span>
+                Loading stations...
+            </span>
+
+        </div>
+
+    `;
+
+}
+
+
+/* =========================================================
+   SUBMIT BUTTON LOADING
+========================================================= */
+
+function setSubmitLoading(
+    isLoading
+) {
+
+    const button =
+        document.getElementById(
+            "saveStationButton"
+        );
+
+
+    if (!button) return;
+
+
+    button.disabled =
+        isLoading;
+
+
+    if (isLoading) {
+
+        button.innerHTML = `
+
+            <span class="button-spinner"></span>
+
+            <span>
+                Saving...
+            </span>
+
+        `;
+
+    } else {
+
+        const stationId =
+            document.getElementById(
+                "stationId"
+            )?.value.trim();
+
+
+        button.innerHTML =
+            stationId
+                ? "<span>Save Changes</span>"
+                : "<span>Create Station</span>";
+
+    }
+
+}
+
+
+/* =========================================================
+   REFRESH BUTTON LOADING
+========================================================= */
+
+function setRefreshLoading(
+    isLoading
+) {
+
+    const button =
+        document.getElementById(
+            "refreshStationsButton"
+        );
+
+
+    if (!button) return;
+
+
+    button.disabled =
+        isLoading;
+
+
+    if (isLoading) {
+
+        button.innerHTML = `
+
+            <span class="button-spinner"></span>
+
+            <span>
+                Loading...
+            </span>
+
+        `;
+
+    } else {
+
+        button.innerHTML = `
+
+            <span class="button-icon">
+                ↻
+            </span>
+
+            <span>
+                Refresh
+            </span>
+
+        `;
+
+    }
+
+}
+
+
+/* =========================================================
+   ALERT
+========================================================= */
+
+function showAlert(
+    message,
+    type = "success"
+) {
+
+    const alert =
+        document.getElementById(
+            "stationAlert"
+        );
+
+
+    if (!alert) return;
+
+
+    alert.className =
+        `station-alert ${type}`;
+
+
+    alert.innerHTML = `
+
+        <span class="station-alert-icon">
+
+            ${
+                type === "success"
+                    ? "✓"
+                    : "!"
+            }
+
+        </span>
+
+
+        <span>
+            ${escapeHtml(message)}
+        </span>
+
+
+        <button
+            type="button"
+            class="station-alert-close"
+            id="closeStationAlert"
+        >
+            ×
+        </button>
+
+    `;
+
+
+    const close =
+        document.getElementById(
+            "closeStationAlert"
+        );
+
+
+    if (close) {
+
+        close.addEventListener(
+            "click",
+            hideAlert
+        );
+
+    }
+
+
+    setTimeout(
+        hideAlert,
+        6000
     );
 
 }
 
 
-/* ==========================================
-   ESCAPE HTML
-========================================== */
+/* =========================================================
+   HIDE ALERT
+========================================================= */
 
-function escapeHtml(value) {
+function hideAlert() {
+
+    const alert =
+        document.getElementById(
+            "stationAlert"
+        );
+
+
+    if (!alert) return;
+
+
+    alert.classList.add(
+        "hidden"
+    );
+
+}
+
+
+/* =========================================================
+   FORM ERROR
+========================================================= */
+
+function showFormError(
+    message
+) {
+
+    const error =
+        document.getElementById(
+            "stationFormError"
+        );
+
+
+    if (!error) return;
+
+
+    error.textContent =
+        message;
+
+
+    error.classList.remove(
+        "hidden"
+    );
+
+}
+
+
+/* =========================================================
+   HIDE FORM ERROR
+========================================================= */
+
+function hideFormError() {
+
+    const error =
+        document.getElementById(
+            "stationFormError"
+        );
+
+
+    if (!error) return;
+
+
+    error.textContent =
+        "";
+
+
+    error.classList.add(
+        "hidden"
+    );
+
+}
+
+
+/* =========================================================
+   PAGE ERROR
+========================================================= */
+
+function showPageError(
+    message
+) {
+
+    const pageContent =
+        document.getElementById(
+            "pageContent"
+        );
+
+
+    if (!pageContent) {
+
+        console.error(
+            message
+        );
+
+        return;
+
+    }
+
+
+    pageContent.innerHTML = `
+
+        <section class="stations-page">
+
+            <div class="stations-error-state">
+
+                <div class="stations-error-icon">
+                    !
+                </div>
+
+
+                <h2>
+                    Unable to load Stations
+                </h2>
+
+
+                <p>
+                    ${escapeHtml(message)}
+                </p>
+
+
+                <button
+                    type="button"
+                    class="fg-primary-btn"
+                    onclick="window.location.reload()"
+                >
+                    Reload Page
+                </button>
+
+            </div>
+
+        </section>
+
+    `;
+
+}
+
+
+/* =========================================================
+   TEXT HELPER
+========================================================= */
+
+function setText(
+    elementId,
+    value
+) {
+
+    const element =
+        document.getElementById(
+            elementId
+        );
+
+
+    if (element) {
+
+        element.textContent =
+            value;
+
+    }
+
+}
+
+
+/* =========================================================
+   DATE FORMAT
+========================================================= */
+
+function formatDate(
+    dateValue
+) {
+
+    if (!dateValue) {
+
+        return "—";
+
+    }
+
+
+    const date =
+        new Date(
+            dateValue
+        );
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return "—";
+
+    }
+
+
+    return date.toLocaleDateString(
+        "en-NG",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "numeric"
+        }
+    );
+
+}
+
+
+/* =========================================================
+   STATION ID FORMAT
+========================================================= */
+
+function formatStationId(
+    id
+) {
+
+    if (!id) {
+
+        return "Station";
+
+    }
+
+
+    const stringId =
+        String(id);
+
+
+    if (
+        stringId.length > 12 &&
+        stringId.includes("-")
+    ) {
+
+        return `STN-${stringId
+            .replaceAll("-", "")
+            .substring(0, 8)
+            .toUpperCase()}`;
+
+    }
+
+
+    return stringId.length > 16
+        ? stringId.substring(
+            0,
+            16
+        )
+        : stringId;
+
+}
+
+
+/* =========================================================
+   HTML ESCAPE
+========================================================= */
+
+function escapeHtml(
+    value
+) {
 
     if (
         value === null ||
@@ -2141,39 +2885,39 @@ function escapeHtml(value) {
 
 
     return String(value)
-        .replace(
-            /&/g,
+        .replaceAll(
+            "&",
             "&amp;"
         )
-        .replace(
-            /</g,
+        .replaceAll(
+            "<",
             "&lt;"
         )
-        .replace(
-            />/g,
+        .replaceAll(
+            ">",
             "&gt;"
         )
-        .replace(
-            /"/g,
+        .replaceAll(
+            '"',
             "&quot;"
         )
-        .replace(
-            /'/g,
+        .replaceAll(
+            "'",
             "&#039;"
         );
 
 }
 
 
-/* ==========================================
-   PROFESSIONAL STATIONS STYLES
-========================================== */
+/* =========================================================
+   PROFESSIONAL STYLES
+========================================================= */
 
 function injectStationsStyles() {
 
     if (
         document.getElementById(
-            "fuelgapStationsProfessionalStyles"
+            "fuelgapStationsRuntimeStyles"
         )
     ) {
 
@@ -2189,647 +2933,719 @@ function injectStationsStyles() {
 
 
     style.id =
-        "fuelgapStationsProfessionalStyles";
+        "fuelgapStationsRuntimeStyles";
 
 
     style.textContent = `
 
-        /* ================================
-           ROOT PAGE
-        ================================= */
-
-        .fg-stations-page {
+        .stations-page {
             width: 100%;
-            padding: 8px 0 40px;
-            color: #1d1d1f;
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 10px 0 50px;
         }
 
 
-        /* ================================
-           PAGE HEADER
-        ================================= */
-
-        .fg-page-header {
+        .stations-header {
             display: flex;
-            align-items: center;
             justify-content: space-between;
-            gap: 24px;
+            align-items: flex-end;
+            gap: 30px;
             margin-bottom: 28px;
         }
 
 
-        .fg-header-content {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-
-        .fg-header-icon {
-            width: 52px;
-            height: 52px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 14px;
-            background: #111827;
-            color: #f5c518;
-            box-shadow: 0 8px 20px rgba(17, 24, 39, 0.15);
-        }
-
-
-        .fg-header-icon svg {
-            width: 25px;
-            height: 25px;
-        }
-
-
-        .fg-breadcrumb {
-            font-size: 12px;
-            font-weight: 700;
-            color: #8b8f98;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-            letter-spacing: 0.7px;
-        }
-
-
-        .fg-breadcrumb span {
-            margin: 0 7px;
-            color: #c4c7cc;
-        }
-
-
-        .fg-page-header h1 {
-            margin: 0;
-            font-size: 28px;
-            line-height: 1.2;
-            font-weight: 750;
-            letter-spacing: -0.7px;
-            color: #111827;
-        }
-
-
-        .fg-page-header p {
-            margin: 7px 0 0;
-            font-size: 14px;
-            color: #737782;
-        }
-
-
-        /* ================================
-           BUTTONS
-        ================================= */
-
-        .fg-primary-btn {
-            border: none;
-            min-height: 44px;
-            padding: 0 18px;
-            border-radius: 10px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 9px;
-            background: #f5c518;
-            color: #111827;
-            font-size: 14px;
-            font-weight: 750;
-            cursor: pointer;
-            transition: 0.2s ease;
-            box-shadow: 0 7px 18px rgba(245, 197, 24, 0.2);
-        }
-
-
-        .fg-primary-btn:hover {
-            transform: translateY(-1px);
-            background: #ffcf2e;
-            box-shadow: 0 10px 22px rgba(245, 197, 24, 0.3);
-        }
-
-
-        .fg-primary-btn svg {
-            width: 18px;
-            height: 18px;
-        }
-
-
-        .fg-secondary-btn {
-            min-height: 44px;
-            padding: 0 18px;
-            border-radius: 10px;
-            border: 1px solid #e4e6ea;
-            background: #ffffff;
-            color: #4b5059;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-
-        .fg-secondary-btn:hover {
-            background: #f8f9fa;
-        }
-
-
-        /* ================================
-           METRICS
-        ================================= */
-
-        .fg-station-metrics {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 18px;
-            margin-bottom: 24px;
-        }
-
-
-        .fg-metric-card {
-            background: #ffffff;
-            border: 1px solid #eceef1;
-            border-radius: 16px;
-            padding: 20px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            transition: 0.25s ease;
-            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
-        }
-
-
-        .fg-metric-card:hover {
-            transform: translateY(-3px);
-            border-color: #e0e3e7;
-            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
-        }
-
-
-        .fg-metric-icon {
-            width: 48px;
-            height: 48px;
-            flex-shrink: 0;
-            border-radius: 13px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            font-weight: 800;
-        }
-
-
-        .fg-metric-icon svg {
-            width: 22px;
-            height: 22px;
-        }
-
-
-        .fg-icon-dark {
-            background: #111827;
-            color: #ffffff;
-        }
-
-
-        .fg-icon-success {
-            background: #eaf8ef;
-            color: #169c4d;
-        }
-
-
-        .fg-icon-muted {
-            background: #f2f3f5;
-            color: #737782;
-        }
-
-
-        .fg-icon-yellow {
-            background: #fff6cc;
-            color: #b77900;
-        }
-
-
-        .fg-metric-content {
+        .stations-header-left {
             min-width: 0;
         }
 
 
-        .fg-metric-content span {
-            display: block;
-            font-size: 12px;
-            color: #818692;
-            margin-bottom: 5px;
-            font-weight: 600;
+        .stations-breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            color: #8b8b8b;
+            font-size: 13px;
         }
 
 
-        .fg-metric-content strong {
-            display: block;
-            font-size: 25px;
-            line-height: 1;
-            color: #111827;
+        .stations-breadcrumb strong {
+            color: #555;
+        }
+
+
+        .breadcrumb-separator {
+            color: #c7c7c7;
+        }
+
+
+        .stations-header h1 {
+            margin: 0;
+            font-size: 32px;
+            line-height: 1.2;
+            color: #151515;
+            font-weight: 800;
             letter-spacing: -0.7px;
         }
 
 
-        .fg-metric-content small {
-            display: block;
-            margin-top: 7px;
-            font-size: 11px;
-            color: #a1a5ad;
+        .stations-header p {
+            margin: 8px 0 0;
+            color: #777;
+            font-size: 14px;
         }
 
 
-        /* ================================
-           MAIN PANEL
-        ================================= */
-
-        .fg-station-panel {
-            background: #ffffff;
-            border: 1px solid #e9ebee;
-            border-radius: 18px;
-            overflow: hidden;
-            box-shadow: 0 8px 30px rgba(15, 23, 42, 0.04);
-        }
-
-
-        .fg-panel-header {
-            padding: 23px 24px;
+        .stations-header-actions {
             display: flex;
-            justify-content: space-between;
+            gap: 10px;
             align-items: center;
-            border-bottom: 1px solid #eef0f2;
         }
 
 
-        .fg-panel-header h2 {
-            margin: 0;
+        .fg-primary-btn,
+        .fg-secondary-btn,
+        .fg-clear-btn {
+            min-height: 44px;
+            border-radius: 10px;
+            padding: 0 17px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition:
+                transform .18s ease,
+                box-shadow .18s ease,
+                background .18s ease,
+                border-color .18s ease;
+        }
+
+
+        .fg-primary-btn {
+            border: 1px solid #f2c400;
+            background: #f5c400;
+            color: #161616;
+            box-shadow:
+                0 4px 14px rgba(245,196,0,.20);
+        }
+
+
+        .fg-primary-btn:hover {
+            background: #e9b900;
+            border-color: #e9b900;
+            transform: translateY(-1px);
+            box-shadow:
+                0 7px 18px rgba(245,196,0,.25);
+        }
+
+
+        .fg-primary-btn:disabled {
+            opacity: .65;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+
+        .fg-secondary-btn {
+            background: #fff;
+            color: #303030;
+            border: 1px solid #dedede;
+        }
+
+
+        .fg-secondary-btn:hover {
+            background: #fafafa;
+            border-color: #cfcfcf;
+            transform: translateY(-1px);
+        }
+
+
+        .fg-secondary-btn:disabled {
+            opacity: .65;
+            cursor: not-allowed;
+        }
+
+
+        .fg-clear-btn {
+            min-height: 40px;
+            border: 0;
+            background: transparent;
+            color: #777;
+        }
+
+
+        .fg-clear-btn:hover {
+            color: #151515;
+            background: #f7f7f7;
+        }
+
+
+        .button-icon {
             font-size: 18px;
-            color: #17191d;
+            line-height: 1;
         }
 
 
-        .fg-panel-header p {
-            margin: 5px 0 0;
-            font-size: 13px;
-            color: #858993;
+        .button-spinner,
+        .station-spinner {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid rgba(0,0,0,.16);
+            border-top-color: #171717;
+            animation: fgSpin .7s linear infinite;
         }
 
 
-        .fg-station-count {
-            font-size: 13px;
-            color: #777c86;
+        .station-spinner {
+            width: 30px;
+            height: 30px;
+            border-width: 3px;
+        }
+
+
+        @keyframes fgSpin {
+
+            to {
+                transform: rotate(360deg);
+            }
+
+        }
+
+
+        .station-alert {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 48px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
             font-weight: 600;
         }
 
 
-        .fg-station-count span {
-            display: inline-flex;
-            min-width: 27px;
-            height: 27px;
+        .station-alert.hidden {
+            display: none;
+        }
+
+
+        .station-alert.success {
+            background: #f0f8ed;
+            border: 1px solid #cce4c5;
+            color: #326427;
+        }
+
+
+        .station-alert.error {
+            background: #fff1f0;
+            border: 1px solid #f0c5c2;
+            color: #a32920;
+        }
+
+
+        .station-alert-icon {
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 8px;
-            background: #fff6cc;
-            color: #8d6800;
-            margin-right: 5px;
-            font-weight: 800;
+            flex-shrink: 0;
+            background: rgba(0,0,0,.06);
         }
 
 
-        /* ================================
-           TOOLBAR
-        ================================= */
-
-        .fg-toolbar {
-            padding: 18px 24px;
-            display: flex;
-            gap: 12px;
-            border-bottom: 1px solid #eef0f2;
-            background: #fcfcfd;
-        }
-
-
-        .fg-search-box {
-            flex: 1;
-            min-height: 44px;
-            border: 1px solid #e3e6ea;
-            background: #ffffff;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            padding: 0 13px;
-            gap: 10px;
-        }
-
-
-        .fg-search-box:focus-within {
-            border-color: #f5c518;
-            box-shadow: 0 0 0 4px rgba(245, 197, 24, 0.12);
-        }
-
-
-        .fg-search-box svg {
-            width: 18px;
-            color: #9ba0aa;
-        }
-
-
-        .fg-search-box input {
-            width: 100%;
-            border: none;
-            outline: none;
-            font-size: 13px;
-            color: #252932;
+        .station-alert-close {
+            margin-left: auto;
+            border: 0;
             background: transparent;
-        }
-
-
-        .fg-filter-box {
-            min-width: 155px;
-            min-height: 44px;
-            border: 1px solid #e3e6ea;
-            background: #ffffff;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            gap: 9px;
-            padding: 0 12px;
-        }
-
-
-        .fg-filter-box svg {
-            width: 17px;
-            color: #8d929c;
-        }
-
-
-        .fg-filter-box select {
-            border: none;
-            outline: none;
-            width: 100%;
-            background: transparent;
-            color: #515660;
-            font-size: 13px;
+            color: currentColor;
+            font-size: 20px;
             cursor: pointer;
         }
 
 
-        /* ================================
-           TABLE
-        ================================= */
+        .station-stats-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 22px;
+        }
 
-        .fg-table-wrapper {
+
+        .station-stat-card {
+            background: #fff;
+            border: 1px solid #e9e9e9;
+            border-radius: 14px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow:
+                0 4px 16px rgba(0,0,0,.035);
+        }
+
+
+        .station-stat-icon {
+            width: 45px;
+            height: 45px;
+            border-radius: 12px;
+            background: #fff7cc;
+            color: #8d7000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+
+        .station-stat-icon.active {
+            background: #edf8e9;
+            color: #4d7d3d;
+        }
+
+
+        .station-stat-icon.inactive {
+            background: #f2f2f2;
+            color: #777;
+        }
+
+
+        .station-stat-content {
+            min-width: 0;
+        }
+
+
+        .station-stat-label {
+            display: block;
+            color: #818181;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+
+        .station-stat-value {
+            display: block;
+            color: #171717;
+            font-size: 24px;
+            line-height: 1;
+        }
+
+
+        .stations-filter-card {
+            background: #fff;
+            border: 1px solid #e9e9e9;
+            border-radius: 14px;
+            padding: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 22px;
+            box-shadow:
+                0 4px 16px rgba(0,0,0,.025);
+        }
+
+
+        .station-search-wrapper {
+            position: relative;
+            flex: 1;
+            min-width: 220px;
+        }
+
+
+        .station-search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #8b8b8b;
+            font-size: 20px;
+        }
+
+
+        .station-search-input {
+            width: 100%;
+            height: 42px;
+            border: 1px solid #dedede;
+            border-radius: 9px;
+            padding: 0 14px 0 42px;
+            outline: none;
+            font-family: inherit;
+            font-size: 14px;
+            background: #fff;
+            color: #222;
+        }
+
+
+        .station-search-input:focus {
+            border-color: #e6bc00;
+            box-shadow:
+                0 0 0 3px rgba(245,196,0,.13);
+        }
+
+
+        .station-filter-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+
+        .station-filter-label {
+            color: #777;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+
+        .station-filter-select {
+            height: 42px;
+            border: 1px solid #dedede;
+            border-radius: 9px;
+            padding: 0 32px 0 12px;
+            background: #fff;
+            color: #222;
+            outline: none;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+
+        .stations-directory-card {
+            background: #fff;
+            border: 1px solid #e9e9e9;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow:
+                0 4px 18px rgba(0,0,0,.035);
+        }
+
+
+        .stations-directory-header {
+            min-height: 78px;
+            padding: 18px 20px;
+            border-bottom: 1px solid #ededed;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+
+        .stations-directory-header h2 {
+            margin: 0;
+            font-size: 17px;
+            color: #1a1a1a;
+        }
+
+
+        .stations-directory-header p {
+            margin: 5px 0 0;
+            color: #888;
+            font-size: 12px;
+        }
+
+
+        .station-result-count {
+            color: #777;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+
+        .stations-table-container {
+            width: 100%;
+        }
+
+
+        .stations-table-scroll {
             width: 100%;
             overflow-x: auto;
         }
 
 
-        .fg-station-table {
+        .stations-table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 900px;
+            min-width: 820px;
         }
 
 
-        .fg-station-table thead {
-            background: #fafbfc;
-        }
-
-
-        .fg-station-table th {
-            padding: 14px 24px;
-            text-align: left;
+        .stations-table th {
+            background: #fafafa;
+            color: #777;
             font-size: 11px;
-            font-weight: 750;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.6px;
-            color: #8c919b;
-            border-bottom: 1px solid #eceef1;
+            letter-spacing: .5px;
+            text-align: left;
+            padding: 14px 18px;
+            border-bottom: 1px solid #e9e9e9;
+            white-space: nowrap;
         }
 
 
-        .fg-station-table td {
-            padding: 17px 24px;
-            border-bottom: 1px solid #f0f1f3;
-            color: #525761;
-            font-size: 13px;
+        .stations-table td {
+            padding: 17px 18px;
+            border-bottom: 1px solid #f0f0f0;
             vertical-align: middle;
         }
 
 
-        .fg-station-table tbody tr {
-            transition: 0.18s ease;
+        .stations-table tbody tr {
+            transition: background .15s ease;
         }
 
 
-        .fg-station-table tbody tr:hover {
-            background: #fffcf0;
+        .stations-table tbody tr:hover {
+            background: #fffdf2;
         }
 
 
-        .fg-station-table tbody tr:last-child td {
-            border-bottom: none;
+        .stations-table tbody tr:last-child td {
+            border-bottom: 0;
         }
 
 
-        /* ================================
-           STATION CELL
-        ================================= */
-
-        .fg-station-cell {
+        .station-name-cell {
             display: flex;
             align-items: center;
             gap: 12px;
         }
 
 
-        .fg-station-avatar {
+        .station-table-icon {
             width: 40px;
             height: 40px;
-            border-radius: 11px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
+            background: #fff6c9;
+            color: #7d6400;
+            font-size: 18px;
             flex-shrink: 0;
-            background: #111827;
-            color: #f5c518;
-            font-size: 12px;
-            font-weight: 800;
         }
 
 
-        .fg-station-cell strong {
+        .station-name-cell strong {
             display: block;
-            color: #1b1e24;
+            color: #202020;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+
+        .station-name-cell span {
+            display: block;
+            color: #999;
+            font-size: 11px;
+        }
+
+
+        .station-location-cell strong {
+            display: block;
+            color: #333;
             font-size: 13px;
             margin-bottom: 4px;
         }
 
 
-        .fg-station-cell span {
-            font-size: 10px;
-            color: #9ca1aa;
-        }
-
-
-        .fg-table-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            max-width: 220px;
-        }
-
-
-        .fg-table-info span:last-child {
+        .station-location-cell span {
+            display: block;
+            color: #999;
+            font-size: 12px;
+            max-width: 240px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
 
-        .fg-table-icon {
-            display: flex;
-            color: #a1a5ae;
-        }
-
-
-        .fg-table-icon svg {
-            width: 16px;
-            height: 16px;
-        }
-
-
-        /* ================================
-           STATUS
-        ================================= */
-
-        .fg-status {
+        .station-status-badge {
             display: inline-flex;
             align-items: center;
             gap: 7px;
-            padding: 6px 10px;
+            padding: 7px 10px;
             border-radius: 999px;
             font-size: 11px;
-            font-weight: 750;
+            font-weight: 800;
         }
 
 
-        .fg-status span {
+        .station-status-badge.active {
+            background: #edf8e9;
+            color: #427236;
+        }
+
+
+        .station-status-badge.inactive {
+            background: #f1f1f1;
+            color: #777;
+        }
+
+
+        .status-dot {
             width: 6px;
             height: 6px;
             border-radius: 50%;
+            background: currentColor;
         }
 
 
-        .fg-status-active {
-            background: #eaf8ef;
-            color: #15803d;
+        .station-created-date {
+            color: #777;
+            font-size: 12px;
+            white-space: nowrap;
         }
 
 
-        .fg-status-active span {
-            background: #22c55e;
+        .station-actions {
+            display: flex;
+            align-items: center;
+            gap: 7px;
         }
 
 
-        .fg-status-inactive {
-            background: #f1f2f4;
-            color: #777c86;
+        .station-action-btn {
+            min-height: 34px;
+            padding: 0 10px;
+            border-radius: 8px;
+            border: 1px solid #dedede;
+            background: #fff;
+            color: #555;
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
         }
 
 
-        .fg-status-inactive span {
-            background: #9ca3af;
+        .station-action-btn:hover {
+            background: #fafafa;
         }
 
 
-        /* ================================
-           ACTIONS
-        ================================= */
-
-        .fg-action-column {
-            text-align: right !important;
+        .station-action-btn.delete {
+            color: #a52c24;
+            border-color: #efcfcc;
         }
 
 
-        .fg-action-btn {
-            width: 36px;
-            height: 36px;
-            border: 1px solid #e5e7eb;
-            background: #ffffff;
-            border-radius: 9px;
-            display: inline-flex;
+        .station-action-btn.delete:hover {
+            background: #fff2f1;
+        }
+
+
+        .stations-loading {
+            min-height: 260px;
+            display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            color: #777c86;
-            transition: 0.2s ease;
+            gap: 13px;
+            color: #888;
+            font-size: 13px;
         }
 
 
-        .fg-action-btn:hover {
-            background: #fff4f4;
-            border-color: #fecaca;
-            color: #dc2626;
-        }
-
-
-        .fg-action-btn svg {
-            width: 18px;
-        }
-
-
-        /* ================================
-           EMPTY STATE
-        ================================= */
-
-        .fg-empty-state {
+        .stations-empty-state {
+            min-height: 300px;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             text-align: center;
-            padding: 65px 20px;
         }
 
 
-        .fg-empty-icon {
-            width: 72px;
-            height: 72px;
-            margin: 0 auto 18px;
-            border-radius: 20px;
+        .stations-empty-icon {
+            width: 62px;
+            height: 62px;
+            border-radius: 18px;
+            background: #fff6c9;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #fff6cc;
-            color: #b77900;
+            font-size: 26px;
+            margin-bottom: 15px;
         }
 
 
-        .fg-empty-icon svg {
-            width: 32px;
-            height: 32px;
-        }
-
-
-        .fg-empty-state h3 {
+        .stations-empty-state h3 {
             margin: 0;
-            color: #1d2026;
-            font-size: 18px;
+            color: #242424;
+            font-size: 17px;
         }
 
 
-        .fg-empty-state p {
-            max-width: 390px;
-            margin: 9px auto 20px;
+        .stations-empty-state p {
+            max-width: 400px;
+            margin: 7px 0 18px;
+            color: #888;
+            font-size: 13px;
+        }
+
+
+        .stations-error-state {
+            background: #fff;
+            border: 1px solid #e8e8e8;
+            border-radius: 14px;
+            min-height: 380px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px;
+        }
+
+
+        .stations-error-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #fff0ef;
+            color: #b22d25;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 25px;
+            font-weight: 800;
+            margin-bottom: 16px;
+        }
+
+
+        .stations-error-state h2 {
+            margin: 0;
+            color: #222;
+        }
+
+
+        .stations-error-state p {
+            max-width: 520px;
+            color: #777;
             font-size: 13px;
             line-height: 1.6;
-            color: #858993;
+            margin: 10px 0 20px;
         }
 
-
-        /* ================================
-           MODAL
-        ================================= */
 
         .fg-modal {
             position: fixed;
             inset: 0;
-            z-index: 9999;
+            z-index: 99999;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -2845,52 +3661,59 @@ function injectStationsStyles() {
         .fg-modal-overlay {
             position: absolute;
             inset: 0;
-            background: rgba(17, 24, 39, 0.58);
-            backdrop-filter: blur(4px);
+            background: rgba(15,15,15,.55);
+            backdrop-filter: blur(3px);
         }
 
 
-        .fg-modal-content {
+        .fg-modal-dialog {
             position: relative;
-            width: 100%;
-            max-width: 720px;
+            z-index: 2;
+            width: min(560px, 100%);
             max-height: calc(100vh - 40px);
             overflow-y: auto;
-            background: #ffffff;
-            border-radius: 20px;
-            box-shadow: 0 30px 90px rgba(0, 0, 0, 0.25);
-            animation: fgModalEnter 0.25s ease;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow:
+                0 25px 80px rgba(0,0,0,.25);
+            animation: fgModalIn .18s ease-out;
         }
 
 
-        @keyframes fgModalEnter {
+        @keyframes fgModalIn {
 
             from {
                 opacity: 0;
-                transform: translateY(15px) scale(0.98);
+                transform:
+                    translateY(10px)
+                    scale(.985);
             }
 
             to {
                 opacity: 1;
-                transform: translateY(0) scale(1);
+                transform:
+                    translateY(0)
+                    scale(1);
             }
 
         }
 
 
         .fg-modal-header {
-            padding: 28px 30px 22px;
             display: flex;
+            align-items: flex-start;
             justify-content: space-between;
             gap: 20px;
-            border-bottom: 1px solid #eef0f2;
+            padding: 24px 24px 18px;
+            border-bottom: 1px solid #ededed;
         }
 
 
         .fg-modal-eyebrow {
+            display: block;
+            color: #a88600;
             font-size: 10px;
-            font-weight: 800;
-            color: #b77900;
+            font-weight: 900;
             letter-spacing: 1px;
             margin-bottom: 7px;
         }
@@ -2898,212 +3721,190 @@ function injectStationsStyles() {
 
         .fg-modal-header h2 {
             margin: 0;
-            font-size: 22px;
-            color: #17191d;
+            color: #181818;
+            font-size: 21px;
         }
 
 
         .fg-modal-header p {
-            margin: 7px 0 0;
-            font-size: 13px;
-            color: #858993;
+            margin: 6px 0 0;
+            color: #888;
+            font-size: 12px;
         }
 
 
         .fg-modal-close {
-            width: 38px;
-            height: 38px;
-            border: none;
-            background: #f5f6f7;
-            border-radius: 10px;
+            width: 35px;
+            height: 35px;
+            border: 1px solid #e3e3e3;
+            border-radius: 9px;
+            background: #fff;
+            color: #555;
+            font-size: 22px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #5f6470;
+            flex-shrink: 0;
         }
 
 
         .fg-modal-close:hover {
-            background: #eceef1;
+            background: #f7f7f7;
         }
 
 
-        .fg-modal-close svg {
-            width: 19px;
+        .station-form {
+            padding: 22px 24px 24px;
         }
 
 
-        /* ================================
-           FORM
-        ================================= */
-
-        #stationForm {
-            padding: 26px 30px 0;
+        .station-form-group {
+            margin-bottom: 17px;
         }
 
 
-        .fg-form-grid {
+        .station-form-row {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 18px;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
         }
 
 
-        .fg-form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-
-        .fg-form-group label {
+        .station-form-group label {
+            display: block;
+            margin-bottom: 7px;
+            color: #444;
             font-size: 12px;
-            font-weight: 750;
-            color: #363a42;
+            font-weight: 800;
         }
 
 
-        .fg-form-group input,
-        .fg-form-group select,
-        .fg-form-group textarea {
+        .station-form-group label span {
+            color: #c79e00;
+        }
+
+
+        .station-form-group input,
+        .station-form-group select {
             width: 100%;
+            height: 44px;
             box-sizing: border-box;
-            border: 1px solid #e0e3e7;
-            background: #ffffff;
-            border-radius: 10px;
+            border: 1px solid #dcdcdc;
+            border-radius: 9px;
+            padding: 0 12px;
+            background: #fff;
+            color: #222;
             outline: none;
-            padding: 12px 13px;
             font-family: inherit;
             font-size: 13px;
-            color: #242832;
-            transition: 0.2s ease;
         }
 
 
-        .fg-form-group input:focus,
-        .fg-form-group select:focus,
-        .fg-form-group textarea:focus {
-            border-color: #f5c518;
-            box-shadow: 0 0 0 4px rgba(245, 197, 24, 0.12);
+        .station-form-group input:focus,
+        .station-form-group select:focus {
+            border-color: #e4ba00;
+            box-shadow:
+                0 0 0 3px rgba(245,196,0,.13);
         }
 
 
-        .fg-form-group textarea {
-            resize: vertical;
-            min-height: 100px;
-        }
-
-
-        .fg-full {
-            grid-column: 1 / -1;
-        }
-
-
-        .fg-form-message {
-            margin-top: 18px;
-            padding: 11px 13px;
-            border-radius: 9px;
+        .station-form-error {
+            padding: 11px 12px;
+            border-radius: 8px;
+            background: #fff1f0;
+            border: 1px solid #efc7c4;
+            color: #a32920;
             font-size: 12px;
-            font-weight: 600;
+            margin-bottom: 16px;
         }
 
 
-        .fg-form-message.hidden {
+        .station-form-error.hidden {
             display: none;
         }
 
 
-        .fg-form-message.success {
-            display: block;
-            background: #eaf8ef;
-            color: #15803d;
-        }
-
-
-        .fg-form-message.error {
-            display: block;
-            background: #fff1f1;
-            color: #dc2626;
-        }
-
-
         .fg-modal-footer {
-            margin: 26px -30px 0;
-            padding: 18px 30px;
-            border-top: 1px solid #eef0f2;
             display: flex;
             justify-content: flex-end;
-            gap: 10px;
-            background: #fcfcfd;
+            gap: 9px;
+            padding-top: 7px;
         }
 
 
-        /* ================================
-           UTILITY
-        ================================= */
+        @media (max-width: 1000px) {
 
-        .hidden {
-            display: none !important;
-        }
-
-
-        /* ================================
-           RESPONSIVE
-        ================================= */
-
-        @media (max-width: 1100px) {
-
-            .fg-station-metrics {
-                grid-template-columns: repeat(2, 1fr);
+            .station-stats-grid {
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
             }
 
         }
 
 
-        @media (max-width: 700px) {
+        @media (max-width: 760px) {
 
-            .fg-page-header {
-                flex-direction: column;
+            .stations-header {
                 align-items: stretch;
+                flex-direction: column;
+                gap: 17px;
             }
 
 
-            .fg-page-header > .fg-primary-btn {
+            .stations-header h1 {
+                font-size: 27px;
+            }
+
+
+            .stations-header-actions {
                 width: 100%;
             }
 
 
-            .fg-station-metrics {
+            .stations-header-actions button {
+                flex: 1;
+            }
+
+
+            .stations-filter-card {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+
+            .station-search-wrapper {
+                width: 100%;
+            }
+
+
+            .station-filter-wrapper {
+                width: 100%;
+            }
+
+
+            .station-filter-select {
+                flex: 1;
+            }
+
+
+            .fg-clear-btn {
+                width: 100%;
+            }
+
+        }
+
+
+        @media (max-width: 560px) {
+
+            .station-stats-grid {
                 grid-template-columns: 1fr;
             }
 
 
-            .fg-panel-header {
-                padding: 20px;
-            }
-
-
-            .fg-toolbar {
-                flex-direction: column;
-                padding: 15px;
-            }
-
-
-            .fg-filter-box {
-                width: 100%;
-                box-sizing: border-box;
-            }
-
-
-            .fg-header-icon {
-                width: 45px;
-                height: 45px;
-            }
-
-
-            .fg-page-header h1 {
-                font-size: 23px;
+            .station-form-row {
+                grid-template-columns: 1fr;
+                gap: 0;
             }
 
 
@@ -3112,34 +3913,23 @@ function injectStationsStyles() {
             }
 
 
-            .fg-modal-content {
-                border-radius: 16px;
+            .fg-modal-dialog {
+                max-height:
+                    calc(100vh - 20px);
             }
 
 
             .fg-modal-header {
-                padding: 22px 20px;
+                padding: 19px;
             }
 
 
-            #stationForm {
-                padding: 20px 20px 0;
-            }
-
-
-            .fg-form-grid {
-                grid-template-columns: 1fr;
-            }
-
-
-            .fg-full {
-                grid-column: auto;
+            .station-form {
+                padding: 18px 19px 20px;
             }
 
 
             .fg-modal-footer {
-                margin: 22px -20px 0;
-                padding: 15px 20px;
                 flex-direction: column-reverse;
             }
 
@@ -3158,3 +3948,29 @@ function injectStationsStyles() {
     );
 
 }
+
+
+/* =========================================================
+   GLOBAL DEBUG HELPERS
+========================================================= */
+
+window.FuelGapStations = {
+
+    reload:
+        loadStations,
+
+    openCreateModal:
+        () => {
+
+            openStationModal();
+
+        },
+
+    getState:
+        () => {
+
+            return StationsState;
+
+        }
+
+};

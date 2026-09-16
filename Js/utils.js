@@ -1,46 +1,41 @@
+/* =========================================================
+   FUELGAP - UTILITIES
+   COOKIE BASED AUTHENTICATION
+   NO LOCALSTORAGE
+========================================================= */
+
 const FuelGapUtils = {
 
-    saveSession(user, token = null, refreshToken = null) {
+    /* =====================================================
+       CURRENT USER
+    ===================================================== */
 
-        localStorage.setItem(
-            FUELGAP_CONFIG.storageKeys.user,
-            JSON.stringify(user)
-        );
-
-        if (token) {
-
-            localStorage.setItem(
-                FUELGAP_CONFIG.storageKeys.token,
-                token
-            );
-
-        }
-
-        if (refreshToken) {
-
-            localStorage.setItem(
-                FUELGAP_CONFIG.storageKeys.refreshToken,
-                refreshToken
-            );
-
-        }
-
-    },
-
-
-    getCurrentUser() {
-
-        const user = localStorage.getItem(
-            FUELGAP_CONFIG.storageKeys.user
-        );
-
-        if (!user) return null;
+    async getCurrentUser() {
 
         try {
 
-            return JSON.parse(user);
+            const response =
+                await FuelGapAPI.getCurrentUser();
 
-        } catch {
+            if (
+                response &&
+                response.success &&
+                response.data &&
+                response.data.user
+            ) {
+
+                return response.data.user;
+
+            }
+
+            return null;
+
+        } catch (error) {
+
+            console.error(
+                "Unable to get current user:",
+                error
+            );
 
             return null;
 
@@ -49,36 +44,61 @@ const FuelGapUtils = {
     },
 
 
-    logout() {
+    /* =====================================================
+       LOGOUT
+    ===================================================== */
 
-        localStorage.removeItem(
-            FUELGAP_CONFIG.storageKeys.user
-        );
+    async logout() {
 
-        localStorage.removeItem(
-            FUELGAP_CONFIG.storageKeys.token
-        );
+        try {
 
-        localStorage.removeItem(
-            FUELGAP_CONFIG.storageKeys.refreshToken
-        );
+            await FuelGapAPI.logout();
 
-        window.location.href = "../login.html";
+        } catch (error) {
+
+            console.error(
+                "Logout error:",
+                error
+            );
+
+        } finally {
+
+            /*
+             * There is NOTHING to remove from
+             * LocalStorage because we no longer
+             * store authentication there.
+             */
+
+            window.location.href =
+                "../login.html";
+
+        }
 
     },
 
 
+    /* =====================================================
+       ROLE REDIRECTION
+    ===================================================== */
+
     redirectByRole(role) {
 
         const allowedRoles = [
+
             "admin",
+
             "owner",
+
             "manager",
+
             "attendant"
+
         ];
 
 
-        if (!allowedRoles.includes(role)) {
+        if (
+            !allowedRoles.includes(role)
+        ) {
 
             console.error(
                 "Unknown user role:",
@@ -95,10 +115,14 @@ const FuelGapUtils = {
 
 
         window.location.href =
-            "./app/dashboard.html";
+            "./dashboard.html";
 
     },
 
+
+    /* =====================================================
+       SHOW MESSAGE
+    ===================================================== */
 
     showMessage(
         element,
@@ -106,12 +130,22 @@ const FuelGapUtils = {
         type = "error"
     ) {
 
-        if (!element) return;
+        if (!element) {
 
-        element.textContent = message;
+            alert(message);
+
+            return;
+
+        }
+
+
+        element.textContent =
+            message;
+
 
         element.className =
             `form-message ${type}`;
+
 
         element.classList.remove(
             "hidden"
@@ -120,9 +154,14 @@ const FuelGapUtils = {
     },
 
 
+    /* =====================================================
+       HIDE MESSAGE
+    ===================================================== */
+
     hideMessage(element) {
 
         if (!element) return;
+
 
         element.classList.add(
             "hidden"
@@ -130,6 +169,10 @@ const FuelGapUtils = {
 
     },
 
+
+    /* =====================================================
+       BUTTON LOADING
+    ===================================================== */
 
     setLoading(
         button,
@@ -139,12 +182,24 @@ const FuelGapUtils = {
 
         if (!button) return;
 
-        button.disabled = loading;
 
-        button.textContent = loading
-            ? "Please wait..."
-            : normalText;
+        button.disabled =
+            loading;
+
+
+        button.textContent =
+            loading
+                ? "Please wait..."
+                : normalText;
 
     }
 
 };
+
+
+/* =========================================================
+   GLOBAL EXPORT
+========================================================= */
+
+window.FuelGapUtils =
+    FuelGapUtils;

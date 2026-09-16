@@ -1,364 +1,941 @@
-/* ==========================================
+/* =========================================================
    FUELGAP - PAYMENTS MANAGEMENT
-   PRO / PREMIUM UI VERSION
-========================================== */
+   REAL BACKEND VERSION
+   SUPABASE + EXPRESS
+   HTTPONLY COOKIE SESSION
+   NO LOCALSTORAGE AUTHENTICATION
+========================================================= */
+
+const PaymentsState = {
+
+    currentUser: null,
+
+    payments: [],
+    filteredPayments: [],
+
+    stations: [],
+    shifts: [],
+    sales: [],
+
+    currentFilters: {
+        search: "",
+        stationId: "",
+        shiftId: "",
+        paymentMethod: "",
+        date: ""
+    },
+
+    isLoading: false,
+    isSubmitting: false,
+    isDeleting: false
+};
 
 
-/* ==========================================
-   STORAGE KEYS
-========================================== */
+/* =========================================================
+   PAGE INITIALIZATION
+========================================================= */
 
-const PAYMENTS_STORAGE_KEY =
-    "fuelgap_payments";
-
-const PAYMENT_STATIONS_STORAGE_KEY =
-    "fuelgap_stations";
-
-const PAYMENT_SHIFTS_STORAGE_KEY =
-    "fuelgap_shifts";
-
-const PAYMENT_STAFF_STORAGE_KEY =
-    "fuelgap_staff";
-
-const PAYMENT_READINGS_STORAGE_KEY =
-    "fuelgap_meter_readings";
-
-const PAYMENT_PUMPS_STORAGE_KEY =
-    "fuelgap_pumps";
-
-const PAYMENT_NOZZLES_STORAGE_KEY =
-    "fuelgap_nozzles";
-
-
-/* ==========================================
-   PAGE LOAD
-========================================== */
-
-document.addEventListener("DOMContentLoaded", () => {
-
-    const currentUser =
-        FuelGapUtils.getCurrentUser();
-
-    if (!currentUser) {
-        window.location.href = "../login.html";
-        return;
-    }
-
-    if (
-        !hasPermission(
-            currentUser.role,
-            "payments"
-        )
-    ) {
-        window.location.href = "./dashboard.html";
-        return;
-    }
-
-    setTimeout(() => {
-
-        renderPaymentsPage();
-        setupPaymentEvents();
-        renderPayments();
-
-    }, 0);
-
-});
-
-
-/* ==========================================
-   SAFE STORAGE
-========================================== */
-
-function getStorageData(storageKey) {
+document.addEventListener("DOMContentLoaded", async () => {
 
     try {
 
-        const data =
-            localStorage.getItem(storageKey);
+        console.log("FuelGap Payments page starting...");
 
-        if (!data) {
-            return [];
+        if (typeof FuelGapAPI === "undefined") {
+
+            console.error("FuelGapAPI is not available.");
+
+            showGlobalPaymentError(
+                "FuelGap API is not available. Check your API configuration."
+            );
+
+            return;
         }
 
-        const parsed =
-            JSON.parse(data);
 
-        return Array.isArray(parsed)
-            ? parsed
-            : [];
+        /* =====================================================
+           GET CURRENT USER
+        ===================================================== */
+
+        const userResponse =
+            await FuelGapAPI.getCurrentUser();
+
+
+        /*
+        Support different API response formats.
+        */
+
+        PaymentsState.currentUser =
+            userResponse?.data?.user ||
+            userResponse?.user ||
+            (
+                userResponse?.data &&
+                !Array.isArray(userResponse.data)
+                    ? userResponse.data
+                    : null
+            ) ||
+            userResponse ||
+            null;
+
+
+        console.log(
+            "Payments current user:",
+            PaymentsState.currentUser
+        );
+
+
+        /* =====================================================
+           AUTH CHECK
+        ===================================================== */
+
+        if (!PaymentsState.currentUser) {
+
+            console.warn(
+                "No authenticated user found. Redirecting to login."
+            );
+
+            window.location.href = "./login.html";
+
+            return;
+        }
+
+
+        /*
+        IMPORTANT:
+
+        We intentionally DO NOT use the old:
+
+        hasPermission(
+            currentUser.role,
+            "payments"
+        )
+
+        check here.
+
+        The backend protects the payment routes with
+        requireAuth middleware.
+        */
+
+
+        /* =====================================================
+           RENDER
+        ===================================================== */
+
+        renderPaymentsPage();
+
+
+        /* =====================================================
+           EVENTS
+        ===================================================== */
+
+        setupPaymentEvents();
+
+
+        /* =====================================================
+           LOAD DATA
+        ===================================================== */
+
+        await loadPaymentData();
+
 
     } catch (error) {
 
         console.error(
-            `Unable to load ${storageKey}:`,
+            "PAYMENTS PAGE INITIALIZATION ERROR:",
             error
         );
 
-        return [];
+        showGlobalPaymentError(
+            error.message ||
+            "Unable to load payment management."
+        );
+    }
 
+});
+
+
+/* =========================================================
+   LOAD PAYMENT DATA
+========================================================= */
+
+async function loadPaymentData() {
+
+    try {
+
+        PaymentsState.isLoading = true;
+
+        setPaymentLoading(true);
+
+
+        const [
+            stationsResponse,
+            shiftsResponse,
+            salesResponse,
+            paymentsResponse
+        ] = await Promise.all([
+
+            FuelGapAPI.getStations(),
+
+            FuelGapAPI.getShifts(),
+
+            FuelGapAPI.getSales(),
+
+            FuelGapAPI.getPayments(
+                getBackendPaymentFilters()
+            )
+
+        ]);
+
+
+        /* =====================================================
+           STATIONS
+        ===================================================== */
+
+        PaymentsState.stations =
+            extractArray(
+                stationsResponse,
+                [
+                    "stations",
+                    "data"
+                ]
+            ).map(normalizeStation);
+
+
+        /* =====================================================
+           SHIFTS
+        ===================================================== */
+
+        PaymentsState.shifts =
+            extractArray(
+                shiftsResponse,
+                [
+                    "shifts",
+                    "data"
+                ]
+            ).map(normalizeShift);
+
+
+        /* =====================================================
+           SALES
+        ===================================================== */
+
+        PaymentsState.sales =
+            extractArray(
+                salesResponse,
+                [
+                    "sales",
+                    "data"
+                ]
+            ).map(normalizeSale);
+
+
+        /* =====================================================
+           PAYMENTS
+        ===================================================== */
+
+        PaymentsState.payments =
+            extractArray(
+                paymentsResponse,
+                [
+                    "payments",
+                    "data"
+                ]
+            ).map(normalizePayment);
+
+
+        /* =====================================================
+           USER VISIBILITY
+        ===================================================== */
+
+        PaymentsState.stations =
+            getVisibleStations(
+                PaymentsState.stations
+            );
+
+
+        PaymentsState.shifts =
+            getVisibleShifts(
+                PaymentsState.shifts
+            );
+
+
+        PaymentsState.payments =
+            getVisiblePayments(
+                PaymentsState.payments
+            );
+
+
+        /* =====================================================
+           FILTER
+        ===================================================== */
+
+        applyPaymentFilters();
+
+
+        /* =====================================================
+           FORM DATA
+        ===================================================== */
+
+        populatePaymentFilters();
+
+        populatePaymentFormStations();
+
+        populatePaymentFormSales();
+
+
+        /* =====================================================
+           RENDER
+        ===================================================== */
+
+        renderPaymentStats();
+
+        renderPaymentsTable();
+
+
+    } catch (error) {
+
+        console.error(
+            "LOAD PAYMENT DATA ERROR:",
+            error
+        );
+
+        showGlobalPaymentError(
+            error.message ||
+            "Failed to load payment data."
+        );
+
+    } finally {
+
+        PaymentsState.isLoading = false;
+
+        setPaymentLoading(false);
     }
 
 }
 
 
-function saveStorageData(
-    storageKey,
-    data
-) {
+/* =========================================================
+   EXTRACT ARRAY
+========================================================= */
 
-    localStorage.setItem(
-        storageKey,
-        JSON.stringify(data)
-    );
+function extractArray(response, keys = []) {
 
-}
+    if (Array.isArray(response)) {
 
-
-/* ==========================================
-   DATA GETTERS
-========================================== */
-
-function getPayments() {
-    return getStorageData(
-        PAYMENTS_STORAGE_KEY
-    );
-}
-
-
-function getStations() {
-    return getStorageData(
-        PAYMENT_STATIONS_STORAGE_KEY
-    );
-}
-
-
-function getShifts() {
-    return getStorageData(
-        PAYMENT_SHIFTS_STORAGE_KEY
-    );
-}
-
-
-function getStaff() {
-    return getStorageData(
-        PAYMENT_STAFF_STORAGE_KEY
-    );
-}
-
-
-function getCurrentPaymentUser() {
-    return FuelGapUtils.getCurrentUser();
-}
-
-
-/* ==========================================
-   VISIBLE STATIONS
-========================================== */
-
-function getVisibleStations() {
-
-    const currentUser =
-        getCurrentPaymentUser();
-
-    const stations =
-        getStations();
-
-    if (!currentUser) {
-        return [];
+        return response;
     }
 
-    if (currentUser.role === "admin") {
+
+    if (
+        response &&
+        Array.isArray(response.data)
+    ) {
+
+        return response.data;
+    }
+
+
+    if (
+        response &&
+        response.data &&
+        typeof response.data === "object"
+    ) {
+
+        for (const key of keys) {
+
+            if (
+                Array.isArray(
+                    response.data[key]
+                )
+            ) {
+
+                return response.data[key];
+            }
+        }
+    }
+
+
+    if (
+        response &&
+        typeof response === "object"
+    ) {
+
+        for (const key of keys) {
+
+            if (
+                Array.isArray(
+                    response[key]
+                )
+            ) {
+
+                return response[key];
+            }
+        }
+    }
+
+
+    return [];
+}
+
+
+/* =========================================================
+   NORMALIZE STATION
+========================================================= */
+
+function normalizeStation(station) {
+
+    return {
+
+        ...station,
+
+        id:
+            station.id ||
+            station.station_id,
+
+        stationId:
+            station.stationId ||
+            station.station_id ||
+            station.id,
+
+        name:
+            station.name ||
+            station.station_name ||
+            "Unnamed Station",
+
+        address:
+            station.address || "",
+
+        city:
+            station.city || "",
+
+        state:
+            station.state || "",
+
+        isActive:
+            station.isActive ??
+            station.is_active ??
+            true
+    };
+}
+
+
+/* =========================================================
+   NORMALIZE SHIFT
+========================================================= */
+
+function normalizeShift(shift) {
+
+    return {
+
+        ...shift,
+
+        id:
+            shift.id ||
+            shift.shift_id,
+
+        shiftId:
+            shift.shiftId ||
+            shift.shift_id ||
+            shift.id,
+
+        stationId:
+            shift.stationId ||
+            shift.station_id,
+
+        name:
+            shift.name ||
+            shift.shift_name ||
+            shift.name_of_shift ||
+            "Shift",
+
+        status:
+            shift.status || "",
+
+        openedAt:
+            shift.openedAt ||
+            shift.opened_at,
+
+        closedAt:
+            shift.closedAt ||
+            shift.closed_at
+    };
+}
+
+
+/* =========================================================
+   NORMALIZE SALE
+========================================================= */
+
+function normalizeSale(sale) {
+
+    return {
+
+        ...sale,
+
+        id:
+            sale.id ||
+            sale.sale_id,
+
+        saleId:
+            sale.saleId ||
+            sale.sale_id ||
+            sale.id,
+
+        stationId:
+            sale.stationId ||
+            sale.station_id,
+
+        pumpId:
+            sale.pumpId ||
+            sale.pump_id,
+
+        nozzleId:
+            sale.nozzleId ||
+            sale.nozzle_id,
+
+        shiftId:
+            sale.shiftId ||
+            sale.shift_id,
+
+        litres:
+            Number(
+                sale.litres ??
+                sale.liters ??
+                0
+            ),
+
+        pricePerLitre:
+            Number(
+                sale.pricePerLitre ??
+                sale.price_per_litre ??
+                0
+            ),
+
+        amount:
+            Number(
+                sale.amount || 0
+            ),
+
+        paymentMethod:
+            sale.paymentMethod ||
+            sale.payment_method ||
+            "",
+
+        recordedBy:
+            sale.recordedBy ||
+            sale.recorded_by,
+
+        createdAt:
+            sale.createdAt ||
+            sale.created_at
+    };
+}
+
+
+/* =========================================================
+   NORMALIZE PAYMENT
+========================================================= */
+
+function normalizePayment(payment) {
+
+    return {
+
+        ...payment,
+
+        id:
+            payment.id ||
+            payment.payment_id,
+
+        paymentId:
+            payment.paymentId ||
+            payment.payment_id ||
+            payment.id,
+
+        saleId:
+            payment.saleId ||
+            payment.sale_id,
+
+        stationId:
+            payment.stationId ||
+            payment.station_id,
+
+        shiftId:
+            payment.shiftId ||
+            payment.shift_id,
+
+        recordedBy:
+            payment.recordedBy ||
+            payment.recorded_by,
+
+        amount:
+            Number(
+                payment.amount || 0
+            ),
+
+        paymentMethod:
+            payment.paymentMethod ||
+            payment.payment_method ||
+            "",
+
+        reference:
+            payment.reference || "",
+
+        notes:
+            payment.notes || "",
+
+        createdAt:
+            payment.createdAt ||
+            payment.created_at
+    };
+}
+
+
+/* =========================================================
+   GET VISIBLE STATIONS
+========================================================= */
+
+function getVisibleStations(stations) {
+
+    const user =
+        PaymentsState.currentUser || {};
+
+
+    const role =
+        user.role ||
+        user.user_role ||
+        user.user?.role ||
+        "";
+
+
+    if (
+        role === "owner" ||
+        role === "admin"
+    ) {
+
         return stations;
     }
 
-    if (currentUser.role === "owner") {
 
-        return stations.filter(
-            station =>
-                station.organizationId ===
-                currentUser.organizationId
-        );
+    const userStationId =
+        user.station_id ||
+        user.stationId ||
+        user.station?.id;
 
+
+    if (!userStationId) {
+
+        return stations;
     }
 
-    if (currentUser.role === "manager") {
 
-        if (currentUser.stationId) {
+    return stations.filter(
+        station =>
+            String(
+                station.stationId
+            ) === String(userStationId)
+    );
+}
 
-            return stations.filter(
+
+/* =========================================================
+   GET VISIBLE SHIFTS
+========================================================= */
+
+function getVisibleShifts(shifts) {
+
+    const visibleStationIds =
+        new Set(
+            PaymentsState.stations.map(
                 station =>
-                    station.id ===
-                    currentUser.stationId
-            );
+                    String(
+                        station.stationId
+                    )
+            )
+        );
 
+
+    return shifts.filter(shift => {
+
+        if (!shift.stationId) {
+
+            return true;
         }
 
-        return stations.filter(
-            station =>
-                station.organizationId ===
-                currentUser.organizationId
+
+        return visibleStationIds.has(
+            String(shift.stationId)
         );
 
-    }
+    });
+}
+
+
+/* =========================================================
+   GET VISIBLE PAYMENTS
+========================================================= */
+
+function getVisiblePayments(payments) {
+
+    const visibleStationIds =
+        new Set(
+            PaymentsState.stations.map(
+                station =>
+                    String(
+                        station.stationId
+                    )
+            )
+        );
+
+
+    return payments.filter(payment => {
+
+        if (!payment.stationId) {
+
+            return true;
+        }
+
+
+        return visibleStationIds.has(
+            String(payment.stationId)
+        );
+
+    });
+}
+
+
+/* =========================================================
+   BACKEND PAYMENT FILTERS
+========================================================= */
+
+function getBackendPaymentFilters() {
+
+    const filters = {};
+
 
     if (
-        currentUser.role === "staff" ||
-        currentUser.role === "attendant"
+        PaymentsState.currentFilters.stationId
     ) {
 
-        if (currentUser.stationId) {
-
-            return stations.filter(
-                station =>
-                    station.id ===
-                    currentUser.stationId
-            );
-
-        }
-
+        filters.station_id =
+            PaymentsState.currentFilters.stationId;
     }
 
-    return [];
 
+    if (
+        PaymentsState.currentFilters.shiftId
+    ) {
+
+        filters.shift_id =
+            PaymentsState.currentFilters.shiftId;
+    }
+
+
+    if (
+        PaymentsState.currentFilters.paymentMethod
+    ) {
+
+        filters.payment_method =
+            PaymentsState.currentFilters.paymentMethod;
+    }
+
+
+    if (
+        PaymentsState.currentFilters.date
+    ) {
+
+        filters.date =
+            PaymentsState.currentFilters.date;
+    }
+
+
+    return filters;
 }
 
 
-function getVisibleStationIds() {
+/* =========================================================
+   APPLY FILTERS
+========================================================= */
 
-    return getVisibleStations()
-        .map(station => station.id);
+function applyPaymentFilters() {
 
+    let payments =
+        [...PaymentsState.payments];
+
+
+    const {
+        search,
+        stationId,
+        shiftId,
+        paymentMethod,
+        date
+    } =
+        PaymentsState.currentFilters;
+
+
+    if (stationId) {
+
+        payments =
+            payments.filter(
+                payment =>
+                    String(
+                        payment.stationId
+                    ) === String(stationId)
+            );
+    }
+
+
+    if (shiftId) {
+
+        payments =
+            payments.filter(
+                payment =>
+                    String(
+                        payment.shiftId
+                    ) === String(shiftId)
+            );
+    }
+
+
+    if (paymentMethod) {
+
+        payments =
+            payments.filter(
+                payment =>
+                    String(
+                        payment.paymentMethod
+                    ).toLowerCase() ===
+                    String(
+                        paymentMethod
+                    ).toLowerCase()
+            );
+    }
+
+
+    if (date) {
+
+        payments =
+            payments.filter(
+                payment => {
+
+                    if (!payment.createdAt) {
+
+                        return false;
+                    }
+
+
+                    return (
+                        formatDateInput(
+                            payment.createdAt
+                        ) === date
+                    );
+
+                }
+            );
+    }
+
+
+    if (search) {
+
+        const query =
+            search.toLowerCase();
+
+
+        payments =
+            payments.filter(payment => {
+
+                const sale =
+                    findSale(
+                        payment.saleId
+                    );
+
+
+                const station =
+                    findStation(
+                        payment.stationId
+                    );
+
+
+                const shift =
+                    findShift(
+                        payment.shiftId
+                    );
+
+
+                return [
+
+                    payment.paymentId,
+
+                    payment.saleId,
+
+                    payment.reference,
+
+                    payment.paymentMethod,
+
+                    station?.name,
+
+                    station?.city,
+
+                    shift?.name,
+
+                    sale?.saleId
+
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase()
+                    .includes(query);
+
+            });
+    }
+
+
+    PaymentsState.filteredPayments =
+        payments;
 }
 
 
-function getVisibleShifts() {
-
-    const stationIds =
-        getVisibleStationIds();
-
-    return getShifts().filter(
-        shift =>
-            stationIds.includes(
-                shift.stationId
-            )
-    );
-
-}
-
-
-function getVisibleStaff() {
-
-    const stationIds =
-        getVisibleStationIds();
-
-    return getStaff().filter(
-        staff =>
-            stationIds.includes(
-                staff.stationId
-            )
-    );
-
-}
-
-
-function getVisiblePayments() {
-
-    const stationIds =
-        getVisibleStationIds();
-
-    return getPayments().filter(
-        payment =>
-            stationIds.includes(
-                payment.stationId
-            )
-    );
-
-}
-
-
-/* ==========================================
-   RENDER PAGE
-========================================== */
+/* =========================================================
+   RENDER PAYMENTS PAGE
+========================================================= */
 
 function renderPaymentsPage() {
 
-    const pageContent =
+    const page =
         document.getElementById(
             "pageContent"
         );
 
-    if (!pageContent) {
+
+    if (!page) {
+
+        console.error(
+            "pageContent element not found."
+        );
+
         return;
     }
 
-    const currentUser =
-        getCurrentPaymentUser();
 
-    const visibleStations =
-        getVisibleStations();
+    page.innerHTML = `
 
-    pageContent.innerHTML = `
+        <section class="payments-page">
 
-        <div class="payments-page">
+            <div class="payments-hero">
 
+                <div>
 
-            <!-- ==================================
-                 PAGE HERO
-            =================================== -->
-
-            <section class="payments-hero">
-
-                <div class="payments-hero-content">
-
-                    <div class="payments-hero-icon">
-                        ${paymentIcon("wallet")}
+                    <div class="payments-eyebrow">
+                        FINANCIAL CONTROL
                     </div>
 
-                    <div>
+                    <h1>
+                        Payment Management
+                    </h1>
 
-                        <div class="payments-eyebrow">
-                            PAYMENT OPERATIONS
-                        </div>
-
-                        <h1>
-                            Payment Command Center
-                        </h1>
-
-                        <p>
-                            Monitor money received across
-                            station shifts, attendants and
-                            payment channels.
-                        </p>
-
-                        <div class="payments-scope">
-
-                            <span class="scope-dot"></span>
-
-                            <span>
-                                ${visibleStations.length}
-                                station${visibleStations.length === 1 ? "" : "s"}
-                                in your operational scope
-                            </span>
-
-                            ${
-                                currentUser
-                                    ? `
-                                        <span class="scope-divider"></span>
-                                        <span>
-                                            ${escapeHTML(
-                                                currentUser.fullName ||
-                                                currentUser.name ||
-                                                currentUser.role ||
-                                                "User"
-                                            )}
-                                        </span>
-                                    `
-                                    : ""
-                            }
-
-                        </div>
-
-                    </div>
+                    <p>
+                        Record, monitor and reconcile
+                        payments across your fuel stations.
+                    </p>
 
                 </div>
 
@@ -367,270 +944,103 @@ function renderPaymentsPage() {
 
                     <button
                         type="button"
-                        class="payment-action-btn secondary"
-                        id="refreshPaymentsButton"
+                        class="fg-btn fg-btn-secondary"
+                        id="refreshPaymentsBtn"
                     >
-                        ${paymentIcon("refresh")}
-                        <span>Refresh</span>
+                        ↻ Refresh
                     </button>
+
 
                     <button
                         type="button"
-                        class="payment-action-btn secondary"
-                        id="exportPaymentsButton"
+                        class="fg-btn fg-btn-primary"
+                        id="openPaymentModalBtn"
                     >
-                        ${paymentIcon("download")}
-                        <span>Export</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        class="payment-action-btn primary"
-                        id="addPaymentButton"
-                    >
-                        ${paymentIcon("plus")}
-                        <span>Record Payment</span>
+                        + Record Payment
                     </button>
 
                 </div>
 
-            </section>
+            </div>
 
 
-            <!-- ==================================
-                 KPI CARDS
-            =================================== -->
-
-            <section class="payments-kpi-grid">
-
-
-                <article class="payment-kpi-card total">
-
-                    <div class="payment-kpi-top">
-
-                        <div class="payment-kpi-icon">
-                            ${paymentIcon("wallet")}
-                        </div>
-
-                        <span class="payment-kpi-label">
-                            Total Collected
-                        </span>
-
-                    </div>
-
-                    <strong
-                        id="totalPaymentAmount"
-                        class="payment-kpi-value"
-                    >
-                        ₦0.00
-                    </strong>
-
-                    <div class="payment-kpi-footer">
-                        Across current filtered records
-                    </div>
-
-                </article>
+            <div
+                id="paymentGlobalMessage"
+                class="payment-global-message"
+                style="display:none;"
+            ></div>
 
 
-                <article class="payment-kpi-card cash">
-
-                    <div class="payment-kpi-top">
-
-                        <div class="payment-kpi-icon">
-                            ${paymentIcon("cash")}
-                        </div>
-
-                        <span class="payment-kpi-label">
-                            Cash
-                        </span>
-
-                    </div>
-
-                    <strong
-                        id="cashPaymentAmount"
-                        class="payment-kpi-value"
-                    >
-                        ₦0.00
-                    </strong>
-
-                    <div class="payment-kpi-footer">
-                        Physical cash received
-                    </div>
-
-                </article>
+            <div
+                class="payment-stats"
+                id="paymentStats"
+            ></div>
 
 
-                <article class="payment-kpi-card pos">
+            <div class="payment-insight">
 
-                    <div class="payment-kpi-top">
-
-                        <div class="payment-kpi-icon">
-                            ${paymentIcon("card")}
-                        </div>
-
-                        <span class="payment-kpi-label">
-                            POS
-                        </span>
-
-                    </div>
-
-                    <strong
-                        id="posPaymentAmount"
-                        class="payment-kpi-value"
-                    >
-                        ₦0.00
-                    </strong>
-
-                    <div class="payment-kpi-footer">
-                        POS transactions
-                    </div>
-
-                </article>
-
-
-                <article class="payment-kpi-card records">
-
-                    <div class="payment-kpi-top">
-
-                        <div class="payment-kpi-icon">
-                            ${paymentIcon("receipt")}
-                        </div>
-
-                        <span class="payment-kpi-label">
-                            Payment Records
-                        </span>
-
-                    </div>
-
-                    <strong
-                        id="paymentRecordCount"
-                        class="payment-kpi-value"
-                    >
-                        0
-                    </strong>
-
-                    <div class="payment-kpi-footer">
-                        Matching current filters
-                    </div>
-
-                </article>
-
-
-            </section>
-
-
-            <!-- ==================================
-                 INSIGHT STRIP
-            =================================== -->
-
-            <section class="payment-insight-strip">
-
-                <div class="payment-insight">
-
-                    <div class="insight-icon">
-                        ${paymentIcon("activity")}
-                    </div>
-
-                    <div>
-                        <strong id="paymentActivityText">
-                            Payment activity
-                        </strong>
-
-                        <span>
-                            Live view of recorded station collections
-                        </span>
-                    </div>
-
+                <div class="payment-insight-icon">
+                    ₦
                 </div>
 
 
-                <div class="payment-insight-metrics">
+                <div>
 
-                    <div>
-                        <span>Transfer</span>
-                        <strong id="transferPaymentAmount">
-                            ₦0.00
-                        </strong>
-                    </div>
+                    <strong>
+                        Payment Control
+                    </strong>
 
-                    <div>
-                        <span>Credit</span>
-                        <strong id="creditPaymentAmount">
-                            ₦0.00
-                        </strong>
-                    </div>
-
-                    <div>
-                        <span>Other</span>
-                        <strong id="otherPaymentAmount">
-                            ₦0.00
-                        </strong>
-                    </div>
-
-                    <div>
-                        <span>Last Updated</span>
-                        <strong id="paymentLastUpdated">
-                            Just now
-                        </strong>
-                    </div>
+                    <span>
+                        Every payment is linked to a sale,
+                        station and shift for proper
+                        reconciliation.
+                    </span>
 
                 </div>
 
-            </section>
+            </div>
 
 
-            <!-- ==================================
-                 RECORDS SECTION
-            =================================== -->
+            <div class="payment-card">
 
-            <section class="payments-records-card">
-
-
-                <div class="payments-section-heading">
+                <div class="payment-card-header">
 
                     <div>
-
-                        <div class="section-kicker">
-                            COLLECTION LEDGER
-                        </div>
 
                         <h2>
                             Payment Records
                         </h2>
 
                         <p>
-                            Review every payment captured
-                            across your accessible stations.
+                            Search and filter recorded payments.
                         </p>
 
                     </div>
 
 
-                    <div class="payment-record-count-badge">
-                        <span id="filteredPaymentCount">
-                            0
-                        </span>
-                        records
-                    </div>
+                    <button
+                        type="button"
+                        class="fg-btn fg-btn-outline"
+                        id="exportPaymentsBtn"
+                    >
+                        Export CSV
+                    </button>
 
                 </div>
 
 
-                <!-- ==================================
-                     FILTER TOOLBAR
-                =================================== -->
+                <div class="payment-filters">
 
-                <div class="payments-toolbar">
+                    <div class="payment-filter-group">
 
-                    <div class="payment-search-box">
-
-                        ${paymentIcon("search")}
+                        <label>
+                            Search
+                        </label>
 
                         <input
                             type="search"
                             id="paymentSearch"
-                            placeholder="Search station, shift, attendant..."
-                            autocomplete="off"
+                            placeholder="Search sale, reference..."
                         >
 
                     </div>
@@ -638,30 +1048,45 @@ function renderPaymentsPage() {
 
                     <div class="payment-filter-group">
 
-                        <select
-                            id="paymentStationFilter"
-                            aria-label="Filter by station"
-                        >
+                        <label>
+                            Station
+                        </label>
+
+                        <select id="paymentStationFilter">
+
                             <option value="">
                                 All Stations
                             </option>
+
                         </select>
 
+                    </div>
 
-                        <select
-                            id="paymentShiftFilter"
-                            aria-label="Filter by shift"
-                        >
+
+                    <div class="payment-filter-group">
+
+                        <label>
+                            Shift
+                        </label>
+
+                        <select id="paymentShiftFilter">
+
                             <option value="">
                                 All Shifts
                             </option>
+
                         </select>
 
+                    </div>
 
-                        <select
-                            id="paymentMethodFilter"
-                            aria-label="Filter by payment method"
-                        >
+
+                    <div class="payment-filter-group">
+
+                        <label>
+                            Method
+                        </label>
+
+                        <select id="paymentMethodFilter">
 
                             <option value="">
                                 All Methods
@@ -676,24 +1101,42 @@ function renderPaymentsPage() {
                             </option>
 
                             <option value="transfer">
-                                Bank Transfer
+                                Transfer
+                            </option>
+
+                            <option value="card">
+                                Card
                             </option>
 
                             <option value="credit">
                                 Credit
                             </option>
 
-                            <option value="other">
-                                Other
-                            </option>
-
                         </select>
 
+                    </div>
+
+
+                    <div class="payment-filter-group">
+
+                        <label>
+                            Date
+                        </label>
+
+                        <input
+                            type="date"
+                            id="paymentDateFilter"
+                        >
+
+                    </div>
+
+
+                    <div class="payment-filter-actions">
 
                         <button
                             type="button"
-                            class="payment-clear-btn"
-                            id="clearPaymentFilters"
+                            class="fg-btn fg-btn-light"
+                            id="clearPaymentFiltersBtn"
                         >
                             Clear
                         </button>
@@ -703,500 +1146,412 @@ function renderPaymentsPage() {
                 </div>
 
 
-                <!-- ==================================
-                     TABLE
-                =================================== -->
+                <div
+                    class="payment-table-wrapper"
+                    id="paymentTableWrapper"
+                >
 
-                <div class="payments-table-shell">
+                    <table class="payment-table">
 
-                    <div class="table-wrapper payments-table-wrapper">
+                        <thead>
 
-                        <table class="payments-pro-table">
+                            <tr>
 
-                            <thead>
+                                <th>
+                                    Sale
+                                </th>
 
-                                <tr>
+                                <th>
+                                    Station
+                                </th>
 
-                                    <th>Station</th>
-                                    <th>Shift</th>
-                                    <th>Attendant</th>
-                                    <th>Method</th>
-                                    <th>Amount</th>
-                                    <th>Recorded By</th>
-                                    <th>Date & Time</th>
-                                    <th>Action</th>
+                                <th>
+                                    Shift
+                                </th>
 
-                                </tr>
+                                <th>
+                                    Method
+                                </th>
 
-                            </thead>
+                                <th>
+                                    Amount
+                                </th>
 
-                            <tbody
-                                id="paymentsTableBody"
-                            ></tbody>
+                                <th>
+                                    Recorded By
+                                </th>
 
-                        </table>
+                                <th>
+                                    Date & Time
+                                </th>
 
-                    </div>
+                                <th>
+                                    Action
+                                </th>
+
+                            </tr>
+
+                        </thead>
 
 
-                    <div
-                        id="emptyPaymentsState"
-                        class="payment-empty-state hidden"
-                    >
+                        <tbody id="paymentsTableBody">
+                        </tbody>
 
-                        <div class="payment-empty-icon">
-                            ${paymentIcon("receipt")}
-                        </div>
-
-                        <h3>
-                            No payment records found
-                        </h3>
-
-                        <p>
-                            There are no payment records
-                            matching your current filters.
-                        </p>
-
-                        <button
-                            type="button"
-                            class="payment-empty-btn"
-                            id="emptyRecordPayment"
-                        >
-                            ${paymentIcon("plus")}
-                            Record Payment
-                        </button>
-
-                    </div>
+                    </table>
 
                 </div>
 
 
-            </section>
-
-
-            <!-- ==================================
-                 PAYMENT MODAL
-            =================================== -->
-
-            <div
-                class="payment-modal-overlay"
-                id="paymentModal"
-                aria-hidden="true"
-            >
-
                 <div
-                    class="payment-modal"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="paymentModalTitle"
+                    id="paymentEmptyState"
+                    class="payment-empty-state"
+                    style="display:none;"
                 >
 
-                    <div class="payment-modal-top">
-
-                        <div class="payment-modal-title-wrap">
-
-                            <div class="payment-modal-icon">
-                                ${paymentIcon("wallet")}
-                            </div>
-
-                            <div>
-
-                                <span class="section-kicker">
-                                    NEW COLLECTION
-                                </span>
-
-                                <h2 id="paymentModalTitle">
-                                    Record Payment
-                                </h2>
-
-                                <p>
-                                    Capture money received
-                                    for a station shift.
-                                </p>
-
-                            </div>
-
-                        </div>
-
-
-                        <button
-                            type="button"
-                            class="payment-modal-close"
-                            id="closePaymentModal"
-                            aria-label="Close"
-                        >
-                            ×
-                        </button>
-
+                    <div class="payment-empty-icon">
+                        ₦
                     </div>
 
-
-                    <div class="payment-modal-divider"></div>
-
-
-                    <form id="paymentForm">
-
-                        <div
-                            id="paymentMessage"
-                            class="payment-message-container"
-                        ></div>
-
-
-                        <div class="payment-form-section">
-
-                            <div class="payment-form-section-title">
-                                Transaction Context
-                            </div>
-
-
-                            <div class="payment-form-grid">
-
-
-                                <div class="payment-form-group">
-
-                                    <label for="paymentStation">
-                                        Station
-                                    </label>
-
-                                    <div class="payment-input-wrap">
-                                        ${paymentIcon("station")}
-
-                                        <select
-                                            id="paymentStation"
-                                            required
-                                        >
-                                            <option value="">
-                                                Select Station
-                                            </option>
-                                        </select>
-
-                                    </div>
-
-                                </div>
-
-
-                                <div class="payment-form-group">
-
-                                    <label for="paymentShift">
-                                        Shift
-                                    </label>
-
-                                    <div class="payment-input-wrap">
-                                        ${paymentIcon("clock")}
-
-                                        <select
-                                            id="paymentShift"
-                                            required
-                                        >
-                                            <option value="">
-                                                Select Shift
-                                            </option>
-                                        </select>
-
-                                    </div>
-
-                                </div>
-
-
-                                <div class="payment-form-group">
-
-                                    <label for="paymentStaff">
-                                        Attendant
-                                    </label>
-
-                                    <div class="payment-input-wrap">
-                                        ${paymentIcon("user")}
-
-                                        <select
-                                            id="paymentStaff"
-                                            required
-                                        >
-                                            <option value="">
-                                                Select Attendant
-                                            </option>
-                                        </select>
-
-                                    </div>
-
-                                </div>
-
-
-                                <div class="payment-form-group">
-
-                                    <label for="paymentMethod">
-                                        Payment Method
-                                    </label>
-
-                                    <div class="payment-input-wrap">
-                                        ${paymentIcon("card")}
-
-                                        <select
-                                            id="paymentMethod"
-                                            required
-                                        >
-
-                                            <option value="">
-                                                Select Method
-                                            </option>
-
-                                            <option value="cash">
-                                                Cash
-                                            </option>
-
-                                            <option value="pos">
-                                                POS
-                                            </option>
-
-                                            <option value="transfer">
-                                                Bank Transfer
-                                            </option>
-
-                                            <option value="credit">
-                                                Credit
-                                            </option>
-
-                                            <option value="other">
-                                                Other
-                                            </option>
-
-                                        </select>
-
-                                    </div>
-
-                                </div>
-
-
-                            </div>
-
-                        </div>
-
-
-                        <div class="payment-form-section">
-
-                            <div class="payment-form-section-title">
-                                Payment Details
-                            </div>
-
-
-                            <div class="payment-form-grid">
-
-
-                                <div class="payment-form-group">
-
-                                    <label for="paymentAmount">
-                                        Amount
-                                    </label>
-
-                                    <div class="payment-amount-wrap">
-
-                                        <span>₦</span>
-
-                                        <input
-                                            type="number"
-                                            id="paymentAmount"
-                                            min="1"
-                                            step="0.01"
-                                            placeholder="0.00"
-                                            required
-                                        >
-
-                                    </div>
-
-                                </div>
-
-
-                                <div class="payment-form-group">
-
-                                    <label for="paymentDate">
-                                        Payment Date & Time
-                                    </label>
-
-                                    <div class="payment-input-wrap">
-                                        ${paymentIcon("calendar")}
-
-                                        <input
-                                            type="datetime-local"
-                                            id="paymentDate"
-                                            required
-                                        >
-
-                                    </div>
-
-                                </div>
-
-
-                            </div>
-
-
-                            <div class="payment-form-group payment-notes-group">
-
-                                <label for="paymentNotes">
-                                    Notes
-                                    <span>Optional</span>
-                                </label>
-
-                                <textarea
-                                    id="paymentNotes"
-                                    rows="3"
-                                    placeholder="Add any useful payment details..."
-                                ></textarea>
-
-                            </div>
-
-                        </div>
-
-
-                        <div class="payment-form-security">
-
-                            <div class="security-icon">
-                                ${paymentIcon("shield")}
-                            </div>
-
-                            <div>
-                                <strong>
-                                    Payment audit trail
-                                </strong>
-
-                                <span>
-                                    This record will include the
-                                    current user and creation time.
-                                </span>
-                            </div>
-
-                        </div>
-
-
-                        <div class="payment-modal-actions">
-
-                            <button
-                                type="button"
-                                class="payment-cancel-btn"
-                                id="cancelPaymentButton"
-                            >
-                                Cancel
-                            </button>
-
-                            <button
-                                type="submit"
-                                class="payment-submit-btn"
-                            >
-                                ${paymentIcon("check")}
-                                Save Payment
-                            </button>
-
-                        </div>
-
-                    </form>
+                    <h3>
+                        No payment records
+                    </h3>
+
+                    <p>
+                        Payment records will appear here
+                        after you record a payment.
+                    </p>
 
                 </div>
 
             </div>
 
-        </div>
+        </section>
 
+
+        <!-- PAYMENT MODAL -->
+
+        <div
+            class="fg-modal-overlay"
+            id="paymentModal"
+            style="display:none;"
+        >
+
+            <div class="fg-modal">
+
+                <div class="fg-modal-header">
+
+                    <div>
+
+                        <span class="modal-eyebrow">
+                            PAYMENT ENTRY
+                        </span>
+
+                        <h2>
+                            Record Payment
+                        </h2>
+
+                    </div>
+
+
+                    <button
+                        type="button"
+                        class="modal-close"
+                        id="closePaymentModalBtn"
+                    >
+                        ×
+                    </button>
+
+                </div>
+
+
+                <form
+                    id="paymentForm"
+                    class="payment-form"
+                >
+
+                    <div class="payment-form-grid">
+
+
+                        <div class="form-group">
+
+                            <label for="paymentStation">
+                                Station
+                            </label>
+
+                            <select
+                                id="paymentStation"
+                                required
+                            >
+
+                                <option value="">
+                                    Select station
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="paymentShift">
+                                Shift
+                            </label>
+
+                            <select
+                                id="paymentShift"
+                                required
+                            >
+
+                                <option value="">
+                                    Select shift
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group full-width">
+
+                            <label for="paymentSale">
+                                Sale
+                            </label>
+
+                            <select
+                                id="paymentSale"
+                                required
+                            >
+
+                                <option value="">
+                                    Select sale
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label>
+                                Sale Amount
+                            </label>
+
+                            <input
+                                type="text"
+                                id="paymentSaleAmount"
+                                readonly
+                                placeholder="₦0.00"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="paymentAmount">
+                                Payment Amount
+                            </label>
+
+                            <input
+                                type="number"
+                                id="paymentAmount"
+                                min="0.01"
+                                step="0.01"
+                                required
+                                placeholder="Enter amount"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="paymentMethod">
+                                Payment Method
+                            </label>
+
+                            <select
+                                id="paymentMethod"
+                                required
+                            >
+
+                                <option value="">
+                                    Select method
+                                </option>
+
+                                <option value="cash">
+                                    Cash
+                                </option>
+
+                                <option value="pos">
+                                    POS
+                                </option>
+
+                                <option value="transfer">
+                                    Bank Transfer
+                                </option>
+
+                                <option value="card">
+                                    Card
+                                </option>
+
+                                <option value="credit">
+                                    Credit
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="paymentReference">
+                                Reference
+                            </label>
+
+                            <input
+                                type="text"
+                                id="paymentReference"
+                                placeholder="POS / transfer reference"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group full-width">
+
+                            <label for="paymentNotes">
+                                Notes
+                            </label>
+
+                            <textarea
+                                id="paymentNotes"
+                                rows="3"
+                                placeholder="Optional payment notes..."
+                            ></textarea>
+
+                        </div>
+
+
+                        <div
+                            id="paymentFormMessage"
+                            class="payment-form-message full-width"
+                            style="display:none;"
+                        ></div>
+
+                    </div>
+
+
+                    <div class="payment-form-footer">
+
+                        <button
+                            type="button"
+                            class="fg-btn fg-btn-light"
+                            id="cancelPaymentBtn"
+                        >
+                            Cancel
+                        </button>
+
+
+                        <button
+                            type="submit"
+                            class="fg-btn fg-btn-primary"
+                            id="submitPaymentBtn"
+                        >
+                            Record Payment
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </div>
+
+        </div>
     `;
 
 
-    const paymentDate =
-        document.getElementById(
-            "paymentDate"
-        );
-
-    if (paymentDate) {
-        paymentDate.value =
-            getCurrentDateTimeLocal();
-    }
-
+    injectPaymentStyles();
 }
 
 
-/* ==========================================
+/* =========================================================
    SETUP EVENTS
-========================================== */
+========================================================= */
 
 function setupPaymentEvents() {
 
-    loadPaymentFilters();
-    loadPaymentFormStations();
-
-    setupPaymentModalEvents();
-    setupPaymentFormEvents();
-    setupPaymentFilterEvents();
-    setupPaymentUtilityEvents();
-
-}
-
-
-/* ==========================================
-   MODAL EVENTS
-========================================== */
-
-function setupPaymentModalEvents() {
-
-    const addButton =
+    const refreshBtn =
         document.getElementById(
-            "addPaymentButton"
+            "refreshPaymentsBtn"
         );
 
-    const emptyButton =
-        document.getElementById(
-            "emptyRecordPayment"
+
+    if (refreshBtn) {
+
+        refreshBtn.addEventListener(
+            "click",
+            async () => {
+
+                await loadPaymentData();
+
+            }
         );
+    }
+
+
+    const openBtn =
+        document.getElementById(
+            "openPaymentModalBtn"
+        );
+
+
+    if (openBtn) {
+
+        openBtn.addEventListener(
+            "click",
+            openPaymentModal
+        );
+    }
+
+
+    const closeBtn =
+        document.getElementById(
+            "closePaymentModalBtn"
+        );
+
+
+    if (closeBtn) {
+
+        closeBtn.addEventListener(
+            "click",
+            closePaymentModal
+        );
+    }
+
+
+    const cancelBtn =
+        document.getElementById(
+            "cancelPaymentBtn"
+        );
+
+
+    if (cancelBtn) {
+
+        cancelBtn.addEventListener(
+            "click",
+            closePaymentModal
+        );
+    }
+
 
     const modal =
         document.getElementById(
             "paymentModal"
         );
-
-    const closeButton =
-        document.getElementById(
-            "closePaymentModal"
-        );
-
-    const cancelButton =
-        document.getElementById(
-            "cancelPaymentButton"
-        );
-
-
-    if (addButton) {
-
-        addButton.addEventListener(
-            "click",
-            openPaymentModal
-        );
-
-    }
-
-
-    if (emptyButton) {
-
-        emptyButton.addEventListener(
-            "click",
-            openPaymentModal
-        );
-
-    }
-
-
-    if (closeButton) {
-
-        closeButton.addEventListener(
-            "click",
-            closePaymentModal
-        );
-
-    }
-
-
-    if (cancelButton) {
-
-        cancelButton.addEventListener(
-            "click",
-            closePaymentModal
-        );
-
-    }
 
 
     if (modal) {
@@ -1210,323 +1565,17 @@ function setupPaymentModalEvents() {
                 ) {
 
                     closePaymentModal();
-
                 }
 
             }
         );
-
     }
 
-
-    document.addEventListener(
-        "keydown",
-        event => {
-
-            if (
-                event.key === "Escape"
-            ) {
-
-                const paymentModal =
-                    document.getElementById(
-                        "paymentModal"
-                    );
-
-                if (
-                    paymentModal &&
-                    paymentModal.classList.contains(
-                        "active"
-                    )
-                ) {
-
-                    closePaymentModal();
-
-                }
-
-            }
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   OPEN MODAL
-========================================== */
-
-function openPaymentModal() {
-
-    const modal =
-        document.getElementById(
-            "paymentModal"
-        );
-
-    if (!modal) {
-        return;
-    }
-
-    clearPaymentMessage();
-
-    modal.classList.add("active");
-
-    modal.setAttribute(
-        "aria-hidden",
-        "false"
-    );
-
-    document.body.style.overflow =
-        "hidden";
-
-    const station =
-        document.getElementById(
-            "paymentStation"
-        );
-
-    if (station) {
-        setTimeout(
-            () => station.focus(),
-            100
-        );
-    }
-
-}
-
-
-/* ==========================================
-   CLOSE MODAL
-========================================== */
-
-function closePaymentModal() {
-
-    const modal =
-        document.getElementById(
-            "paymentModal"
-        );
-
-    if (!modal) {
-        return;
-    }
-
-    modal.classList.remove("active");
-
-    modal.setAttribute(
-        "aria-hidden",
-        "true"
-    );
-
-    document.body.style.overflow =
-        "";
 
     const form =
         document.getElementById(
             "paymentForm"
         );
-
-    if (form) {
-        form.reset();
-    }
-
-    loadFormShifts("");
-    loadFormStaff("");
-
-    const paymentDate =
-        document.getElementById(
-            "paymentDate"
-        );
-
-    if (paymentDate) {
-
-        paymentDate.value =
-            getCurrentDateTimeLocal();
-
-    }
-
-    clearPaymentMessage();
-
-}
-
-
-/* ==========================================
-   LOAD FILTERS
-========================================== */
-
-function loadPaymentFilters() {
-
-    loadPaymentStationFilter();
-    loadPaymentShiftFilter();
-
-}
-
-
-function loadPaymentStationFilter() {
-
-    const select =
-        document.getElementById(
-            "paymentStationFilter"
-        );
-
-    if (!select) {
-        return;
-    }
-
-    select.innerHTML = `
-        <option value="">
-            All Stations
-        </option>
-    `;
-
-    getVisibleStations().forEach(
-        station => {
-
-            const option =
-                document.createElement(
-                    "option"
-                );
-
-            option.value =
-                station.id;
-
-            option.textContent =
-                station.name ||
-                "Unnamed Station";
-
-            select.appendChild(
-                option
-            );
-
-        }
-    );
-
-}
-
-
-function loadPaymentShiftFilter() {
-
-    const select =
-        document.getElementById(
-            "paymentShiftFilter"
-        );
-
-    if (!select) {
-        return;
-    }
-
-    select.innerHTML = `
-        <option value="">
-            All Shifts
-        </option>
-    `;
-
-    getVisibleShifts().forEach(
-        shift => {
-
-            const option =
-                document.createElement(
-                    "option"
-                );
-
-            option.value =
-                shift.id;
-
-            option.textContent =
-                shift.name ||
-                "Unnamed Shift";
-
-            select.appendChild(
-                option
-            );
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   LOAD FORM STATIONS
-========================================== */
-
-function loadPaymentFormStations() {
-
-    const select =
-        document.getElementById(
-            "paymentStation"
-        );
-
-    if (!select) {
-        return;
-    }
-
-    select.innerHTML = `
-        <option value="">
-            Select Station
-        </option>
-    `;
-
-    getVisibleStations().forEach(
-        station => {
-
-            const option =
-                document.createElement(
-                    "option"
-                );
-
-            option.value =
-                station.id;
-
-            option.textContent =
-                station.name ||
-                "Unnamed Station";
-
-            select.appendChild(
-                option
-            );
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   FORM EVENTS
-========================================== */
-
-function setupPaymentFormEvents() {
-
-    const form =
-        document.getElementById(
-            "paymentForm"
-        );
-
-    const stationSelect =
-        document.getElementById(
-            "paymentStation"
-        );
-
-
-    if (stationSelect) {
-
-        stationSelect.addEventListener(
-            "change",
-            event => {
-
-                const stationId =
-                    event.target.value;
-
-                loadFormShifts(
-                    stationId
-                );
-
-                loadFormStaff(
-                    stationId
-                );
-
-            }
-        );
-
-    }
 
 
     if (form) {
@@ -1535,659 +1584,112 @@ function setupPaymentFormEvents() {
             "submit",
             handlePaymentSubmit
         );
-
     }
 
-}
-
-
-/* ==========================================
-   LOAD FORM SHIFTS
-========================================== */
-
-function loadFormShifts(
-    stationId
-) {
-
-    const select =
-        document.getElementById(
-            "paymentShift"
-        );
-
-    if (!select) {
-        return;
-    }
-
-    select.innerHTML = `
-        <option value="">
-            Select Shift
-        </option>
-    `;
-
-    if (!stationId) {
-        return;
-    }
-
-    const shifts =
-        getVisibleShifts()
-            .filter(
-                shift =>
-                    shift.stationId ===
-                    stationId
-            );
-
-    shifts
-        .sort(
-            (a, b) => {
-
-                if (
-                    a.status === "open" &&
-                    b.status !== "open"
-                ) {
-                    return -1;
-                }
-
-                if (
-                    a.status !== "open" &&
-                    b.status === "open"
-                ) {
-                    return 1;
-                }
-
-                return (
-                    String(a.name || "")
-                        .localeCompare(
-                            String(b.name || "")
-                        )
-                );
-
-            }
-        )
-        .forEach(
-            shift => {
-
-                const option =
-                    document.createElement(
-                        "option"
-                    );
-
-                option.value =
-                    shift.id;
-
-                const status =
-                    String(
-                        shift.status ||
-                        "unknown"
-                    ).toUpperCase();
-
-                option.textContent =
-                    `${shift.name || "Unnamed Shift"} • ${status}`;
-
-                select.appendChild(
-                    option
-                );
-
-            }
-        );
-
-}
-
-
-/* ==========================================
-   LOAD FORM STAFF
-========================================== */
-
-function loadFormStaff(
-    stationId
-) {
-
-    const select =
-        document.getElementById(
-            "paymentStaff"
-        );
-
-    if (!select) {
-        return;
-    }
-
-    select.innerHTML = `
-        <option value="">
-            Select Attendant
-        </option>
-    `;
-
-    if (!stationId) {
-        return;
-    }
-
-    const staffMembers =
-        getVisibleStaff()
-            .filter(
-                staff =>
-                    staff.stationId ===
-                    stationId
-            );
-
-    staffMembers
-        .sort(
-            (a, b) =>
-                String(
-                    a.fullName ||
-                    a.name ||
-                    ""
-                ).localeCompare(
-                    String(
-                        b.fullName ||
-                        b.name ||
-                        ""
-                    )
-                )
-        )
-        .forEach(
-            staff => {
-
-                const option =
-                    document.createElement(
-                        "option"
-                    );
-
-                option.value =
-                    staff.id;
-
-                option.textContent =
-                    staff.fullName ||
-                    staff.name ||
-                    "Unnamed Staff";
-
-                select.appendChild(
-                    option
-                );
-
-            }
-        );
-
-}
-
-
-/* ==========================================
-   HANDLE SUBMIT
-========================================== */
-
-function handlePaymentSubmit(
-    event
-) {
-
-    event.preventDefault();
-
-
-    const stationId =
-        document.getElementById(
-            "paymentStation"
-        ).value;
-
-    const shiftId =
-        document.getElementById(
-            "paymentShift"
-        ).value;
-
-    const staffId =
-        document.getElementById(
-            "paymentStaff"
-        ).value;
-
-    const method =
-        document.getElementById(
-            "paymentMethod"
-        ).value;
-
-    const amount =
-        Number(
-            document.getElementById(
-                "paymentAmount"
-            ).value
-        );
-
-    const paymentDate =
-        document.getElementById(
-            "paymentDate"
-        ).value;
-
-    const notes =
-        document.getElementById(
-            "paymentNotes"
-        ).value.trim();
-
-
-    if (
-        !stationId ||
-        !shiftId ||
-        !staffId ||
-        !method ||
-        !paymentDate
-    ) {
-
-        showPaymentMessage(
-            "Please complete all required fields.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    if (
-        Number.isNaN(amount) ||
-        amount <= 0
-    ) {
-
-        showPaymentMessage(
-            "Please enter a valid payment amount.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    const stations =
-        getStations();
-
-    const shifts =
-        getShifts();
-
-    const staffMembers =
-        getStaff();
-
-
-    const station =
-        stations.find(
-            item =>
-                item.id ===
-                stationId
-        );
-
-    const shift =
-        shifts.find(
-            item =>
-                item.id ===
-                shiftId
-        );
-
-    const staff =
-        staffMembers.find(
-            item =>
-                item.id ===
-                staffId
-        );
-
-
-    if (!station) {
-
-        showPaymentMessage(
-            "The selected station could not be found.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    if (
-        !shift ||
-        shift.stationId !== stationId
-    ) {
-
-        showPaymentMessage(
-            "The selected shift does not belong to this station.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    if (
-        !staff ||
-        staff.stationId !== stationId
-    ) {
-
-        showPaymentMessage(
-            "The selected attendant does not belong to this station.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    const currentUser =
-        getCurrentPaymentUser();
-
-
-    const payment = {
-
-        id:
-            `PAY-${Date.now()}-${Math.floor(
-                Math.random() * 1000
-            )}`,
-
-        organizationId:
-            station.organizationId ||
-            null,
-
-        stationId,
-
-        stationName:
-            station.name ||
-            "Unknown Station",
-
-        shiftId,
-
-        shiftName:
-            shift.name ||
-            "Unknown Shift",
-
-        staffId,
-
-        staffName:
-            staff.fullName ||
-            staff.name ||
-            "Unknown Attendant",
-
-        method,
-
-        amount,
-
-        paymentDate:
-            new Date(
-                paymentDate
-            ).toISOString(),
-
-        notes,
-
-        recordedBy:
-            currentUser
-                ? currentUser.id
-                : null,
-
-        recordedByName:
-            currentUser
-                ? (
-                    currentUser.fullName ||
-                    currentUser.name ||
-                    currentUser.role ||
-                    "Unknown"
-                )
-                : "Unknown",
-
-        createdAt:
-            new Date().toISOString()
-
-    };
-
-
-    const payments =
-        getPayments();
-
-    payments.push(payment);
-
-    saveStorageData(
-        PAYMENTS_STORAGE_KEY,
-        payments
-    );
-
-
-    showPaymentMessage(
-        "Payment recorded successfully.",
-        "success"
-    );
-
-
-    renderPayments();
-
-
-    setTimeout(
-        () => {
-
-            closePaymentModal();
-
-        },
-        700
-    );
-
-}
-
-
-/* ==========================================
-   FILTER EVENTS
-========================================== */
-
-function setupPaymentFilterEvents() {
-
-    const filters = [
-
-        "paymentStationFilter",
-        "paymentShiftFilter",
-        "paymentMethodFilter",
-        "paymentSearch"
-
-    ];
-
-
-    filters.forEach(
-        id => {
-
-            const element =
-                document.getElementById(
-                    id
-                );
-
-            if (!element) {
-                return;
-            }
-
-            element.addEventListener(
-                element.tagName === "INPUT"
-                    ? "input"
-                    : "change",
-                () => {
-
-                    renderPayments();
-
-                }
-            );
-
-        }
-    );
-
-
-    const clearButton =
-        document.getElementById(
-            "clearPaymentFilters"
-        );
-
-    if (clearButton) {
-
-        clearButton.addEventListener(
-            "click",
-            clearPaymentFilters
-        );
-
-    }
-
-}
-
-
-/* ==========================================
-   CLEAR FILTERS
-========================================== */
-
-function clearPaymentFilters() {
-
-    const station =
-        document.getElementById(
-            "paymentStationFilter"
-        );
-
-    const shift =
-        document.getElementById(
-            "paymentShiftFilter"
-        );
-
-    const method =
-        document.getElementById(
-            "paymentMethodFilter"
-        );
-
-    const search =
-        document.getElementById(
-            "paymentSearch"
-        );
-
-
-    if (station) {
-        station.value = "";
-    }
-
-    if (shift) {
-        shift.value = "";
-    }
-
-    if (method) {
-        method.value = "";
-    }
-
-    if (search) {
-        search.value = "";
-    }
-
-    renderPayments();
-
-}
-
-
-/* ==========================================
-   UTILITY EVENTS
-========================================== */
-
-function setupPaymentUtilityEvents() {
-
-    const refreshButton =
-        document.getElementById(
-            "refreshPaymentsButton"
-        );
-
-    const exportButton =
-        document.getElementById(
-            "exportPaymentsButton"
-        );
-
-
-    if (refreshButton) {
-
-        refreshButton.addEventListener(
-            "click",
-            () => {
-
-                refreshPaymentData();
-
-            }
-        );
-
-    }
-
-
-    if (exportButton) {
-
-        exportButton.addEventListener(
-            "click",
-            exportPaymentsToCSV
-        );
-
-    }
-
-}
-
-
-/* ==========================================
-   REFRESH
-========================================== */
-
-function refreshPaymentData() {
-
-    const button =
-        document.getElementById(
-            "refreshPaymentsButton"
-        );
-
-    if (button) {
-
-        button.classList.add(
-            "is-refreshing"
-        );
-
-    }
-
-
-    loadPaymentFilters();
-    loadPaymentFormStations();
-    renderPayments();
-
-
-    const updated =
-        document.getElementById(
-            "paymentLastUpdated"
-        );
-
-    if (updated) {
-        updated.textContent =
-            "Just now";
-    }
-
-
-    setTimeout(
-        () => {
-
-            if (button) {
-
-                button.classList.remove(
-                    "is-refreshing"
-                );
-
-            }
-
-        },
-        500
-    );
-
-}
-
-
-/* ==========================================
-   GET FILTERS
-========================================== */
-
-function getPaymentFilters() {
 
     const stationFilter =
         document.getElementById(
             "paymentStationFilter"
         );
 
+
+    if (stationFilter) {
+
+        stationFilter.addEventListener(
+            "change",
+            event => {
+
+                PaymentsState.currentFilters.stationId =
+                    event.target.value;
+
+                applyPaymentFilters();
+
+                renderPaymentsTable();
+
+                renderPaymentStats();
+
+            }
+        );
+    }
+
+
     const shiftFilter =
         document.getElementById(
             "paymentShiftFilter"
         );
 
+
+    if (shiftFilter) {
+
+        shiftFilter.addEventListener(
+            "change",
+            event => {
+
+                PaymentsState.currentFilters.shiftId =
+                    event.target.value;
+
+                applyPaymentFilters();
+
+                renderPaymentsTable();
+
+                renderPaymentStats();
+
+            }
+        );
+    }
+
+
     const methodFilter =
         document.getElementById(
             "paymentMethodFilter"
         );
+
+
+    if (methodFilter) {
+
+        methodFilter.addEventListener(
+            "change",
+            event => {
+
+                PaymentsState.currentFilters.paymentMethod =
+                    event.target.value;
+
+                applyPaymentFilters();
+
+                renderPaymentsTable();
+
+                renderPaymentStats();
+
+            }
+        );
+    }
+
+
+    const dateFilter =
+        document.getElementById(
+            "paymentDateFilter"
+        );
+
+
+    if (dateFilter) {
+
+        dateFilter.addEventListener(
+            "change",
+            event => {
+
+                PaymentsState.currentFilters.date =
+                    event.target.value;
+
+                applyPaymentFilters();
+
+                renderPaymentsTable();
+
+                renderPaymentStats();
+
+            }
+        );
+    }
+
 
     const searchInput =
         document.getElementById(
@@ -2195,1023 +1697,1746 @@ function getPaymentFilters() {
         );
 
 
-    return {
+    if (searchInput) {
 
-        stationId:
-            stationFilter
-                ? stationFilter.value
-                : "",
+        searchInput.addEventListener(
+            "input",
+            event => {
 
-        shiftId:
-            shiftFilter
-                ? shiftFilter.value
-                : "",
+                PaymentsState.currentFilters.search =
+                    event.target.value.trim();
 
-        method:
-            methodFilter
-                ? methodFilter.value
-                : "",
+                applyPaymentFilters();
 
-        search:
-            searchInput
-                ? searchInput.value
-                    .toLowerCase()
-                    .trim()
-                : ""
+                renderPaymentsTable();
 
-    };
+                renderPaymentStats();
 
+            }
+        );
+    }
+
+
+    const clearBtn =
+        document.getElementById(
+            "clearPaymentFiltersBtn"
+        );
+
+
+    if (clearBtn) {
+
+        clearBtn.addEventListener(
+            "click",
+            clearPaymentFilters
+        );
+    }
+
+
+    const exportBtn =
+        document.getElementById(
+            "exportPaymentsBtn"
+        );
+
+
+    if (exportBtn) {
+
+        exportBtn.addEventListener(
+            "click",
+            exportPaymentsCSV
+        );
+    }
+
+
+    const paymentStation =
+        document.getElementById(
+            "paymentStation"
+        );
+
+
+    if (paymentStation) {
+
+        paymentStation.addEventListener(
+            "change",
+            event => {
+
+                updatePaymentFormShifts(
+                    event.target.value
+                );
+
+                updatePaymentFormSales();
+
+            }
+        );
+    }
+
+
+    const paymentShift =
+        document.getElementById(
+            "paymentShift"
+        );
+
+
+    if (paymentShift) {
+
+        paymentShift.addEventListener(
+            "change",
+            updatePaymentFormSales
+        );
+    }
+
+
+    const paymentSale =
+        document.getElementById(
+            "paymentSale"
+        );
+
+
+    if (paymentSale) {
+
+        paymentSale.addEventListener(
+            "change",
+            updateSelectedSale
+        );
+    }
 }
 
 
-/* ==========================================
-   FILTER PAYMENTS
-========================================== */
+/* =========================================================
+   PAYMENT FILTERS
+========================================================= */
 
-function filterPayments(
-    payments,
-    filters
-) {
+function populatePaymentFilters() {
 
-    return payments.filter(
-        payment => {
-
-            if (
-                filters.stationId &&
-                payment.stationId !==
-                filters.stationId
-            ) {
-                return false;
-            }
+    const stationFilter =
+        document.getElementById(
+            "paymentStationFilter"
+        );
 
 
-            if (
-                filters.shiftId &&
-                payment.shiftId !==
-                filters.shiftId
-            ) {
-                return false;
-            }
+    if (stationFilter) {
 
+        stationFilter.innerHTML = `
 
-            if (
-                filters.method &&
-                payment.method !==
-                filters.method
-            ) {
-                return false;
-            }
+            <option value="">
+                All Stations
+            </option>
 
-
-            if (filters.search) {
-
-                const searchText =
+            ${PaymentsState.stations
+                .map(
+                    station => `
+                        <option
+                            value="${escapeHtml(
+                                station.stationId
+                            )}"
+                        >
+                            ${escapeHtml(
+                                station.name
+                            )}
+                        </option>
                     `
-                    ${payment.stationName || ""}
-                    ${payment.shiftName || ""}
-                    ${payment.staffName || ""}
-                    ${payment.method || ""}
-                    ${payment.recordedByName || ""}
-                    ${payment.notes || ""}
+                )
+                .join("")}
+        `;
+
+
+        stationFilter.value =
+            PaymentsState.currentFilters.stationId;
+    }
+
+
+    const shiftFilter =
+        document.getElementById(
+            "paymentShiftFilter"
+        );
+
+
+    if (shiftFilter) {
+
+        shiftFilter.innerHTML = `
+
+            <option value="">
+                All Shifts
+            </option>
+
+            ${PaymentsState.shifts
+                .map(
+                    shift => `
+                        <option
+                            value="${escapeHtml(
+                                shift.shiftId
+                            )}"
+                        >
+                            ${escapeHtml(
+                                shift.name
+                            )}
+                        </option>
                     `
-                        .toLowerCase();
-
-                if (
-                    !searchText.includes(
-                        filters.search
-                    )
-                ) {
-                    return false;
-                }
-
-            }
+                )
+                .join("")}
+        `;
 
 
-            return true;
+        shiftFilter.value =
+            PaymentsState.currentFilters.shiftId;
+    }
 
-        }
-    );
 
+    const methodFilter =
+        document.getElementById(
+            "paymentMethodFilter"
+        );
+
+
+    if (methodFilter) {
+
+        methodFilter.value =
+            PaymentsState.currentFilters.paymentMethod;
+    }
+
+
+    const dateFilter =
+        document.getElementById(
+            "paymentDateFilter"
+        );
+
+
+    if (dateFilter) {
+
+        dateFilter.value =
+            PaymentsState.currentFilters.date;
+    }
 }
 
 
-/* ==========================================
-   RENDER PAYMENTS
-========================================== */
+/* =========================================================
+   PAYMENT FORM STATIONS
+========================================================= */
 
-function renderPayments() {
+function populatePaymentFormStations() {
 
-    const payments =
-        getVisiblePayments();
-
-    const filters =
-        getPaymentFilters();
-
-    const filteredPayments =
-        filterPayments(
-            payments,
-            filters
-        );
-
-
-    const tableBody =
+    const select =
         document.getElementById(
-            "paymentsTableBody"
-        );
-
-    const emptyState =
-        document.getElementById(
-            "emptyPaymentsState"
+            "paymentStation"
         );
 
 
-    if (!tableBody) {
+    if (!select) {
         return;
     }
 
 
-    tableBody.innerHTML = "";
+    select.innerHTML = `
 
+        <option value="">
+            Select station
+        </option>
 
-    filteredPayments.sort(
-        (a, b) =>
-            new Date(
-                b.paymentDate ||
-                b.createdAt ||
-                0
-            ) -
-            new Date(
-                a.paymentDate ||
-                a.createdAt ||
-                0
-            )
-    );
-
-
-    if (
-        filteredPayments.length ===
-        0
-    ) {
-
-        if (emptyState) {
-            emptyState.classList.remove(
-                "hidden"
-            );
-        }
-
-    } else {
-
-        if (emptyState) {
-            emptyState.classList.add(
-                "hidden"
-            );
-        }
-
-
-        filteredPayments.forEach(
-            payment => {
-
-                const row =
-                    document.createElement(
-                        "tr"
-                    );
-
-
-                const staffInitial =
-                    getInitials(
-                        payment.staffName ||
-                        "Unknown"
-                    );
-
-                const stationInitial =
-                    getInitials(
-                        payment.stationName ||
-                        "Station"
-                    );
-
-
-                row.innerHTML = `
-
-                    <td data-label="Station">
-
-                        <div class="payment-station-cell">
-
-                            <div class="station-avatar">
-                                ${escapeHTML(
-                                    stationInitial
-                                )}
-                            </div>
-
-                            <div>
-
-                                <strong>
-                                    ${escapeHTML(
-                                        payment.stationName ||
-                                        "Unknown Station"
-                                    )}
-                                </strong>
-
-                                <span>
-                                    Station
-                                </span>
-
-                            </div>
-
-                        </div>
-
-                    </td>
-
-
-                    <td data-label="Shift">
-
-                        <div class="payment-shift-cell">
-
-                            <span class="shift-status-mini
-                                ${
-                                    getShiftForPayment(
-                                        payment.shiftId
-                                    )?.status === "open"
-                                        ? "open"
-                                        : "closed"
-                                }
-                            "></span>
-
-                            <div>
-
-                                <strong>
-                                    ${escapeHTML(
-                                        payment.shiftName ||
-                                        "Unknown Shift"
-                                    )}
-                                </strong>
-
-                                <span>
-                                    ${getShiftForPayment(
-                                        payment.shiftId
-                                    )?.status === "open"
-                                        ? "Active shift"
-                                        : "Completed shift"
-                                    }
-                                </span>
-
-                            </div>
-
-                        </div>
-
-                    </td>
-
-
-                    <td data-label="Attendant">
-
-                        <div class="payment-person-cell">
-
-                            <div class="person-avatar">
-                                ${escapeHTML(
-                                    staffInitial
-                                )}
-                            </div>
-
-                            <div>
-
-                                <strong>
-                                    ${escapeHTML(
-                                        payment.staffName ||
-                                        "Unknown Attendant"
-                                    )}
-                                </strong>
-
-                                <span>
-                                    Attendant
-                                </span>
-
-                            </div>
-
-                        </div>
-
-                    </td>
-
-
-                    <td data-label="Method">
-
-                        ${formatPaymentMethodBadge(
-                            payment.method
+        ${PaymentsState.stations
+            .map(
+                station => `
+                    <option
+                        value="${escapeHtml(
+                            station.stationId
+                        )}"
+                    >
+                        ${escapeHtml(
+                            station.name
                         )}
-
-                    </td>
-
-
-                    <td data-label="Amount">
-
-                        <div class="payment-amount-cell">
-
-                            <strong>
-                                ${formatCurrency(
-                                    payment.amount
-                                )}
-                            </strong>
-
-                        </div>
-
-                    </td>
+                    </option>
+                `
+            )
+            .join("")}
+    `;
+}
 
 
-                    <td data-label="Recorded By">
+/* =========================================================
+   PAYMENT FORM SHIFTS
+========================================================= */
 
-                        <div class="payment-recorder">
+function updatePaymentFormShifts(
+    stationId
+) {
 
-                            <span>
-                                ${escapeHTML(
-                                    payment.recordedByName ||
-                                    "Unknown"
-                                )}
-                            </span>
-
-                            <small>
-                                Audit record
-                            </small>
-
-                        </div>
-
-                    </td>
+    const shiftSelect =
+        document.getElementById(
+            "paymentShift"
+        );
 
 
-                    <td data-label="Date & Time">
-
-                        <div class="payment-date-cell">
-
-                            <strong>
-                                ${formatPaymentDate(
-                                    payment.paymentDate
-                                )}
-                            </strong>
-
-                            <span>
-                                ${formatPaymentTime(
-                                    payment.paymentDate
-                                )}
-                            </span>
-
-                        </div>
-
-                    </td>
+    if (!shiftSelect) {
+        return;
+    }
 
 
-                    <td data-label="Action">
-
-                        <button
-                            type="button"
-                            class="payment-delete-btn"
-                            data-delete-payment="${escapeHTML(
-                                payment.id
-                            )}"
-                            title="Delete payment"
-                        >
-                            ${paymentIcon("trash")}
-                            <span>Delete</span>
-                        </button>
-
-                    </td>
-
-                `;
+    const shifts =
+        PaymentsState.shifts.filter(
+            shift =>
+                !stationId ||
+                String(
+                    shift.stationId
+                ) === String(stationId)
+        );
 
 
-                tableBody.appendChild(
-                    row
-                );
+    shiftSelect.innerHTML = `
+
+        <option value="">
+            Select shift
+        </option>
+
+        ${shifts
+            .map(
+                shift => `
+                    <option
+                        value="${escapeHtml(
+                            shift.shiftId
+                        )}"
+                    >
+                        ${escapeHtml(
+                            shift.name
+                        )}
+                    </option>
+                `
+            )
+            .join("")}
+    `;
+}
+
+
+/* =========================================================
+   PAYMENT FORM SALES
+========================================================= */
+
+function populatePaymentFormSales() {
+
+    updatePaymentFormSales();
+}
+
+
+function updatePaymentFormSales() {
+
+    const saleSelect =
+        document.getElementById(
+            "paymentSale"
+        );
+
+
+    if (!saleSelect) {
+        return;
+    }
+
+
+    const stationId =
+        document.getElementById(
+            "paymentStation"
+        )?.value || "";
+
+
+    const shiftId =
+        document.getElementById(
+            "paymentShift"
+        )?.value || "";
+
+
+    const sales =
+        PaymentsState.sales.filter(
+            sale => {
+
+                if (
+                    stationId &&
+                    String(
+                        sale.stationId
+                    ) !== String(stationId)
+                ) {
+
+                    return false;
+                }
+
+
+                if (
+                    shiftId &&
+                    String(
+                        sale.shiftId
+                    ) !== String(shiftId)
+                ) {
+
+                    return false;
+                }
+
+
+                return true;
 
             }
         );
 
 
-        setupPaymentDeleteButtons();
+    saleSelect.innerHTML = `
 
-    }
+        <option value="">
+            Select sale
+        </option>
 
-
-    updatePaymentStats(
-        filteredPayments
-    );
-
-
-    const count =
-        document.getElementById(
-            "filteredPaymentCount"
-        );
-
-    if (count) {
-        count.textContent =
-            filteredPayments.length;
-    }
-
-
-    const lastUpdated =
-        document.getElementById(
-            "paymentLastUpdated"
-        );
-
-    if (lastUpdated) {
-        lastUpdated.textContent =
-            "Just now";
-    }
+        ${sales
+            .map(
+                sale => `
+                    <option
+                        value="${escapeHtml(
+                            sale.saleId
+                        )}"
+                    >
+                        ${escapeHtml(
+                            sale.saleId
+                        )}
+                        —
+                        ${formatCurrency(
+                            sale.amount
+                        )}
+                    </option>
+                `
+            )
+            .join("")}
+    `;
 
 
-    const activityText =
-        document.getElementById(
-            "paymentActivityText"
-        );
-
-    if (activityText) {
-
-        activityText.textContent =
-            filteredPayments.length
-                ? `${filteredPayments.length} payment ${
-                    filteredPayments.length === 1
-                        ? "record"
-                        : "records"
-                  } currently visible`
-                : "No payment activity matches your filters";
-
-    }
-
+    updateSelectedSale();
 }
 
 
-/* ==========================================
-   GET SHIFT FOR PAYMENT
-========================================== */
+/* =========================================================
+   SELECTED SALE
+========================================================= */
 
-function getShiftForPayment(
-    shiftId
+function updateSelectedSale() {
+
+    const saleId =
+        document.getElementById(
+            "paymentSale"
+        )?.value;
+
+
+    const saleAmount =
+        document.getElementById(
+            "paymentSaleAmount"
+        );
+
+
+    if (!saleAmount) {
+        return;
+    }
+
+
+    const sale =
+        findSale(saleId);
+
+
+    if (!sale) {
+
+        saleAmount.value =
+            "₦0.00";
+
+        return;
+    }
+
+
+    saleAmount.value =
+        formatCurrency(
+            sale.amount
+        );
+
+
+    const stationSelect =
+        document.getElementById(
+            "paymentStation"
+        );
+
+
+    const shiftSelect =
+        document.getElementById(
+            "paymentShift"
+        );
+
+
+    if (stationSelect) {
+
+        stationSelect.value =
+            sale.stationId || "";
+
+        updatePaymentFormShifts(
+            sale.stationId
+        );
+    }
+
+
+    if (shiftSelect) {
+
+        shiftSelect.value =
+            sale.shiftId || "";
+    }
+
+
+    const amountInput =
+        document.getElementById(
+            "paymentAmount"
+        );
+
+
+    if (
+        amountInput &&
+        !amountInput.value
+    ) {
+
+        amountInput.value =
+            sale.amount || "";
+    }
+}
+
+
+/* =========================================================
+   OPEN MODAL
+========================================================= */
+
+function openPaymentModal() {
+
+    const modal =
+        document.getElementById(
+            "paymentModal"
+        );
+
+
+    if (!modal) {
+        return;
+    }
+
+
+    resetPaymentForm();
+
+
+    populatePaymentFormStations();
+
+
+    modal.style.display =
+        "flex";
+
+
+    document.body.classList.add(
+        "modal-open"
+    );
+}
+
+
+/* =========================================================
+   CLOSE MODAL
+========================================================= */
+
+function closePaymentModal() {
+
+    const modal =
+        document.getElementById(
+            "paymentModal"
+        );
+
+
+    if (!modal) {
+        return;
+    }
+
+
+    modal.style.display =
+        "none";
+
+
+    document.body.classList.remove(
+        "modal-open"
+    );
+
+
+    resetPaymentForm();
+}
+
+
+/* =========================================================
+   RESET FORM
+========================================================= */
+
+function resetPaymentForm() {
+
+    const form =
+        document.getElementById(
+            "paymentForm"
+        );
+
+
+    if (form) {
+
+        form.reset();
+    }
+
+
+    const saleAmount =
+        document.getElementById(
+            "paymentSaleAmount"
+        );
+
+
+    if (saleAmount) {
+
+        saleAmount.value =
+            "₦0.00";
+    }
+
+
+    const shiftSelect =
+        document.getElementById(
+            "paymentShift"
+        );
+
+
+    if (shiftSelect) {
+
+        shiftSelect.innerHTML = `
+
+            <option value="">
+                Select shift
+            </option>
+
+        `;
+    }
+
+
+    hidePaymentFormMessage();
+}
+
+
+/* =========================================================
+   CREATE PAYMENT
+========================================================= */
+
+async function handlePaymentSubmit(
+    event
 ) {
 
-    return getShifts().find(
-        shift =>
-            shift.id ===
-            shiftId
-    );
-
-}
+    event.preventDefault();
 
 
-/* ==========================================
-   DELETE BUTTONS
-========================================== */
+    if (PaymentsState.isSubmitting) {
+        return;
+    }
 
-function setupPaymentDeleteButtons() {
 
-    const buttons =
-        document.querySelectorAll(
-            "[data-delete-payment]"
+    const stationId =
+        document.getElementById(
+            "paymentStation"
+        )?.value;
+
+
+    const shiftId =
+        document.getElementById(
+            "paymentShift"
+        )?.value;
+
+
+    const saleId =
+        document.getElementById(
+            "paymentSale"
+        )?.value;
+
+
+    const amount =
+        Number(
+            document.getElementById(
+                "paymentAmount"
+            )?.value
         );
 
 
-    buttons.forEach(
-        button => {
+    const paymentMethod =
+        document.getElementById(
+            "paymentMethod"
+        )?.value;
+
+
+    const reference =
+        document.getElementById(
+            "paymentReference"
+        )?.value.trim();
+
+
+    const notes =
+        document.getElementById(
+            "paymentNotes"
+        )?.value.trim();
+
+
+    /* =====================================================
+       VALIDATION
+    ===================================================== */
+
+    if (!stationId) {
+
+        showPaymentFormMessage(
+            "Please select a station.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    if (!shiftId) {
+
+        showPaymentFormMessage(
+            "Please select a shift.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    if (!saleId) {
+
+        showPaymentFormMessage(
+            "Please select a sale.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    if (
+        !Number.isFinite(amount) ||
+        amount <= 0
+    ) {
+
+        showPaymentFormMessage(
+            "Payment amount must be greater than zero.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    if (!paymentMethod) {
+
+        showPaymentFormMessage(
+            "Please select a payment method.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    const sale =
+        findSale(saleId);
+
+
+    if (!sale) {
+
+        showPaymentFormMessage(
+            "Selected sale could not be found.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    if (
+        String(sale.stationId) !==
+        String(stationId)
+    ) {
+
+        showPaymentFormMessage(
+            "Selected station does not match the sale.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    if (
+        String(sale.shiftId) !==
+        String(shiftId)
+    ) {
+
+        showPaymentFormMessage(
+            "Selected shift does not match the sale.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    /* =====================================================
+       SUBMIT
+    ===================================================== */
+
+    try {
+
+        PaymentsState.isSubmitting =
+            true;
+
+
+        setPaymentSubmitLoading(
+            true
+        );
+
+
+        hidePaymentFormMessage();
+
+
+        const paymentData = {
+
+            sale_id:
+                saleId,
+
+            station_id:
+                stationId,
+
+            shift_id:
+                shiftId,
+
+            amount:
+                amount,
+
+            payment_method:
+                paymentMethod,
+
+            reference:
+                reference || null,
+
+            notes:
+                notes || null
+        };
+
+
+        console.log(
+            "Creating payment:",
+            paymentData
+        );
+
+
+        const response =
+            await FuelGapAPI.createPayment(
+                paymentData
+            );
+
+
+        console.log(
+            "Payment created:",
+            response
+        );
+
+
+        showGlobalPaymentMessage(
+            "Payment recorded successfully.",
+            "success"
+        );
+
+
+        closePaymentModal();
+
+
+        await loadPaymentData();
+
+
+    } catch (error) {
+
+        console.error(
+            "CREATE PAYMENT ERROR:",
+            error
+        );
+
+
+        showPaymentFormMessage(
+            error.message ||
+            "Failed to record payment.",
+            "error"
+        );
+
+
+    } finally {
+
+        PaymentsState.isSubmitting =
+            false;
+
+
+        setPaymentSubmitLoading(
+            false
+        );
+    }
+}
+
+
+/* =========================================================
+   DELETE PAYMENT
+========================================================= */
+
+async function deletePayment(
+    paymentId
+) {
+
+    if (!paymentId) {
+        return;
+    }
+
+
+    if (
+        !confirm(
+            "Are you sure you want to delete this payment?"
+        )
+    ) {
+
+        return;
+    }
+
+
+    if (PaymentsState.isDeleting) {
+        return;
+    }
+
+
+    try {
+
+        PaymentsState.isDeleting =
+            true;
+
+
+        await FuelGapAPI.deletePayment(
+            paymentId
+        );
+
+
+        showGlobalPaymentMessage(
+            "Payment deleted successfully.",
+            "success"
+        );
+
+
+        await loadPaymentData();
+
+
+    } catch (error) {
+
+        console.error(
+            "DELETE PAYMENT ERROR:",
+            error
+        );
+
+
+        showGlobalPaymentMessage(
+            error.message ||
+            "Failed to delete payment.",
+            "error"
+        );
+
+
+    } finally {
+
+        PaymentsState.isDeleting =
+            false;
+    }
+}
+
+
+/* =========================================================
+   PAYMENT STATISTICS
+========================================================= */
+
+function renderPaymentStats() {
+
+    const container =
+        document.getElementById(
+            "paymentStats"
+        );
+
+
+    if (!container) {
+        return;
+    }
+
+
+    const payments =
+        PaymentsState.filteredPayments;
+
+
+    const totalAmount =
+        payments.reduce(
+            (
+                total,
+                payment
+            ) =>
+                total +
+                Number(
+                    payment.amount || 0
+                ),
+            0
+        );
+
+
+    const cash =
+        payments
+            .filter(
+                payment =>
+                    payment.paymentMethod ===
+                    "cash"
+            )
+            .reduce(
+                (
+                    total,
+                    payment
+                ) =>
+                    total +
+                    Number(
+                        payment.amount || 0
+                    ),
+                0
+            );
+
+
+    const pos =
+        payments
+            .filter(
+                payment =>
+                    payment.paymentMethod ===
+                    "pos"
+            )
+            .reduce(
+                (
+                    total,
+                    payment
+                ) =>
+                    total +
+                    Number(
+                        payment.amount || 0
+                    ),
+                0
+            );
+
+
+    const transfer =
+        payments
+            .filter(
+                payment =>
+                    payment.paymentMethod ===
+                    "transfer"
+            )
+            .reduce(
+                (
+                    total,
+                    payment
+                ) =>
+                    total +
+                    Number(
+                        payment.amount || 0
+                    ),
+                0
+            );
+
+
+    container.innerHTML = `
+
+        <div class="payment-stat-card">
+
+            <div class="payment-stat-icon">
+                ₦
+            </div>
+
+            <div>
+
+                <span>
+                    Total Payments
+                </span>
+
+                <strong>
+                    ${formatCurrency(
+                        totalAmount
+                    )}
+                </strong>
+
+            </div>
+
+        </div>
+
+
+        <div class="payment-stat-card">
+
+            <div class="payment-stat-icon">
+                #
+            </div>
+
+            <div>
+
+                <span>
+                    Transactions
+                </span>
+
+                <strong>
+                    ${payments.length}
+                </strong>
+
+            </div>
+
+        </div>
+
+
+        <div class="payment-stat-card">
+
+            <div class="payment-stat-icon">
+                C
+            </div>
+
+            <div>
+
+                <span>
+                    Cash
+                </span>
+
+                <strong>
+                    ${formatCurrency(
+                        cash
+                    )}
+                </strong>
+
+            </div>
+
+        </div>
+
+
+        <div class="payment-stat-card">
+
+            <div class="payment-stat-icon">
+                P
+            </div>
+
+            <div>
+
+                <span>
+                    POS
+                </span>
+
+                <strong>
+                    ${formatCurrency(
+                        pos
+                    )}
+                </strong>
+
+            </div>
+
+        </div>
+
+
+        <div class="payment-stat-card">
+
+            <div class="payment-stat-icon">
+                T
+            </div>
+
+            <div>
+
+                <span>
+                    Transfer
+                </span>
+
+                <strong>
+                    ${formatCurrency(
+                        transfer
+                    )}
+                </strong>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+/* =========================================================
+   PAYMENT TABLE
+========================================================= */
+
+function renderPaymentsTable() {
+
+    const tbody =
+        document.getElementById(
+            "paymentsTableBody"
+        );
+
+
+    const emptyState =
+        document.getElementById(
+            "paymentEmptyState"
+        );
+
+
+    const tableWrapper =
+        document.getElementById(
+            "paymentTableWrapper"
+        );
+
+
+    if (!tbody) {
+        return;
+    }
+
+
+    const payments =
+        PaymentsState.filteredPayments;
+
+
+    if (!payments.length) {
+
+        tbody.innerHTML = "";
+
+
+        if (emptyState) {
+
+            emptyState.style.display =
+                "block";
+        }
+
+
+        if (tableWrapper) {
+
+            tableWrapper.style.display =
+                "none";
+        }
+
+
+        return;
+    }
+
+
+    if (emptyState) {
+
+        emptyState.style.display =
+            "none";
+    }
+
+
+    if (tableWrapper) {
+
+        tableWrapper.style.display =
+            "block";
+    }
+
+
+    tbody.innerHTML =
+        payments
+            .map(
+                payment =>
+                    renderPaymentRow(
+                        payment
+                    )
+            )
+            .join("");
+
+
+    tbody
+        .querySelectorAll(
+            "[data-delete-payment]"
+        )
+        .forEach(button => {
 
             button.addEventListener(
                 "click",
                 () => {
 
                     deletePayment(
-                        button.getAttribute(
-                            "data-delete-payment"
-                        )
+                        button.dataset
+                            .deletePayment
                     );
 
                 }
             );
 
-        }
-    );
-
+        });
 }
 
 
-/* ==========================================
-   DELETE PAYMENT
-========================================== */
+/* =========================================================
+   PAYMENT TABLE ROW
+========================================================= */
 
-function deletePayment(
-    paymentId
+function renderPaymentRow(
+    payment
 ) {
 
-    const payment =
-        getPayments().find(
-            item =>
-                item.id ===
-                paymentId
+    const sale =
+        findSale(
+            payment.saleId
         );
 
 
-    if (!payment) {
-        return;
-    }
-
-
-    const confirmed =
-        window.confirm(
-            `Delete payment record of ${formatCurrency(
-                payment.amount
-            )} from ${payment.staffName || "Unknown Attendant"}?`
+    const station =
+        findStation(
+            payment.stationId
         );
 
 
-    if (!confirmed) {
-        return;
-    }
-
-
-    const payments =
-        getPayments();
-
-
-    const updatedPayments =
-        payments.filter(
-            item =>
-                item.id !==
-                paymentId
+    const shift =
+        findShift(
+            payment.shiftId
         );
-
-
-    saveStorageData(
-        PAYMENTS_STORAGE_KEY,
-        updatedPayments
-    );
-
-
-    renderPayments();
-
-}
-
-
-/* ==========================================
-   PAYMENT STATS
-========================================== */
-
-function updatePaymentStats(
-    payments
-) {
-
-    const total =
-        getPaymentTotal(
-            payments
-        );
-
-    const cash =
-        getPaymentTotal(
-            payments.filter(
-                payment =>
-                    payment.method ===
-                    "cash"
-            )
-        );
-
-    const pos =
-        getPaymentTotal(
-            payments.filter(
-                payment =>
-                    payment.method ===
-                    "pos"
-            )
-        );
-
-    const transfer =
-        getPaymentTotal(
-            payments.filter(
-                payment =>
-                    payment.method ===
-                    "transfer"
-            )
-        );
-
-    const credit =
-        getPaymentTotal(
-            payments.filter(
-                payment =>
-                    payment.method ===
-                    "credit"
-            )
-        );
-
-    const other =
-        getPaymentTotal(
-            payments.filter(
-                payment =>
-                    payment.method ===
-                    "other"
-            )
-        );
-
-
-    setElementText(
-        "totalPaymentAmount",
-        formatCurrency(total)
-    );
-
-    setElementText(
-        "cashPaymentAmount",
-        formatCurrency(cash)
-    );
-
-    setElementText(
-        "posPaymentAmount",
-        formatCurrency(pos)
-    );
-
-    setElementText(
-        "transferPaymentAmount",
-        formatCurrency(transfer)
-    );
-
-    setElementText(
-        "creditPaymentAmount",
-        formatCurrency(credit)
-    );
-
-    setElementText(
-        "otherPaymentAmount",
-        formatCurrency(other)
-    );
-
-    setElementText(
-        "paymentRecordCount",
-        payments.length
-    );
-
-}
-
-
-/* ==========================================
-   PAYMENT TOTAL
-========================================== */
-
-function getPaymentTotal(
-    payments
-) {
-
-    return payments.reduce(
-        (
-            total,
-            payment
-        ) => {
-
-            return (
-                total +
-                (
-                    Number(
-                        payment.amount
-                    ) || 0
-                )
-            );
-
-        },
-        0
-    );
-
-}
-
-
-/* ==========================================
-   PAYMENT MESSAGE
-========================================== */
-
-function showPaymentMessage(
-    message,
-    type
-) {
-
-    const element =
-        document.getElementById(
-            "paymentMessage"
-        );
-
-    if (!element) {
-        return;
-    }
-
-
-    element.innerHTML = `
-
-        <div class="
-            payment-form-message
-            ${type}
-        ">
-
-            <span class="message-icon">
-                ${
-                    type === "success"
-                        ? paymentIcon("check")
-                        : paymentIcon("alert")
-                }
-            </span>
-
-            <span>
-                ${escapeHTML(
-                    message
-                )}
-            </span>
-
-        </div>
-
-    `;
-
-}
-
-
-function clearPaymentMessage() {
-
-    const element =
-        document.getElementById(
-            "paymentMessage"
-        );
-
-    if (element) {
-        element.innerHTML = "";
-    }
-
-}
-
-
-/* ==========================================
-   PAYMENT METHOD BADGE
-========================================== */
-
-function formatPaymentMethodBadge(
-    method
-) {
-
-    const methods = {
-
-        cash: {
-            label: "Cash",
-            icon: "cash",
-            className: "cash"
-        },
-
-        pos: {
-            label: "POS",
-            icon: "card",
-            className: "pos"
-        },
-
-        transfer: {
-            label: "Transfer",
-            icon: "transfer",
-            className: "transfer"
-        },
-
-        credit: {
-            label: "Credit",
-            icon: "credit",
-            className: "credit"
-        },
-
-        other: {
-            label: "Other",
-            icon: "wallet",
-            className: "other"
-        }
-
-    };
-
-
-    const item =
-        methods[method] ||
-        {
-            label: method || "Unknown",
-            icon: "wallet",
-            className: "other"
-        };
 
 
     return `
 
-        <span class="
-            payment-method-badge
-            ${item.className}
-        ">
+        <tr>
 
-            ${paymentIcon(
-                item.icon
-            )}
+            <td>
 
-            <span>
-                ${escapeHTML(
-                    item.label
-                )}
-            </span>
+                <div class="payment-sale-cell">
 
-        </span>
+                    <strong>
+                        ${escapeHtml(
+                            payment.saleId ||
+                            "N/A"
+                        )}
+                    </strong>
 
+                    ${
+                        sale
+                            ? `
+                                <small>
+                                    ${formatNumber(
+                                        sale.litres
+                                    )}
+                                    L
+                                </small>
+                            `
+                            : ""
+                    }
+
+                </div>
+
+            </td>
+
+
+            <td>
+
+                <div class="payment-station-cell">
+
+                    <strong>
+                        ${escapeHtml(
+                            station?.name ||
+                            "Unknown Station"
+                        )}
+                    </strong>
+
+                    ${
+                        station?.city
+                            ? `
+                                <small>
+                                    ${escapeHtml(
+                                        station.city
+                                    )}
+                                </small>
+                            `
+                            : ""
+                    }
+
+                </div>
+
+            </td>
+
+
+            <td>
+
+                <span class="payment-shift-badge">
+
+                    ${escapeHtml(
+                        shift?.name ||
+                        "Unknown Shift"
+                    )}
+
+                </span>
+
+            </td>
+
+
+            <td>
+
+                <span
+                    class="
+                        payment-method-badge
+                        method-${escapeHtml(
+                            payment.paymentMethod
+                        )}
+                    "
+                >
+
+                    ${paymentIcon(
+                        payment.paymentMethod
+                    )}
+
+                    ${escapeHtml(
+                        formatPaymentMethod(
+                            payment.paymentMethod
+                        )
+                    )}
+
+                </span>
+
+            </td>
+
+
+            <td>
+
+                <strong class="payment-amount">
+
+                    ${formatCurrency(
+                        payment.amount
+                    )}
+
+                </strong>
+
+            </td>
+
+
+            <td>
+
+                <span class="payment-recorded-by">
+
+                    ${escapeHtml(
+                        getRecordedByName(
+                            payment.recordedBy
+                        )
+                    )}
+
+                </span>
+
+            </td>
+
+
+            <td>
+
+                <div class="payment-date-cell">
+
+                    <strong>
+                        ${formatDate(
+                            payment.createdAt
+                        )}
+                    </strong>
+
+                    <small>
+                        ${formatTime(
+                            payment.createdAt
+                        )}
+                    </small>
+
+                </div>
+
+            </td>
+
+
+            <td>
+
+                <button
+                    type="button"
+                    class="payment-delete-btn"
+                    data-delete-payment="${escapeHtml(
+                        payment.paymentId
+                    )}"
+                >
+                    Delete
+                </button>
+
+            </td>
+
+        </tr>
     `;
-
 }
 
 
-/* ==========================================
-   CURRENCY
-========================================== */
+/* =========================================================
+   FIND STATION
+========================================================= */
 
-function formatCurrency(
-    amount
+function findStation(
+    stationId
 ) {
 
-    const value =
-        Number(amount) || 0;
-
-
-    return value.toLocaleString(
-        "en-NG",
-        {
-
-            style: "currency",
-
-            currency: "NGN",
-
-            minimumFractionDigits: 2,
-
-            maximumFractionDigits: 2
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   DATE
-========================================== */
-
-function formatPaymentDate(
-    dateValue
-) {
-
-    if (!dateValue) {
-        return "-";
+    if (!stationId) {
+        return null;
     }
 
 
-    const date =
-        new Date(
-            dateValue
-        );
+    return PaymentsState.stations.find(
+        station =>
+            String(
+                station.stationId
+            ) === String(stationId)
+    ) || null;
+}
+
+
+/* =========================================================
+   FIND SHIFT
+========================================================= */
+
+function findShift(
+    shiftId
+) {
+
+    if (!shiftId) {
+        return null;
+    }
+
+
+    return PaymentsState.shifts.find(
+        shift =>
+            String(
+                shift.shiftId
+            ) === String(shiftId)
+    ) || null;
+}
+
+
+/* =========================================================
+   FIND SALE
+========================================================= */
+
+function findSale(
+    saleId
+) {
+
+    if (!saleId) {
+        return null;
+    }
+
+
+    return PaymentsState.sales.find(
+        sale =>
+            String(
+                sale.saleId
+            ) === String(saleId)
+    ) || null;
+}
+
+
+/* =========================================================
+   RECORDED BY
+========================================================= */
+
+function getRecordedByName(
+    recordedBy
+) {
+
+    if (!recordedBy) {
+
+        return "User";
+    }
+
+
+    const user =
+        PaymentsState.currentUser || {};
+
+
+    const currentUserId =
+        user.id ||
+        user.user_id;
 
 
     if (
-        Number.isNaN(
-            date.getTime()
-        )
+        currentUserId &&
+        String(
+            currentUserId
+        ) === String(recordedBy)
     ) {
-        return "-";
+
+        return (
+            user.full_name ||
+            user.fullName ||
+            user.name ||
+            user.email ||
+            "Current User"
+        );
     }
 
 
-    return date.toLocaleDateString(
-        "en-NG",
-        {
-            day: "2-digit",
-            month: "short",
-            year: "numeric"
-        }
-    );
-
+    return "User";
 }
 
 
-/* ==========================================
-   TIME
-========================================== */
+/* =========================================================
+   CLEAR FILTERS
+========================================================= */
 
-function formatPaymentTime(
-    dateValue
-) {
+function clearPaymentFilters() {
 
-    if (!dateValue) {
-        return "-";
-    }
+    PaymentsState.currentFilters = {
+
+        search: "",
+
+        stationId: "",
+
+        shiftId: "",
+
+        paymentMethod: "",
+
+        date: ""
+    };
+
+
+    const search =
+        document.getElementById(
+            "paymentSearch"
+        );
+
+
+    const station =
+        document.getElementById(
+            "paymentStationFilter"
+        );
+
+
+    const shift =
+        document.getElementById(
+            "paymentShiftFilter"
+        );
+
+
+    const method =
+        document.getElementById(
+            "paymentMethodFilter"
+        );
 
 
     const date =
-        new Date(
-            dateValue
+        document.getElementById(
+            "paymentDateFilter"
         );
 
 
-    if (
-        Number.isNaN(
-            date.getTime()
-        )
-    ) {
-        return "-";
+    if (search) {
+        search.value = "";
     }
 
 
-    return date.toLocaleTimeString(
-        "en-NG",
-        {
-            hour: "2-digit",
-            minute: "2-digit"
-        }
-    );
+    if (station) {
+        station.value = "";
+    }
 
+
+    if (shift) {
+        shift.value = "";
+    }
+
+
+    if (method) {
+        method.value = "";
+    }
+
+
+    if (date) {
+        date.value = "";
+    }
+
+
+    applyPaymentFilters();
+
+    renderPaymentStats();
+
+    renderPaymentsTable();
 }
 
 
-/* ==========================================
-   CURRENT DATETIME
-========================================== */
-
-function getCurrentDateTimeLocal() {
-
-    const now =
-        new Date();
-
-    const timezoneOffset =
-        now.getTimezoneOffset() *
-        60000;
-
-    const localDate =
-        new Date(
-            now.getTime() -
-            timezoneOffset
-        );
-
-    return localDate
-        .toISOString()
-        .slice(
-            0,
-            16
-        );
-
-}
-
-
-/* ==========================================
+/* =========================================================
    EXPORT CSV
-========================================== */
+========================================================= */
 
-function exportPaymentsToCSV() {
+function exportPaymentsCSV() {
 
     const payments =
-        filterPayments(
-            getVisiblePayments(),
-            getPaymentFilters()
-        );
+        PaymentsState.filteredPayments;
 
 
     if (!payments.length) {
 
-        alert(
-            "There are no payment records to export."
+        showGlobalPaymentMessage(
+            "There are no payment records to export.",
+            "error"
         );
 
         return;
-
     }
 
 
     const headers = [
 
         "Payment ID",
-        "Station",
-        "Shift",
-        "Attendant",
-        "Payment Method",
-        "Amount",
-        "Recorded By",
-        "Payment Date",
-        "Notes"
 
+        "Sale ID",
+
+        "Station",
+
+        "Shift",
+
+        "Payment Method",
+
+        "Amount",
+
+        "Recorded By",
+
+        "Reference",
+
+        "Notes",
+
+        "Created At"
     ];
 
 
     const rows =
         payments.map(
-            payment => [
+            payment => {
 
-                payment.id || "",
+                const station =
+                    findStation(
+                        payment.stationId
+                    );
 
-                payment.stationName || "",
 
-                payment.shiftName || "",
+                const shift =
+                    findShift(
+                        payment.shiftId
+                    );
 
-                payment.staffName || "",
 
-                formatPaymentMethod(
-                    payment.method
-                ),
+                return [
 
-                Number(
-                    payment.amount
-                ) || 0,
+                    payment.paymentId,
 
-                payment.recordedByName || "",
+                    payment.saleId,
 
-                payment.paymentDate || "",
+                    station?.name ||
+                    "",
 
-                payment.notes || ""
+                    shift?.name ||
+                    "",
 
-            ]
+                    payment.paymentMethod,
+
+                    payment.amount,
+
+                    getRecordedByName(
+                        payment.recordedBy
+                    ),
+
+                    payment.reference,
+
+                    payment.notes,
+
+                    payment.createdAt
+
+                ];
+            }
         );
 
 
@@ -3228,11 +3453,12 @@ function exportPaymentsToCSV() {
                     .map(
                         value =>
                             `"${String(
-                                value
-                            ).replace(
-                                /"/g,
-                                '""'
-                            )}"`
+                                value ?? ""
+                            )
+                                .replace(
+                                    /"/g,
+                                    '""'
+                                )}"`
                     )
                     .join(",")
         )
@@ -3260,294 +3486,235 @@ function exportPaymentsToCSV() {
             "a"
         );
 
-    link.href =
-        url;
+
+    link.href = url;
+
 
     link.download =
-        `fuelgap-payments-${new Date()
-            .toISOString()
-            .slice(0, 10)}.csv`;
+        `fuelgap-payments-${formatDateInput(
+            new Date()
+        )}.csv`;
+
 
     document.body.appendChild(
         link
     );
 
+
     link.click();
 
-    document.body.removeChild(
-        link
-    );
+
+    link.remove();
+
 
     URL.revokeObjectURL(
         url
     );
-
 }
 
 
-/* ==========================================
-   INITIALS
-========================================== */
+/* =========================================================
+   LOADING
+========================================================= */
 
-function getInitials(
-    value
+function setPaymentLoading(
+    loading
 ) {
 
-    const text =
-        String(
-            value || ""
-        ).trim();
-
-
-    if (!text) {
-        return "?";
-    }
-
-
-    const parts =
-        text.split(
-            /\s+/
+    const wrapper =
+        document.getElementById(
+            "paymentTableWrapper"
         );
 
 
-    if (parts.length === 1) {
-
-        return parts[0]
-            .substring(
-                0,
-                2
-            )
-            .toUpperCase();
-
+    if (!wrapper) {
+        return;
     }
 
 
-    return (
-        parts[0][0] +
-        parts[parts.length - 1][0]
-    ).toUpperCase();
+    if (loading) {
 
+        wrapper.classList.add(
+            "payment-loading"
+        );
+
+    } else {
+
+        wrapper.classList.remove(
+            "payment-loading"
+        );
+    }
 }
 
 
-/* ==========================================
-   SET ELEMENT TEXT
-========================================== */
+/* =========================================================
+   SUBMIT BUTTON LOADING
+========================================================= */
 
-function setElementText(
-    id,
-    value
+function setPaymentSubmitLoading(
+    loading
+) {
+
+    const button =
+        document.getElementById(
+            "submitPaymentBtn"
+        );
+
+
+    if (!button) {
+        return;
+    }
+
+
+    button.disabled =
+        loading;
+
+
+    button.textContent =
+        loading
+            ? "Recording..."
+            : "Record Payment";
+}
+
+
+/* =========================================================
+   FORM MESSAGE
+========================================================= */
+
+function showPaymentFormMessage(
+    message,
+    type = "error"
 ) {
 
     const element =
         document.getElementById(
-            id
+            "paymentFormMessage"
         );
 
-    if (element) {
-        element.textContent =
-            value;
-    }
 
-}
-
-
-/* ==========================================
-   ESCAPE HTML
-========================================== */
-
-function escapeHTML(
-    value
-) {
-
-    if (
-        value === null ||
-        value === undefined
-    ) {
-        return "";
+    if (!element) {
+        return;
     }
 
 
-    const div =
-        document.createElement(
-            "div"
-        );
+    element.textContent =
+        message;
 
-    div.textContent =
-        String(
-            value
-        );
 
-    return div.innerHTML;
+    element.className =
+        `payment-form-message ${type}`;
 
+
+    element.style.display =
+        "block";
 }
 
 
-/* ==========================================
-   PAYMENT ICONS
-========================================== */
+function hidePaymentFormMessage() {
 
-function paymentIcon(
-    name
+    const element =
+        document.getElementById(
+            "paymentFormMessage"
+        );
+
+
+    if (!element) {
+        return;
+    }
+
+
+    element.style.display =
+        "none";
+}
+
+
+/* =========================================================
+   GLOBAL MESSAGE
+========================================================= */
+
+function showGlobalPaymentMessage(
+    message,
+    type = "success"
 ) {
 
-    const icons = {
-
-        wallet: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="5" width="18" height="15" rx="3"></rect>
-                <path d="M16 9h5v6h-5a3 3 0 1 1 0-6Z"></path>
-                <path d="M16 12h.01"></path>
-            </svg>
-        `,
-
-        cash: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="6" width="18" height="12" rx="2"></rect>
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M6 10h.01M18 14h.01"></path>
-            </svg>
-        `,
-
-        card: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="5" width="18" height="14" rx="2"></rect>
-                <path d="M3 10h18"></path>
-                <path d="M7 15h4"></path>
-            </svg>
-        `,
-
-        transfer: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7 7h12"></path>
-                <path d="m15 3 4 4-4 4"></path>
-                <path d="M17 17H5"></path>
-                <path d="m9 13-4 4 4 4"></path>
-            </svg>
-        `,
-
-        credit: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path>
-                <path d="M2 10h20"></path>
-            </svg>
-        `,
-
-        receipt: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"></path>
-                <path d="M9 8h6M9 12h6M9 16h3"></path>
-            </svg>
-        `,
-
-        activity: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 12h4l2-7 4 14 2-7h6"></path>
-            </svg>
-        `,
-
-        search: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="11" cy="11" r="7"></circle>
-                <path d="m20 20-4-4"></path>
-            </svg>
-        `,
-
-        plus: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 5v14M5 12h14"></path>
-            </svg>
-        `,
-
-        refresh: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M20 11a8 8 0 0 0-14.9-3L3 11"></path>
-                <path d="M3 5v6h6"></path>
-                <path d="M4 13a8 8 0 0 0 14.9 3L21 13"></path>
-                <path d="M21 19v-6h-6"></path>
-            </svg>
-        `,
-
-        download: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 3v12"></path>
-                <path d="m7 10 5 5 5-5"></path>
-                <path d="M5 21h14"></path>
-            </svg>
-        `,
-
-        trash: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 7h16"></path>
-                <path d="M10 11v6M14 11v6"></path>
-                <path d="M6 7l1 14h10l1-14"></path>
-                <path d="M9 7V4h6v3"></path>
-            </svg>
-        `,
-
-        check: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m5 12 4 4L19 6"></path>
-            </svg>
-        `,
-
-        alert: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 3 2.5 20h19L12 3Z"></path>
-                <path d="M12 9v5"></path>
-                <path d="M12 17h.01"></path>
-            </svg>
-        `,
-
-        shield: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 3 20 6v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3Z"></path>
-                <path d="m9 12 2 2 4-4"></path>
-            </svg>
-        `,
-
-        station: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16"></path>
-                <path d="M5 7h11"></path>
-                <path d="M9 11h3"></path>
-                <path d="M16 8h2a2 2 0 0 1 2 2v8"></path>
-                <path d="M20 18h1"></path>
-            </svg>
-        `,
-
-        clock: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="9"></circle>
-                <path d="M12 7v5l3 2"></path>
-            </svg>
-        `,
-
-        user: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="8" r="4"></circle>
-                <path d="M4 21c.8-4 3.4-6 8-6s7.2 2 8 6"></path>
-            </svg>
-        `,
-
-        calendar: `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="5" width="18" height="16" rx="2"></rect>
-                <path d="M16 3v4M8 3v4M3 10h18"></path>
-            </svg>
-        `
-
-    };
+    const element =
+        document.getElementById(
+            "paymentGlobalMessage"
+        );
 
 
-    return icons[name] || icons.wallet;
+    if (!element) {
 
+        console.log(message);
+
+        return;
+    }
+
+
+    element.textContent =
+        message;
+
+
+    element.className =
+        `payment-global-message ${type}`;
+
+
+    element.style.display =
+        "block";
+
+
+    setTimeout(
+        () => {
+
+            element.style.display =
+                "none";
+
+        },
+        4000
+    );
 }
 
 
-/* ==========================================
-   LEGACY METHOD FORMAT
-========================================== */
+/* =========================================================
+   GLOBAL ERROR
+========================================================= */
+
+function showGlobalPaymentError(
+    message
+) {
+
+    const element =
+        document.getElementById(
+            "paymentGlobalMessage"
+        );
+
+
+    if (!element) {
+
+        console.error(
+            message
+        );
+
+        return;
+    }
+
+
+    element.textContent =
+        message;
+
+
+    element.className =
+        "payment-global-message error";
+
+
+    element.style.display =
+        "block";
+}
+
+
+/* =========================================================
+   PAYMENT METHOD
+========================================================= */
 
 function formatPaymentMethod(
     method
@@ -3559,19 +3726,1022 @@ function formatPaymentMethod(
 
         pos: "POS",
 
-        transfer: "Bank Transfer",
+        transfer: "Transfer",
 
-        credit: "Credit",
+        card: "Card",
 
-        other: "Other"
-
+        credit: "Credit"
     };
 
 
     return (
-        methods[method] ||
+        methods[
+            String(method)
+                .toLowerCase()
+        ] ||
         method ||
         "Unknown"
     );
-
 }
+
+
+/* =========================================================
+   PAYMENT ICON
+========================================================= */
+
+function paymentIcon(
+    method
+) {
+
+    const icons = {
+
+        cash: "₦",
+
+        pos: "P",
+
+        transfer: "T",
+
+        card: "C",
+
+        credit: "CR"
+    };
+
+
+    return `
+        <span class="payment-method-icon">
+            ${
+                icons[
+                    String(method)
+                        .toLowerCase()
+                ] || "₦"
+            }
+        </span>
+    `;
+}
+
+
+/* =========================================================
+   CURRENCY
+========================================================= */
+
+function formatCurrency(
+    amount
+) {
+
+    const numeric =
+        Number(amount || 0);
+
+
+    return new Intl.NumberFormat(
+        "en-NG",
+        {
+            style: "currency",
+            currency: "NGN",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }
+    ).format(
+        numeric
+    );
+}
+
+
+/* =========================================================
+   NUMBER
+========================================================= */
+
+function formatNumber(
+    value
+) {
+
+    return new Intl.NumberFormat(
+        "en-NG",
+        {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }
+    ).format(
+        Number(value || 0)
+    );
+}
+
+
+/* =========================================================
+   DATE
+========================================================= */
+
+function formatDate(
+    value
+) {
+
+    if (!value) {
+        return "—";
+    }
+
+
+    const date =
+        new Date(value);
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return "—";
+    }
+
+
+    return date.toLocaleDateString(
+        "en-NG",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "numeric"
+        }
+    );
+}
+
+
+/* =========================================================
+   TIME
+========================================================= */
+
+function formatTime(
+    value
+) {
+
+    if (!value) {
+        return "—";
+    }
+
+
+    const date =
+        new Date(value);
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return "—";
+    }
+
+
+    return date.toLocaleTimeString(
+        "en-NG",
+        {
+            hour: "2-digit",
+            minute: "2-digit"
+        }
+    );
+}
+
+
+/* =========================================================
+   DATE INPUT
+========================================================= */
+
+function formatDateInput(
+    value
+) {
+
+    const date =
+        value instanceof Date
+            ? value
+            : new Date(value);
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return "";
+    }
+
+
+    const year =
+        date.getFullYear();
+
+
+    const month =
+        String(
+            date.getMonth() + 1
+        ).padStart(
+            2,
+            "0"
+        );
+
+
+    const day =
+        String(
+            date.getDate()
+        ).padStart(
+            2,
+            "0"
+        );
+
+
+    return `${year}-${month}-${day}`;
+}
+
+
+/* =========================================================
+   ESCAPE HTML
+========================================================= */
+
+function escapeHtml(
+    value
+) {
+
+    return String(
+        value ?? ""
+    )
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+}
+
+
+/* =========================================================
+   PAYMENT CSS
+========================================================= */
+
+function injectPaymentStyles() {
+
+    if (
+        document.getElementById(
+            "fuelgapPaymentStyles"
+        )
+    ) {
+
+        return;
+    }
+
+
+    const style =
+        document.createElement(
+            "style"
+        );
+
+
+    style.id =
+        "fuelgapPaymentStyles";
+
+
+    style.textContent = `
+
+        .payments-page {
+            width: 100%;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+
+        .payments-hero {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 24px;
+            padding: 28px;
+            border-radius: 20px;
+            background: linear-gradient(
+                135deg,
+                #ffffff,
+                #fffbea
+            );
+            border: 1px solid #f0e6b0;
+            box-shadow:
+                0 10px 30px
+                rgba(0,0,0,.06);
+        }
+
+
+        .payments-eyebrow {
+            color: #9a7900;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 1.4px;
+            margin-bottom: 8px;
+        }
+
+
+        .payments-hero h1 {
+            margin: 0;
+            font-size: 30px;
+            font-weight: 800;
+            color: #171717;
+        }
+
+
+        .payments-hero p {
+            margin: 8px 0 0;
+            color: #6d6d6d;
+        }
+
+
+        .payments-hero-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+
+        .fg-btn {
+            border: 0;
+            border-radius: 10px;
+            padding: 11px 16px;
+            font-size: 13px;
+            font-weight: 750;
+            cursor: pointer;
+            transition: .2s ease;
+        }
+
+
+        .fg-btn:hover {
+            transform: translateY(-1px);
+        }
+
+
+        .fg-btn:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+
+        .fg-btn-primary {
+            background: #f2c500;
+            color: #171717;
+        }
+
+
+        .fg-btn-secondary {
+            background: #171717;
+            color: #ffffff;
+        }
+
+
+        .fg-btn-outline {
+            background: #ffffff;
+            color: #171717;
+            border: 1px solid #dedede;
+        }
+
+
+        .fg-btn-light {
+            background: #f5f5f5;
+            color: #333333;
+        }
+
+
+        .payment-global-message {
+            padding: 13px 16px;
+            border-radius: 10px;
+            margin-bottom: 18px;
+            font-size: 14px;
+            font-weight: 650;
+        }
+
+
+        .payment-global-message.success {
+            background: #edf9ef;
+            color: #217a36;
+            border: 1px solid #c8e9ce;
+        }
+
+
+        .payment-global-message.error {
+            background: #fff0f0;
+            color: #a42828;
+            border: 1px solid #efc7c7;
+        }
+
+
+        .payment-stats {
+            display: grid;
+            grid-template-columns:
+                repeat(5, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+
+        .payment-stat-card {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            padding: 20px;
+            background: #ffffff;
+            border: 1px solid #ececec;
+            border-radius: 16px;
+            box-shadow:
+                0 7px 20px
+                rgba(0,0,0,.045);
+        }
+
+
+        .payment-stat-icon {
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            border-radius: 12px;
+            background: #fff5bf;
+            color: #8c7000;
+            font-weight: 900;
+        }
+
+
+        .payment-stat-card span {
+            display: block;
+            color: #777777;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+
+        .payment-stat-card strong {
+            display: block;
+            color: #181818;
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+
+        .payment-insight {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 18px;
+            padding: 15px 18px;
+            background: #fffbea;
+            border: 1px solid #f2e7a9;
+            border-radius: 14px;
+        }
+
+
+        .payment-insight-icon {
+            width: 38px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f2c500;
+            color: #171717;
+            border-radius: 10px;
+            font-weight: 900;
+        }
+
+
+        .payment-insight strong,
+        .payment-insight span {
+            display: block;
+        }
+
+
+        .payment-insight strong {
+            font-size: 13px;
+            color: #222;
+        }
+
+
+        .payment-insight span {
+            margin-top: 3px;
+            color: #777;
+            font-size: 12px;
+        }
+
+
+        .payment-card {
+            background: #ffffff;
+            border: 1px solid #ececec;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow:
+                0 8px 28px
+                rgba(0,0,0,.045);
+        }
+
+
+        .payment-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 22px;
+            border-bottom: 1px solid #eeeeee;
+        }
+
+
+        .payment-card-header h2 {
+            margin: 0;
+            font-size: 19px;
+            color: #171717;
+        }
+
+
+        .payment-card-header p {
+            margin: 5px 0 0;
+            color: #777777;
+            font-size: 13px;
+        }
+
+
+        .payment-filters {
+            display: grid;
+            grid-template-columns:
+                1.5fr
+                1fr
+                1fr
+                1fr
+                1fr
+                auto;
+            gap: 12px;
+            padding: 18px 22px;
+            background: #fafafa;
+            border-bottom: 1px solid #eeeeee;
+        }
+
+
+        .payment-filter-group label,
+        .form-group label {
+            display: block;
+            margin-bottom: 7px;
+            font-size: 12px;
+            font-weight: 750;
+            color: #404040;
+        }
+
+
+        .payment-filter-group input,
+        .payment-filter-group select,
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #dcdcdc;
+            border-radius: 9px;
+            background: #ffffff;
+            padding: 11px 12px;
+            color: #222222;
+            outline: none;
+            font: inherit;
+        }
+
+
+        .payment-filter-group input:focus,
+        .payment-filter-group select:focus,
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: #d4ae00;
+            box-shadow:
+                0 0 0 3px
+                rgba(242,197,0,.13);
+        }
+
+
+        .payment-filter-actions {
+            display: flex;
+            align-items: end;
+        }
+
+
+        .payment-table-wrapper {
+            overflow-x: auto;
+        }
+
+
+        .payment-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1000px;
+        }
+
+
+        .payment-table th {
+            padding: 13px 16px;
+            text-align: left;
+            background: #fafafa;
+            border-bottom: 1px solid #e8e8e8;
+            color: #666666;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+        }
+
+
+        .payment-table td {
+            padding: 15px 16px;
+            border-bottom: 1px solid #eeeeee;
+            color: #333333;
+            font-size: 13px;
+            vertical-align: middle;
+        }
+
+
+        .payment-table tbody tr:hover {
+            background: #fffdf1;
+        }
+
+
+        .payment-sale-cell strong,
+        .payment-station-cell strong,
+        .payment-date-cell strong {
+            display: block;
+        }
+
+
+        .payment-sale-cell small,
+        .payment-station-cell small,
+        .payment-date-cell small {
+            display: block;
+            margin-top: 3px;
+            color: #8a8a8a;
+            font-size: 11px;
+        }
+
+
+        .payment-shift-badge {
+            display: inline-flex;
+            padding: 5px 8px;
+            border-radius: 7px;
+            background: #f4f4f4;
+            color: #555;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+
+        .payment-method-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 9px;
+            border-radius: 8px;
+            background: #f7f7f7;
+            font-size: 11px;
+            font-weight: 750;
+        }
+
+
+        .payment-method-icon {
+            font-weight: 900;
+        }
+
+
+        .method-cash {
+            background: #eef9ef;
+            color: #27743a;
+        }
+
+
+        .method-pos {
+            background: #eef5ff;
+            color: #285e9c;
+        }
+
+
+        .method-transfer {
+            background: #fff7df;
+            color: #806000;
+        }
+
+
+        .method-card {
+            background: #f3efff;
+            color: #6346a2;
+        }
+
+
+        .method-credit {
+            background: #fff0f0;
+            color: #9a3030;
+        }
+
+
+        .payment-amount {
+            color: #1d1d1d;
+            font-weight: 800;
+        }
+
+
+        .payment-recorded-by {
+            color: #555;
+            font-size: 12px;
+        }
+
+
+        .payment-delete-btn {
+            border: 0;
+            background: transparent;
+            color: #b02a2a;
+            font-size: 12px;
+            font-weight: 750;
+            cursor: pointer;
+            padding: 7px;
+        }
+
+
+        .payment-delete-btn:hover {
+            text-decoration: underline;
+        }
+
+
+        .payment-empty-state {
+            text-align: center;
+            padding: 70px 20px;
+        }
+
+
+        .payment-empty-icon {
+            width: 54px;
+            height: 54px;
+            margin: 0 auto 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 15px;
+            background: #fff5bf;
+            color: #8d7100;
+            font-size: 22px;
+            font-weight: 900;
+        }
+
+
+        .payment-empty-state h3 {
+            margin: 0 0 7px;
+            color: #222;
+        }
+
+
+        .payment-empty-state p {
+            margin: 0;
+            color: #888;
+            font-size: 13px;
+        }
+
+
+        .fg-modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(0,0,0,.58);
+        }
+
+
+        .fg-modal {
+            width: 100%;
+            max-width: 760px;
+            max-height: 92vh;
+            overflow-y: auto;
+            background: #ffffff;
+            border-radius: 18px;
+            box-shadow:
+                0 30px 80px
+                rgba(0,0,0,.25);
+        }
+
+
+        .fg-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 22px;
+            border-bottom: 1px solid #eeeeee;
+        }
+
+
+        .modal-eyebrow {
+            display: block;
+            margin-bottom: 6px;
+            color: #a17f00;
+            font-size: 10px;
+            font-weight: 850;
+            letter-spacing: 1.2px;
+        }
+
+
+        .fg-modal-header h2 {
+            margin: 0;
+            font-size: 21px;
+        }
+
+
+        .modal-close {
+            width: 34px;
+            height: 34px;
+            border: 0;
+            border-radius: 9px;
+            background: #f5f5f5;
+            color: #444;
+            font-size: 22px;
+            cursor: pointer;
+        }
+
+
+        .payment-form {
+            padding: 22px;
+        }
+
+
+        .payment-form-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+
+        .payment-form-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding-top: 20px;
+            margin-top: 8px;
+            border-top: 1px solid #eeeeee;
+        }
+
+
+        .payment-form-message {
+            padding: 11px 13px;
+            border-radius: 9px;
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+
+        .payment-form-message.error {
+            background: #fff0f0;
+            color: #9d2929;
+            border: 1px solid #ecc8c8;
+        }
+
+
+        .payment-form-message.success {
+            background: #edf9ef;
+            color: #28753a;
+            border: 1px solid #c9e9cf;
+        }
+
+
+        .payment-loading {
+            opacity: .6;
+            pointer-events: none;
+        }
+
+
+        body.modal-open {
+            overflow: hidden;
+        }
+
+
+        @media (max-width: 1200px) {
+
+            .payment-stats {
+                grid-template-columns:
+                    repeat(3, minmax(0, 1fr));
+            }
+
+
+            .payment-filters {
+                grid-template-columns:
+                    repeat(3, minmax(0, 1fr));
+            }
+
+        }
+
+
+        @media (max-width: 800px) {
+
+            .payments-page {
+                padding: 15px;
+            }
+
+
+            .payments-hero {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+
+            .payment-stats {
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
+            }
+
+
+            .payment-filters {
+                grid-template-columns:
+                    1fr 1fr;
+            }
+
+
+            .payment-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+
+            .full-width {
+                grid-column: auto;
+            }
+
+        }
+
+
+        @media (max-width: 520px) {
+
+            .payment-stats {
+                grid-template-columns: 1fr;
+            }
+
+
+            .payment-filters {
+                grid-template-columns: 1fr;
+            }
+
+
+            .payments-hero h1 {
+                font-size: 24px;
+            }
+
+
+            .payments-hero-actions {
+                width: 100%;
+            }
+
+
+            .payments-hero-actions .fg-btn {
+                flex: 1;
+            }
+
+
+            .payment-card-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+
+            .payment-form-footer {
+                flex-direction: column-reverse;
+            }
+
+
+            .payment-form-footer .fg-btn {
+                width: 100%;
+            }
+
+        }
+
+    `;
+
+
+    document.head.appendChild(
+        style
+    );
+}
+
+
+/* =========================================================
+   GLOBAL DELETE FUNCTION
+========================================================= */
+
+window.deletePayment =
+    deletePayment;

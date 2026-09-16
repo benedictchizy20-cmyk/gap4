@@ -1,207 +1,186 @@
 /* =========================================================
-   FUELGAP - PROFESSIONAL SALES MANAGEMENT
-   PREMIUM UI + EXISTING SALES LOGIC
-========================================================= */
+   FUELGAP - SALES MANAGEMENT
+   REAL BACKEND VERSION
+   EXPRESS + SUPABASE
+   HTTPONLY COOKIE SESSION
+   NO LOCALSTORAGE AUTHENTICATION
 
-const SALES_READINGS_STORAGE_KEY = "fuelgap_meter_readings";
-const SALES_STATIONS_STORAGE_KEY = "fuelgap_stations";
-const SALES_PUMPS_STORAGE_KEY = "fuelgap_pumps";
-const SALES_NOZZLES_STORAGE_KEY = "fuelgap_nozzles";
-const SALES_SHIFTS_STORAGE_KEY = "fuelgap_shifts";
-const SALES_STAFF_STORAGE_KEY = "fuelgap_staff";
+   FEATURES
+   ---------------------------------------------------------
+   - View sales
+   - Record new sale
+   - Save sale to backend
+   - Station dropdown from backend
+   - Shift dropdown from backend
+   - Pump dropdown from backend
+   - Nozzle dropdown from backend
+   - Automatic price per litre
+   - Automatic amount calculation
+   - Payment method
+   - Search
+   - Filters
+   - Sorting
+   - Pagination
+   - CSV export
+========================================================= */
 
 
 /* =========================================================
-   PAGE STATE
+   SALES STATE
 ========================================================= */
 
 const SalesState = {
+
+    currentUser: null,
+
     records: [],
     filteredRecords: [],
+
+    stations: [],
+    shifts: [],
+    pumps: [],
+    nozzles: [],
+
     currentSort: {
-        key: "openedAt",
+        key: "createdAt",
         direction: "desc"
     },
+
     currentPage: 1,
-    rowsPerPage: 10
+    rowsPerPage: 10,
+
+    isLoading: false,
+    isSubmitting: false
+
 };
 
 
 /* =========================================================
-   PAGE LOAD
+   PAGE INITIALIZATION
 ========================================================= */
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener(
+    "DOMContentLoaded",
+    async () => {
 
-    const currentUser = FuelGapUtils.getCurrentUser();
+        try {
 
-    if (!currentUser) {
-        window.location.href = "../login.html";
-        return;
-    }
+            if (
+                typeof FuelGapAPI ===
+                "undefined"
+            ) {
 
-    if (!hasPermission(currentUser.role, "sales")) {
-        window.location.href = "./dashboard.html";
-        return;
-    }
+                throw new Error(
+                    "FuelGapAPI is not available. Make sure api.js loads before sales.js."
+                );
 
-    renderSalesPage();
-    setupSalesEvents();
-    refreshSalesData();
-
-});
+            }
 
 
-/* =========================================================
-   SAFE STORAGE
-========================================================= */
-
-function getStorageData(storageKey) {
-
-    try {
-
-        const data = localStorage.getItem(storageKey);
-
-        if (!data) {
-            return [];
-        }
-
-        const parsed = JSON.parse(data);
-
-        return Array.isArray(parsed)
-            ? parsed
-            : [];
-
-    } catch (error) {
-
-        console.error(
-            `Unable to load ${storageKey}:`,
-            error
-        );
-
-        return [];
-
-    }
-
-}
+            const authResponse =
+                await FuelGapAPI.getCurrentUser();
 
 
-/* =========================================================
-   LOAD DATA
-========================================================= */
-
-function getMeterReadings() {
-    return getStorageData(SALES_READINGS_STORAGE_KEY);
-}
-
-function getStations() {
-    return getStorageData(SALES_STATIONS_STORAGE_KEY);
-}
-
-function getPumps() {
-    return getStorageData(SALES_PUMPS_STORAGE_KEY);
-}
-
-function getNozzles() {
-    return getStorageData(SALES_NOZZLES_STORAGE_KEY);
-}
-
-function getShifts() {
-    return getStorageData(SALES_SHIFTS_STORAGE_KEY);
-}
-
-function getStaff() {
-    return getStorageData(SALES_STAFF_STORAGE_KEY);
-}
+            console.log(
+                "Sales authentication response:",
+                authResponse
+            );
 
 
-/* =========================================================
-   USER ACCESS
-========================================================= */
+            const currentUser =
+                authResponse?.data?.user ||
+                authResponse?.user ||
+                authResponse?.data ||
+                null;
 
-function getVisibleStations() {
 
-    const currentUser = FuelGapUtils.getCurrentUser();
-    const stations = getStations();
+            if (!currentUser) {
 
-    if (!currentUser) {
-        return [];
-    }
+                window.location.href =
+                    "/login.html";
 
-    if (currentUser.role === "admin") {
-        return stations;
-    }
+                return;
 
-    if (currentUser.role === "owner") {
+            }
 
-        return stations.filter(
-            station =>
-                station.organizationId ===
-                currentUser.organizationId
-        );
 
-    }
+            SalesState.currentUser =
+                currentUser;
 
-    if (currentUser.role === "manager") {
 
-        if (currentUser.stationId) {
+            renderSalesPage();
 
-            return stations.filter(
-                station =>
-                    station.id === currentUser.stationId
+            setupSalesEvents();
+
+            await refreshSalesData();
+
+
+        } catch (error) {
+
+            console.error(
+                "Sales page initialization error:",
+                error
+            );
+
+
+            showSalesError(
+                error?.message ||
+                "Unable to load sales page."
             );
 
         }
 
-        return stations.filter(
-            station =>
-                station.organizationId ===
-                currentUser.organizationId
-        );
-
     }
+);
+
+
+/* =========================================================
+   CHECK API
+========================================================= */
+
+function ensureFuelGapAPI() {
 
     if (
-        currentUser.role === "staff" ||
-        currentUser.role === "attendant"
+        typeof FuelGapAPI ===
+        "undefined"
     ) {
 
-        if (!currentUser.stationId) {
-            return [];
-        }
-
-        return stations.filter(
-            station =>
-                station.id === currentUser.stationId
+        throw new Error(
+            "FuelGapAPI is not available."
         );
 
     }
 
-    return [];
 
-}
+    const requiredMethods = [
+
+        "getSales",
+        "getStations",
+        "getShifts",
+        "getPumps",
+        "getNozzles",
+        "createSale"
+
+    ];
 
 
-function getVisibleStationIds() {
-
-    return getVisibleStations()
-        .map(station => station.id);
-
-}
-
-
-function getVisibleShifts() {
-
-    const stationIds =
-        getVisibleStationIds();
-
-    return getShifts()
-        .filter(
-            shift =>
-                stationIds.includes(
-                    shift.stationId
-                )
+    const missingMethods =
+        requiredMethods.filter(
+            method =>
+                typeof FuelGapAPI[method] !==
+                "function"
         );
+
+
+    if (
+        missingMethods.length
+    ) {
+
+        throw new Error(
+            `Missing Sales API methods: ${missingMethods.join(", ")}`
+        );
+
+    }
 
 }
 
@@ -213,403 +192,286 @@ function getVisibleShifts() {
 function renderSalesPage() {
 
     const pageContent =
-        document.getElementById("pageContent");
+        document.getElementById(
+            "pageContent"
+        );
+
 
     if (!pageContent) {
+
+        console.error(
+            "pageContent element was not found."
+        );
+
         return;
+
     }
+
 
     pageContent.innerHTML = `
 
-        <div class="sales-page">
-
-            <!-- =================================================
-                 HEADER
-            ================================================== -->
-
-            <header class="sales-page-header">
-
-                <div class="sales-header-left">
-
-                    <div class="sales-eyebrow">
-                        <span class="sales-eyebrow-dot"></span>
-                        LIVE SALES OPERATIONS
-                    </div>
-
-                    <h1>
-                        Sales Command Center
-                    </h1>
-
-                    <p>
-                        Monitor fuel volume, expected revenue,
-                        active shifts and nozzle performance
-                        across your station operations.
-                    </p>
-
-                </div>
+        <section class="sales-page">
 
 
-                <div class="sales-header-actions">
+            <!-- ==========================================
+                 PAGE HEADER
+            =========================================== -->
 
-                    <button
-                        type="button"
-                        class="sales-btn sales-btn-secondary"
-                        id="exportSalesButton"
-                    >
-                        <span>⇩</span>
-                        Export CSV
-                    </button>
+            <div class="page-header">
 
+                <div>
 
-                    <button
-                        type="button"
-                        class="sales-btn sales-btn-primary"
-                        id="refreshSalesButton"
-                    >
-                        <span id="refreshIcon">↻</span>
-                        Refresh Data
-                    </button>
+                    <div class="page-title-row">
 
-                </div>
+                        <div class="page-title-icon">
 
-            </header>
+                            <i class="fas fa-cash-register"></i>
 
-
-
-            <!-- =================================================
-                 KPI CARDS
-            ================================================== -->
-
-            <section class="sales-kpi-grid">
-
-                <!-- Expected Revenue -->
-
-                <article class="sales-kpi-card">
-
-                    <div class="sales-kpi-top">
-
-                        <div class="sales-kpi-icon">
-                            ₦
                         </div>
 
-                        <span class="sales-kpi-label">
-                            Expected Revenue
-                        </span>
-
-                    </div>
-
-                    <strong
-                        class="sales-kpi-value"
-                        id="totalSalesAmount"
-                    >
-                        ₦0.00
-                    </strong>
-
-                    <span class="sales-kpi-description">
-                        Estimated value of fuel dispensed
-                    </span>
-
-                </article>
-
-
-
-                <!-- Fuel Volume -->
-
-                <article class="sales-kpi-card">
-
-                    <div class="sales-kpi-top">
-
-                        <div class="sales-kpi-icon">
-                            ⛽
-                        </div>
-
-                        <span class="sales-kpi-label">
-                            Fuel Dispensed
-                        </span>
-
-                    </div>
-
-                    <strong
-                        class="sales-kpi-value"
-                        id="totalLitresSold"
-                    >
-                        0 L
-                    </strong>
-
-                    <span class="sales-kpi-description">
-                        Total calculated litres sold
-                    </span>
-
-                </article>
-
-
-
-                <!-- Active Shifts -->
-
-                <article class="sales-kpi-card">
-
-                    <div class="sales-kpi-top">
-
-                        <div class="sales-kpi-icon">
-                            ◉
-                        </div>
-
-                        <span class="sales-kpi-label">
-                            Active Shifts
-                        </span>
-
-                    </div>
-
-                    <strong
-                        class="sales-kpi-value"
-                        id="activeShiftCount"
-                    >
-                        0
-                    </strong>
-
-                    <span class="sales-kpi-description">
-                        Shifts currently operating
-                    </span>
-
-                </article>
-
-
-
-                <!-- Sales Records -->
-
-                <article class="sales-kpi-card">
-
-                    <div class="sales-kpi-top">
-
-                        <div class="sales-kpi-icon">
-                            ≡
-                        </div>
-
-                        <span class="sales-kpi-label">
-                            Sales Records
-                        </span>
-
-                    </div>
-
-                    <strong
-                        class="sales-kpi-value"
-                        id="salesRecordCount"
-                    >
-                        0
-                    </strong>
-
-                    <span class="sales-kpi-description">
-                        Valid nozzle sales records
-                    </span>
-
-                </article>
-
-            </section>
-
-
-
-            <!-- =================================================
-                 INSIGHT STRIP
-            ================================================== -->
-
-            <section class="sales-insight-strip">
-
-                <div class="sales-insight-item">
-
-                    <span class="sales-insight-label">
-                        Average Price / Litre
-                    </span>
-
-                    <strong
-                        class="sales-insight-value"
-                        id="averagePricePerLitre"
-                    >
-                        ₦0.00
-                    </strong>
-
-                </div>
-
-
-                <div class="sales-insight-item">
-
-                    <span class="sales-insight-label">
-                        Average Volume / Record
-                    </span>
-
-                    <strong
-                        class="sales-insight-value"
-                        id="averageVolumePerRecord"
-                    >
-                        0 L
-                    </strong>
-
-                </div>
-
-
-                <div class="sales-insight-item">
-
-                    <span class="sales-insight-label">
-                        Active Stations
-                    </span>
-
-                    <strong
-                        class="sales-insight-value"
-                        id="activeStationCount"
-                    >
-                        0
-                    </strong>
-
-                </div>
-
-
-                <div class="sales-insight-item">
-
-                    <span class="sales-insight-label">
-                        Last Updated
-                    </span>
-
-                    <strong
-                        class="sales-insight-value"
-                        id="salesLastUpdated"
-                    >
-                        Just now
-                    </strong>
-
-                </div>
-
-            </section>
-
-
-
-            <!-- =================================================
-                 MAIN SALES CARD
-            ================================================== -->
-
-            <section class="sales-main-card">
-
-
-                <!-- SECTION HEADER -->
-
-                <div class="sales-section-header">
-
-                    <div class="sales-section-title">
-
-                        <div class="sales-section-title-icon">
-                            ⛽
-                        </div>
 
                         <div>
 
-                            <h2>
-                                Sales Records
-                            </h2>
+                            <h1>
+                                Sales
+                            </h1>
 
                             <p>
-                                Meter-based fuel sales generated
-                                from opening and closing readings.
+                                Record and monitor fuel sales across your stations.
                             </p>
 
                         </div>
 
                     </div>
 
+                </div>
 
-                    <div
-                        class="sales-record-badge"
-                        id="salesRecordBadge"
+
+                <div class="page-header-actions">
+
+
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        id="refreshSalesBtn"
                     >
-                        0 Records
+
+                        <i class="fas fa-sync-alt"></i>
+
+                        Refresh
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="recordSaleBtn"
+                    >
+
+                        <i class="fas fa-plus"></i>
+
+                        Record Sale
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="exportSalesBtn"
+                    >
+
+                        <i class="fas fa-download"></i>
+
+                        Export CSV
+
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- ==========================================
+                 ERROR
+            =========================================== -->
+
+            <div
+                id="salesError"
+                class="sales-error"
+                style="display:none;"
+            ></div>
+
+
+            <!-- ==========================================
+                 STATISTICS
+            =========================================== -->
+
+            <div class="stats-grid">
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+
+                        <i class="fas fa-money-bill-wave"></i>
+
+                    </div>
+
+
+                    <div class="stat-content">
+
+                        <span class="stat-label">
+                            Total Revenue
+                        </span>
+
+
+                        <strong
+                            id="salesTotalRevenue"
+                            class="stat-value"
+                        >
+                            ₦0.00
+                        </strong>
+
                     </div>
 
                 </div>
 
 
 
-                <!-- =================================================
-                     FILTER BAR
-                ================================================== -->
+                <div class="stat-card">
 
-                <div class="sales-filter-bar">
+                    <div class="stat-icon">
 
-
-                    <!-- Station -->
-
-                    <div class="sales-filter-field">
-
-                        <label for="salesStationFilter">
-                            Station
-                        </label>
-
-                        <select
-                            id="salesStationFilter"
-                        >
-                            <option value="">
-                                All Stations
-                            </option>
-                        </select>
+                        <i class="fas fa-gas-pump"></i>
 
                     </div>
 
 
+                    <div class="stat-content">
 
-                    <!-- Shift -->
+                        <span class="stat-label">
+                            Litres Sold
+                        </span>
 
-                    <div class="sales-filter-field">
 
-                        <label for="salesShiftFilter">
-                            Shift
-                        </label>
-
-                        <select
-                            id="salesShiftFilter"
+                        <strong
+                            id="salesTotalLitres"
+                            class="stat-value"
                         >
-                            <option value="">
-                                All Shifts
-                            </option>
-                        </select>
+                            0.00 L
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+
+                        <i class="fas fa-receipt"></i>
 
                     </div>
 
 
+                    <div class="stat-content">
 
-                    <!-- Nozzle -->
+                        <span class="stat-label">
+                            Sales Records
+                        </span>
 
-                    <div class="sales-filter-field">
 
-                        <label for="salesNozzleFilter">
-                            Nozzle
-                        </label>
-
-                        <select
-                            id="salesNozzleFilter"
+                        <strong
+                            id="salesRecordCount"
+                            class="stat-value"
                         >
-                            <option value="">
-                                All Nozzles
-                            </option>
-                        </select>
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+
+                        <i class="fas fa-chart-line"></i>
 
                     </div>
 
 
+                    <div class="stat-content">
 
-                    <!-- Search -->
+                        <span class="stat-label">
+                            Average Sale
+                        </span>
 
-                    <div class="sales-filter-field search">
+
+                        <strong
+                            id="salesAverageSale"
+                            class="stat-value"
+                        >
+                            ₦0.00
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+
+            <!-- ==========================================
+                 FILTERS
+            =========================================== -->
+
+            <div class="card sales-filters-card">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h2>
+                            Sales Records
+                        </h2>
+
+                        <p>
+                            Review sales recorded from your stations.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="filters-grid">
+
+
+                    <div class="form-group">
 
                         <label for="salesSearch">
                             Search
                         </label>
 
-                        <div class="sales-search">
 
-                            <span class="sales-search-icon">
-                                ⌕
-                            </span>
+                        <div class="input-with-icon">
+
+                            <i class="fas fa-search"></i>
+
 
                             <input
-                                type="search"
+                                type="text"
                                 id="salesSearch"
-                                placeholder="Search station, pump or nozzle..."
+                                class="form-control"
+                                placeholder="Search station, pump, nozzle..."
                             >
 
                         </div>
@@ -618,192 +480,641 @@ function renderSalesPage() {
 
 
 
-                    <!-- Clear -->
+                    <div class="form-group">
 
-                    <button
-                        type="button"
-                        class="sales-clear-btn"
-                        id="clearSalesFilters"
-                    >
-                        Clear
-                    </button>
+                        <label for="salesStationFilter">
+                            Station
+                        </label>
+
+
+                        <select
+                            id="salesStationFilter"
+                            class="form-control"
+                        >
+
+                            <option value="">
+                                All Stations
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+
+                    <div class="form-group">
+
+                        <label for="salesShiftFilter">
+                            Shift
+                        </label>
+
+
+                        <select
+                            id="salesShiftFilter"
+                            class="form-control"
+                        >
+
+                            <option value="">
+                                All Shifts
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+
+                    <div class="form-group">
+
+                        <label for="salesNozzleFilter">
+                            Nozzle
+                        </label>
+
+
+                        <select
+                            id="salesNozzleFilter"
+                            class="form-control"
+                        >
+
+                            <option value="">
+                                All Nozzles
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+
+                    <div class="form-group">
+
+                        <label for="salesPaymentFilter">
+                            Payment
+                        </label>
+
+
+                        <select
+                            id="salesPaymentFilter"
+                            class="form-control"
+                        >
+
+                            <option value="">
+                                All Payments
+                            </option>
+
+                            <option value="cash">
+                                Cash
+                            </option>
+
+                            <option value="pos">
+                                POS
+                            </option>
+
+                            <option value="transfer">
+                                Transfer
+                            </option>
+
+                            <option value="bank_transfer">
+                                Bank Transfer
+                            </option>
+
+                            <option value="card">
+                                Card
+                            </option>
+
+                            <option value="other">
+                                Other
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+
+                    <div class="form-group">
+
+                        <label for="salesDateFilter">
+                            Date
+                        </label>
+
+
+                        <input
+                            type="date"
+                            id="salesDateFilter"
+                            class="form-control"
+                        >
+
+                    </div>
 
                 </div>
 
+            </div>
 
 
-                <!-- =================================================
-                     TABLE
-                ================================================== -->
 
-                <div class="sales-table-container">
+            <!-- ==========================================
+                 SALES TABLE
+            =========================================== -->
 
-                    <table class="sales-table">
+            <div class="card">
+
+                <div class="table-responsive">
+
+                    <table class="data-table sales-table">
 
                         <thead>
 
                             <tr>
 
-                                <th
-                                    data-sort="stationName"
-                                    class="sales-sortable"
-                                >
-                                    Station
-                                    <span class="sales-sort-icon">
-                                        ↕
-                                    </span>
-                                </th>
+                                <th>Sale ID</th>
 
+                                <th>Station</th>
 
-                                <th
-                                    data-sort="shiftName"
-                                    class="sales-sortable"
-                                >
-                                    Shift
-                                    <span class="sales-sort-icon">
-                                        ↕
-                                    </span>
-                                </th>
+                                <th>Pump</th>
 
+                                <th>Nozzle</th>
 
-                                <th>
-                                    Pump / Nozzle
-                                </th>
+                                <th>Shift</th>
 
+                                <th>Litres</th>
 
-                                <th>
-                                    Meter
-                                </th>
+                                <th>Price/Litre</th>
 
+                                <th>Amount</th>
 
-                                <th
-                                    data-sort="litresSold"
-                                    class="sales-sortable"
-                                >
-                                    Volume
-                                    <span class="sales-sort-icon">
-                                        ↕
-                                    </span>
-                                </th>
+                                <th>Payment</th>
 
+                                <th>Recorded By</th>
 
-                                <th>
-                                    Price / L
-                                </th>
-
-
-                                <th
-                                    data-sort="expectedSales"
-                                    class="sales-sortable"
-                                >
-                                    Expected Revenue
-                                    <span class="sales-sort-icon">
-                                        ↕
-                                    </span>
-                                </th>
-
-
-                                <th>
-                                    Status
-                                </th>
+                                <th>Date</th>
 
                             </tr>
 
                         </thead>
 
 
-                        <tbody
-                            id="salesTableBody"
-                        ></tbody>
+                        <tbody id="salesTableBody">
+
+                            <tr>
+
+                                <td
+                                    colspan="11"
+                                    class="table-loading"
+                                >
+
+                                    <i class="fas fa-spinner fa-spin"></i>
+
+                                    Loading sales...
+
+                                </td>
+
+                            </tr>
+
+                        </tbody>
 
                     </table>
 
                 </div>
 
 
-
-                <!-- =================================================
-                     EMPTY STATE
-                ================================================== -->
-
                 <div
-                    id="emptySalesState"
-                    class="sales-empty hidden"
-                >
+                    id="salesPagination"
+                    class="pagination-container"
+                ></div>
 
-                    <div class="sales-empty-icon">
-                        ⛽
+            </div>
+
+
+        </section>
+
+
+        <!-- =================================================
+             RECORD SALE MODAL
+        ================================================== -->
+
+        <div
+            id="recordSaleModal"
+            class="sales-modal"
+            style="display:none;"
+        >
+
+            <div class="sales-modal-overlay"></div>
+
+
+            <div
+                class="sales-modal-dialog"
+                role="dialog"
+                aria-modal="true"
+            >
+
+
+                <div class="sales-modal-header">
+
+                    <div>
+
+                        <div class="sales-modal-title">
+
+                            <div class="sales-modal-icon">
+
+                                <i class="fas fa-cash-register"></i>
+
+                            </div>
+
+
+                            <div>
+
+                                <h2>
+                                    Record Sale
+                                </h2>
+
+                                <p>
+                                    Enter the fuel sale details below.
+                                </p>
+
+                            </div>
+
+                        </div>
+
                     </div>
 
-                    <h3>
-                        No sales records found
-                    </h3>
-
-                    <p>
-                        Sales records will appear automatically
-                        when valid opening and closing meter
-                        readings are available.
-                    </p>
 
                     <button
                         type="button"
-                        class="sales-btn sales-btn-primary"
-                        id="emptyStateRefreshButton"
+                        class="sales-modal-close"
+                        id="closeRecordSaleBtn"
                     >
-                        Refresh Sales
+
+                        <i class="fas fa-times"></i>
+
                     </button>
 
                 </div>
 
 
 
-                <!-- =================================================
-                     PAGINATION
-                ================================================== -->
-
-                <div
-                    class="sales-pagination hidden"
-                    id="salesPagination"
+                <form
+                    id="recordSaleForm"
+                    class="sales-form"
                 >
 
+
+                    <!-- ==================================
+                         STATION
+                    =================================== -->
+
+                    <div class="form-group">
+
+                        <label for="saleStation">
+
+                            Station
+
+                            <span class="required">
+                                *
+                            </span>
+
+                        </label>
+
+
+                        <select
+                            id="saleStation"
+                            class="form-control"
+                            required
+                        >
+
+                            <option value="">
+                                Select station
+                            </option>
+
+                        </select>
+
+
+                        <small class="form-help">
+                            Select the station where the sale occurred.
+                        </small>
+
+                    </div>
+
+
+
+                    <!-- ==================================
+                         SHIFT
+                    =================================== -->
+
+                    <div class="form-group">
+
+                        <label for="saleShift">
+
+                            Shift
+
+                            <span class="required">
+                                *
+                            </span>
+
+                        </label>
+
+
+                        <select
+                            id="saleShift"
+                            class="form-control"
+                            required
+                        >
+
+                            <option value="">
+                                Select shift
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+
+                    <!-- ==================================
+                         PUMP
+                    =================================== -->
+
+                    <div class="form-group">
+
+                        <label for="salePump">
+
+                            Pump
+
+                            <span class="required">
+                                *
+                            </span>
+
+                        </label>
+
+
+                        <select
+                            id="salePump"
+                            class="form-control"
+                            required
+                        >
+
+                            <option value="">
+                                Select pump
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+
+                    <!-- ==================================
+                         NOZZLE
+                    =================================== -->
+
+                    <div class="form-group">
+
+                        <label for="saleNozzle">
+
+                            Nozzle
+
+                            <span class="required">
+                                *
+                            </span>
+
+                        </label>
+
+
+                        <select
+                            id="saleNozzle"
+                            class="form-control"
+                            required
+                        >
+
+                            <option value="">
+                                Select nozzle
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+
+                    <!-- ==================================
+                         LITRES
+                    =================================== -->
+
+                    <div class="form-group">
+
+                        <label for="saleLitres">
+
+                            Litres Sold
+
+                            <span class="required">
+                                *
+                            </span>
+
+                        </label>
+
+
+                        <input
+                            type="number"
+                            id="saleLitres"
+                            class="form-control"
+                            min="0.01"
+                            step="0.01"
+                            placeholder="e.g. 20.50"
+                            required
+                        >
+
+                    </div>
+
+
+
+                    <!-- ==================================
+                         PRICE
+                    =================================== -->
+
+                    <div class="form-group">
+
+                        <label for="salePricePerLitre">
+
+                            Price Per Litre
+
+                            <span class="required">
+                                *
+                            </span>
+
+                        </label>
+
+
+                        <div class="currency-input">
+
+                            <span>
+                                ₦
+                            </span>
+
+
+                            <input
+                                type="number"
+                                id="salePricePerLitre"
+                                class="form-control"
+                                min="0"
+                                step="0.01"
+                                placeholder="e.g. 950"
+                                required
+                            >
+
+                        </div>
+
+
+                        <small class="form-help">
+                            Automatically loaded from the selected nozzle when available.
+                        </small>
+
+                    </div>
+
+
+
+                    <!-- ==================================
+                         AMOUNT
+                    =================================== -->
+
+                    <div class="form-group">
+
+                        <label for="saleAmount">
+
+                            Total Amount
+
+                        </label>
+
+
+                        <div class="currency-input">
+
+                            <span>
+                                ₦
+                            </span>
+
+
+                            <input
+                                type="number"
+                                id="saleAmount"
+                                class="form-control"
+                                readonly
+                                placeholder="0.00"
+                            >
+
+                        </div>
+
+
+                        <small class="form-help">
+                            Automatically calculated from litres × price per litre.
+                        </small>
+
+                    </div>
+
+
+
+                    <!-- ==================================
+                         PAYMENT
+                    =================================== -->
+
+                    <div class="form-group">
+
+                        <label for="salePaymentMethod">
+
+                            Payment Method
+
+                            <span class="required">
+                                *
+                            </span>
+
+                        </label>
+
+
+                        <select
+                            id="salePaymentMethod"
+                            class="form-control"
+                            required
+                        >
+
+                            <option value="">
+                                Select payment method
+                            </option>
+
+                            <option value="cash">
+                                Cash
+                            </option>
+
+                            <option value="pos">
+                                POS
+                            </option>
+
+                            <option value="transfer">
+                                Transfer
+                            </option>
+
+                            <option value="bank_transfer">
+                                Bank Transfer
+                            </option>
+
+                            <option value="card">
+                                Card
+                            </option>
+
+                            <option value="other">
+                                Other
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+
+                    <!-- ==================================
+                         FORM ERROR
+                    =================================== -->
+
                     <div
-                        class="sales-pagination-info"
-                        id="paginationInfo"
-                    >
-                        Showing 0 records
-                    </div>
+                        id="recordSaleError"
+                        class="form-error"
+                        style="display:none;"
+                    ></div>
 
 
-                    <div class="sales-pagination-controls">
 
-                        <button
-                            type="button"
-                            class="sales-page-btn"
-                            id="previousPageButton"
-                        >
-                            ←
-                        </button>
+                    <!-- ==================================
+                         FORM ACTIONS
+                    =================================== -->
 
-
-                        <div
-                            class="sales-pagination-controls"
-                            id="paginationPages"
-                        ></div>
-
+                    <div class="sales-modal-actions">
 
                         <button
                             type="button"
-                            class="sales-page-btn"
-                            id="nextPageButton"
+                            class="btn btn-secondary"
+                            id="cancelRecordSaleBtn"
                         >
-                            →
+
+                            Cancel
+
+                        </button>
+
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary"
+                            id="saveSaleBtn"
+                        >
+
+                            <i class="fas fa-save"></i>
+
+                            Save Sale
+
                         </button>
 
                     </div>
 
-                </div>
 
-            </section>
+                </form>
+
+            </div>
 
         </div>
 
@@ -813,79 +1124,721 @@ function renderSalesPage() {
 
 
 /* =========================================================
-   EVENTS
+   SETUP EVENTS
 ========================================================= */
 
 function setupSalesEvents() {
 
-    setupRefreshButton();
 
-    setupExportButton();
+    /* =====================================================
+       RECORD SALE BUTTON
+    ===================================================== */
 
-    loadSalesFilters();
+    const recordSaleBtn =
+        document.getElementById(
+            "recordSaleBtn"
+        );
 
-    setupSalesFilters();
 
-    setupClearFilters();
+    if (recordSaleBtn) {
 
-    setupSorting();
+        recordSaleBtn.addEventListener(
+            "click",
+            openRecordSaleModal
+        );
 
-    setupPaginationEvents();
+    }
 
-    setupEmptyStateButton();
+
+    /* =====================================================
+       CLOSE MODAL
+    ===================================================== */
+
+    const closeBtn =
+        document.getElementById(
+            "closeRecordSaleBtn"
+        );
+
+
+    if (closeBtn) {
+
+        closeBtn.addEventListener(
+            "click",
+            closeRecordSaleModal
+        );
+
+    }
+
+
+    const cancelBtn =
+        document.getElementById(
+            "cancelRecordSaleBtn"
+        );
+
+
+    if (cancelBtn) {
+
+        cancelBtn.addEventListener(
+            "click",
+            closeRecordSaleModal
+        );
+
+    }
+
+
+    const overlay =
+        document.querySelector(
+            ".sales-modal-overlay"
+        );
+
+
+    if (overlay) {
+
+        overlay.addEventListener(
+            "click",
+            closeRecordSaleModal
+        );
+
+    }
+
+
+    /* =====================================================
+       RECORD SALE FORM
+    ===================================================== */
+
+    const form =
+        document.getElementById(
+            "recordSaleForm"
+        );
+
+
+    if (form) {
+
+        form.addEventListener(
+            "submit",
+            handleRecordSaleSubmit
+        );
+
+    }
+
+
+    /* =====================================================
+       SALE STATION
+    ===================================================== */
+
+    const saleStation =
+        document.getElementById(
+            "saleStation"
+        );
+
+
+    if (saleStation) {
+
+        saleStation.addEventListener(
+            "change",
+            () => {
+
+                loadSaleShiftOptions();
+
+                loadSalePumpOptions();
+
+                clearSaleNozzleOptions();
+
+                calculateSaleAmount();
+
+            }
+        );
+
+    }
+
+
+    /* =====================================================
+       SALE PUMP
+    ===================================================== */
+
+    const salePump =
+        document.getElementById(
+            "salePump"
+        );
+
+
+    if (salePump) {
+
+        salePump.addEventListener(
+            "change",
+            () => {
+
+                loadSaleNozzleOptions();
+
+            }
+        );
+
+    }
+
+
+    /* =====================================================
+       SALE NOZZLE
+    ===================================================== */
+
+    const saleNozzle =
+        document.getElementById(
+            "saleNozzle"
+        );
+
+
+    if (saleNozzle) {
+
+        saleNozzle.addEventListener(
+            "change",
+            () => {
+
+                loadPriceFromNozzle();
+
+                calculateSaleAmount();
+
+            }
+        );
+
+    }
+
+
+    /* =====================================================
+       LITRES
+    ===================================================== */
+
+    const litresInput =
+        document.getElementById(
+            "saleLitres"
+        );
+
+
+    if (litresInput) {
+
+        litresInput.addEventListener(
+            "input",
+            calculateSaleAmount
+        );
+
+    }
+
+
+    /* =====================================================
+       PRICE
+    ===================================================== */
+
+    const priceInput =
+        document.getElementById(
+            "salePricePerLitre"
+        );
+
+
+    if (priceInput) {
+
+        priceInput.addEventListener(
+            "input",
+            calculateSaleAmount
+        );
+
+    }
+
+
+    /* =====================================================
+       REFRESH
+    ===================================================== */
+
+    const refreshBtn =
+        document.getElementById(
+            "refreshSalesBtn"
+        );
+
+
+    if (refreshBtn) {
+
+        refreshBtn.addEventListener(
+            "click",
+            refreshSalesData
+        );
+
+    }
+
+
+    /* =====================================================
+       EXPORT
+    ===================================================== */
+
+    const exportBtn =
+        document.getElementById(
+            "exportSalesBtn"
+        );
+
+
+    if (exportBtn) {
+
+        exportBtn.addEventListener(
+            "click",
+            exportSalesCSV
+        );
+
+    }
+
+
+    /* =====================================================
+       SEARCH
+    ===================================================== */
+
+    const searchInput =
+        document.getElementById(
+            "salesSearch"
+        );
+
+
+    if (searchInput) {
+
+        searchInput.addEventListener(
+            "input",
+            () => {
+
+                SalesState.currentPage =
+                    1;
+
+                applySalesFilters();
+
+            }
+        );
+
+    }
+
+
+    /* =====================================================
+       STATION FILTER
+    ===================================================== */
+
+    const stationFilter =
+        document.getElementById(
+            "salesStationFilter"
+        );
+
+
+    if (stationFilter) {
+
+        stationFilter.addEventListener(
+            "change",
+            () => {
+
+                loadShiftFilter();
+
+                loadNozzleFilter();
+
+                SalesState.currentPage =
+                    1;
+
+                applySalesFilters();
+
+            }
+        );
+
+    }
+
+
+    /* =====================================================
+       SHIFT FILTER
+    ===================================================== */
+
+    const shiftFilter =
+        document.getElementById(
+            "salesShiftFilter"
+        );
+
+
+    if (shiftFilter) {
+
+        shiftFilter.addEventListener(
+            "change",
+            () => {
+
+                SalesState.currentPage =
+                    1;
+
+                applySalesFilters();
+
+            }
+        );
+
+    }
+
+
+    /* =====================================================
+       NOZZLE FILTER
+    ===================================================== */
+
+    const nozzleFilter =
+        document.getElementById(
+            "salesNozzleFilter"
+        );
+
+
+    if (nozzleFilter) {
+
+        nozzleFilter.addEventListener(
+            "change",
+            () => {
+
+                SalesState.currentPage =
+                    1;
+
+                applySalesFilters();
+
+            }
+        );
+
+    }
+
+
+    /* =====================================================
+       PAYMENT FILTER
+    ===================================================== */
+
+    const paymentFilter =
+        document.getElementById(
+            "salesPaymentFilter"
+        );
+
+
+    if (paymentFilter) {
+
+        paymentFilter.addEventListener(
+            "change",
+            () => {
+
+                SalesState.currentPage =
+                    1;
+
+                applySalesFilters();
+
+            }
+        );
+
+    }
+
+
+    /* =====================================================
+       DATE FILTER
+    ===================================================== */
+
+    const dateFilter =
+        document.getElementById(
+            "salesDateFilter"
+        );
+
+
+    if (dateFilter) {
+
+        dateFilter.addEventListener(
+            "change",
+            () => {
+
+                SalesState.currentPage =
+                    1;
+
+                applySalesFilters();
+
+            }
+        );
+
+    }
+
+
+    /* =====================================================
+       TABLE SORTING
+    ===================================================== */
+
+    document
+        .querySelectorAll(
+            ".sales-table th"
+        )
+        .forEach(
+            (header, index) => {
+
+                header.style.cursor =
+                    "pointer";
+
+
+                header.addEventListener(
+                    "click",
+                    () => {
+
+                        const sortKeys = [
+
+                            "id",
+                            "stationName",
+                            "pumpName",
+                            "nozzleName",
+                            "shiftName",
+                            "liters",
+                            "pricePerLitre",
+                            "amount",
+                            "paymentMethod",
+                            "recordedByName",
+                            "createdAt"
+
+                        ];
+
+
+                        const key =
+                            sortKeys[index];
+
+
+                        if (!key) {
+
+                            return;
+
+                        }
+
+
+                        if (
+                            SalesState
+                                .currentSort
+                                .key === key
+                        ) {
+
+                            SalesState
+                                .currentSort
+                                .direction =
+
+                                SalesState
+                                    .currentSort
+                                    .direction ===
+                                "asc"
+                                    ? "desc"
+                                    : "asc";
+
+                        } else {
+
+                            SalesState
+                                .currentSort
+                                .key = key;
+
+
+                            SalesState
+                                .currentSort
+                                .direction =
+                                "asc";
+
+                        }
+
+
+                        renderSales();
+
+                    }
+                );
+
+            }
+        );
 
 }
 
 
 /* =========================================================
-   REFRESH
+   OPEN RECORD SALE MODAL
 ========================================================= */
 
-function setupRefreshButton() {
+function openRecordSaleModal() {
 
-    const button =
+    const modal =
         document.getElementById(
-            "refreshSalesButton"
+            "recordSaleModal"
         );
 
-    if (!button) {
+
+    if (!modal) {
+
         return;
+
     }
 
-    button.addEventListener(
-        "click",
-        () => {
 
-            button.disabled = true;
+    clearRecordSaleForm();
 
-            const icon =
-                document.getElementById(
-                    "refreshIcon"
-                );
 
-            if (icon) {
+    loadSaleStationOptions();
 
-                icon.classList.add(
-                    "sales-refresh-spin"
-                );
+    loadSaleShiftOptions();
+
+    loadSalePumpOptions();
+
+    clearSaleNozzleOptions();
+
+
+    hideRecordSaleError();
+
+
+    modal.style.display =
+        "flex";
+
+
+    document.body.classList.add(
+        "modal-open"
+    );
+
+}
+
+
+/* =========================================================
+   CLOSE RECORD SALE MODAL
+========================================================= */
+
+function closeRecordSaleModal() {
+
+    const modal =
+        document.getElementById(
+            "recordSaleModal"
+        );
+
+
+    if (!modal) {
+
+        return;
+
+    }
+
+
+    modal.style.display =
+        "none";
+
+
+    document.body.classList.remove(
+        "modal-open"
+    );
+
+}
+
+
+/* =========================================================
+   CLEAR FORM
+========================================================= */
+
+function clearRecordSaleForm() {
+
+    const form =
+        document.getElementById(
+            "recordSaleForm"
+        );
+
+
+    if (form) {
+
+        form.reset();
+
+    }
+
+
+    const amount =
+        document.getElementById(
+            "saleAmount"
+        );
+
+
+    if (amount) {
+
+        amount.value =
+            "";
+
+    }
+
+
+    clearSaleNozzleOptions();
+
+    hideRecordSaleError();
+
+}
+
+
+/* =========================================================
+   LOAD STATIONS INTO SALE FORM
+========================================================= */
+
+function loadSaleStationOptions() {
+
+    const select =
+        document.getElementById(
+            "saleStation"
+        );
+
+
+    if (!select) {
+
+        return;
+
+    }
+
+
+    select.innerHTML = `
+
+        <option value="">
+            Select station
+        </option>
+
+    `;
+
+
+    const stations =
+        [
+            ...SalesState.stations
+        ];
+
+
+    stations.sort(
+        (a, b) =>
+            String(
+                a.name
+            )
+                .localeCompare(
+                    String(
+                        b.name
+                    )
+                )
+    );
+
+
+    stations.forEach(
+        station => {
+
+            if (!station.id) {
+
+                return;
 
             }
 
-            setTimeout(() => {
 
-                refreshSalesData();
+            if (
+                station.isActive ===
+                false
+            ) {
 
-                button.disabled = false;
+                return;
 
-                if (icon) {
+            }
 
-                    icon.classList.remove(
-                        "sales-refresh-spin"
-                    );
 
-                }
+            const option =
+                document.createElement(
+                    "option"
+                );
 
-            }, 350);
+
+            option.value =
+                String(
+                    station.id
+                );
+
+
+            option.textContent =
+                station.name;
+
+
+            select.appendChild(
+                option
+            );
 
         }
     );
@@ -893,44 +1846,1883 @@ function setupRefreshButton() {
 }
 
 
-function refreshSalesData() {
+/* =========================================================
+   LOAD SHIFTS INTO SALE FORM
+========================================================= */
 
-    SalesState.records =
-        buildSalesRecords();
+function loadSaleShiftOptions() {
 
-    SalesState.currentPage = 1;
+    const select =
+        document.getElementById(
+            "saleShift"
+        );
 
-    renderSales();
 
-    updateLastUpdated();
+    if (!select) {
+
+        return;
+
+    }
+
+
+    const stationSelect =
+        document.getElementById(
+            "saleStation"
+        );
+
+
+    const selectedStationId =
+        stationSelect?.value ||
+        "";
+
+
+    select.innerHTML = `
+
+        <option value="">
+            Select shift
+        </option>
+
+    `;
+
+
+    let shifts =
+        [
+            ...SalesState.shifts
+        ];
+
+
+    if (
+        selectedStationId
+    ) {
+
+        const stationSpecific =
+            shifts.filter(
+                shift =>
+                    shift.stationId &&
+                    String(
+                        shift.stationId
+                    ) ===
+                    String(
+                        selectedStationId
+                    )
+            );
+
+
+        /*
+         * If the backend shift records
+         * contain station_id, use the
+         * station-specific shifts.
+         *
+         * Otherwise keep all shifts
+         * visible so the user can still
+         * select the existing shift.
+         */
+
+        if (
+            stationSpecific.length
+        ) {
+
+            shifts =
+                stationSpecific;
+
+        }
+
+    }
+
+
+    shifts.sort(
+        (a, b) => {
+
+            const dateA =
+                a.shiftDate
+                    ? new Date(
+                        a.shiftDate
+                    ).getTime()
+                    : 0;
+
+
+            const dateB =
+                b.shiftDate
+                    ? new Date(
+                        b.shiftDate
+                    ).getTime()
+                    : 0;
+
+
+            return (
+                dateB -
+                dateA
+            );
+
+        }
+    );
+
+
+    shifts.forEach(
+        shift => {
+
+            if (!shift.id) {
+
+                return;
+
+            }
+
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+
+            option.value =
+                String(
+                    shift.id
+                );
+
+
+            option.textContent =
+                buildShiftOptionLabel(
+                    shift
+                );
+
+
+            select.appendChild(
+                option
+            );
+
+        }
+    );
 
 }
 
 
 /* =========================================================
-   FILTERS
+   LOAD PUMPS INTO SALE FORM
 ========================================================= */
 
-function loadSalesFilters() {
+function loadSalePumpOptions() {
 
-    loadStationFilter();
+    const select =
+        document.getElementById(
+            "salePump"
+        );
 
-    loadShiftFilter();
 
-    loadNozzleFilter();
+    if (!select) {
+
+        return;
+
+    }
+
+
+    const stationSelect =
+        document.getElementById(
+            "saleStation"
+        );
+
+
+    const selectedStationId =
+        stationSelect?.value ||
+        "";
+
+
+    select.innerHTML = `
+
+        <option value="">
+            Select pump
+        </option>
+
+    `;
+
+
+    let pumps =
+        [
+            ...SalesState.pumps
+        ];
+
+
+    if (
+        selectedStationId
+    ) {
+
+        pumps =
+            pumps.filter(
+                pump =>
+                    String(
+                        pump.stationId
+                    ) ===
+                    String(
+                        selectedStationId
+                    )
+            );
+
+    }
+
+
+    pumps.sort(
+        (a, b) =>
+            Number(
+                a.number ||
+                0
+            ) -
+            Number(
+                b.number ||
+                0
+            )
+    );
+
+
+    pumps.forEach(
+        pump => {
+
+            if (!pump.id) {
+
+                return;
+
+            }
+
+
+            if (
+                pump.isActive ===
+                false
+            ) {
+
+                return;
+
+            }
+
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+
+            option.value =
+                String(
+                    pump.id
+                );
+
+
+            option.textContent =
+                pump.name;
+
+
+            select.appendChild(
+                option
+            );
+
+        }
+    );
 
 }
 
 
-function resetSelectOptions(select) {
+/* =========================================================
+   LOAD NOZZLES INTO SALE FORM
+========================================================= */
+
+function loadSaleNozzleOptions() {
+
+    const select =
+        document.getElementById(
+            "saleNozzle"
+        );
+
 
     if (!select) {
+
         return;
+
     }
 
-    while (select.options.length > 1) {
-        select.remove(1);
+
+    const pumpSelect =
+        document.getElementById(
+            "salePump"
+        );
+
+
+    const selectedPumpId =
+        pumpSelect?.value ||
+        "";
+
+
+    select.innerHTML = `
+
+        <option value="">
+            Select nozzle
+        </option>
+
+    `;
+
+
+    if (!selectedPumpId) {
+
+        return;
+
     }
+
+
+    let nozzles =
+        SalesState.nozzles.filter(
+            nozzle =>
+                String(
+                    nozzle.pumpId
+                ) ===
+                String(
+                    selectedPumpId
+                )
+        );
+
+
+    nozzles.sort(
+        (a, b) =>
+            Number(
+                a.number ||
+                0
+            ) -
+            Number(
+                b.number ||
+                0
+            )
+    );
+
+
+    nozzles.forEach(
+        nozzle => {
+
+            if (!nozzle.id) {
+
+                return;
+
+            }
+
+
+            if (
+                nozzle.isActive ===
+                false
+            ) {
+
+                return;
+
+            }
+
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+
+            option.value =
+                String(
+                    nozzle.id
+                );
+
+
+            option.textContent =
+                buildNozzleOptionLabel(
+                    nozzle
+                );
+
+
+            select.appendChild(
+                option
+            );
+
+        }
+    );
+
+}
+
+
+/* =========================================================
+   CLEAR NOZZLE OPTIONS
+========================================================= */
+
+function clearSaleNozzleOptions() {
+
+    const select =
+        document.getElementById(
+            "saleNozzle"
+        );
+
+
+    if (!select) {
+
+        return;
+
+    }
+
+
+    select.innerHTML = `
+
+        <option value="">
+            Select nozzle
+        </option>
+
+    `;
+
+
+    const price =
+        document.getElementById(
+            "salePricePerLitre"
+        );
+
+
+    if (price) {
+
+        price.value =
+            "";
+
+    }
+
+
+    calculateSaleAmount();
+
+}
+
+
+/* =========================================================
+   LOAD PRICE FROM NOZZLE
+========================================================= */
+
+function loadPriceFromNozzle() {
+
+    const nozzleSelect =
+        document.getElementById(
+            "saleNozzle"
+        );
+
+
+    const priceInput =
+        document.getElementById(
+            "salePricePerLitre"
+        );
+
+
+    if (
+        !nozzleSelect ||
+        !priceInput
+    ) {
+
+        return;
+
+    }
+
+
+    const nozzleId =
+        nozzleSelect.value;
+
+
+    if (!nozzleId) {
+
+        priceInput.value =
+            "";
+
+        return;
+
+    }
+
+
+    const nozzle =
+        SalesState.nozzles.find(
+            item =>
+                String(
+                    item.id
+                ) ===
+                String(
+                    nozzleId
+                )
+        );
+
+
+    if (
+        nozzle &&
+        Number(
+            nozzle.pricePerLitre
+        ) > 0
+    ) {
+
+        priceInput.value =
+            Number(
+                nozzle.pricePerLitre
+            );
+
+    }
+
+}
+
+
+/* =========================================================
+   CALCULATE SALE AMOUNT
+========================================================= */
+
+function calculateSaleAmount() {
+
+    const litresInput =
+        document.getElementById(
+            "saleLitres"
+        );
+
+
+    const priceInput =
+        document.getElementById(
+            "salePricePerLitre"
+        );
+
+
+    const amountInput =
+        document.getElementById(
+            "saleAmount"
+        );
+
+
+    if (
+        !litresInput ||
+        !priceInput ||
+        !amountInput
+    ) {
+
+        return;
+
+    }
+
+
+    const litres =
+        Number(
+            litresInput.value
+        );
+
+
+    const price =
+        Number(
+            priceInput.value
+        );
+
+
+    if (
+        !Number.isFinite(
+            litres
+        ) ||
+        !Number.isFinite(
+            price
+        ) ||
+        litres <= 0 ||
+        price <= 0
+    ) {
+
+        amountInput.value =
+            "";
+
+        return;
+
+    }
+
+
+    const amount =
+        litres *
+        price;
+
+
+    amountInput.value =
+        amount.toFixed(2);
+
+}
+
+
+/* =========================================================
+   SUBMIT SALE
+========================================================= */
+
+async function handleRecordSaleSubmit(
+    event
+) {
+
+    event.preventDefault();
+
+
+    if (
+        SalesState.isSubmitting
+    ) {
+
+        return;
+
+    }
+
+
+    hideRecordSaleError();
+
+
+    const stationId =
+        document.getElementById(
+            "saleStation"
+        )?.value;
+
+
+    const shiftId =
+        document.getElementById(
+            "saleShift"
+        )?.value;
+
+
+    const pumpId =
+        document.getElementById(
+            "salePump"
+        )?.value;
+
+
+    const nozzleId =
+        document.getElementById(
+            "saleNozzle"
+        )?.value;
+
+
+    const liters =
+        Number(
+            document.getElementById(
+                "saleLitres"
+            )?.value
+        );
+
+
+    const pricePerLitre =
+        Number(
+            document.getElementById(
+                "salePricePerLitre"
+            )?.value
+        );
+
+
+    const amount =
+        Number(
+            document.getElementById(
+                "saleAmount"
+            )?.value
+        );
+
+
+    const paymentMethod =
+        document.getElementById(
+            "salePaymentMethod"
+        )?.value;
+
+
+    /* =====================================================
+       VALIDATION
+    ===================================================== */
+
+    if (!stationId) {
+
+        showRecordSaleError(
+            "Please select a station."
+        );
+
+        return;
+
+    }
+
+
+    if (!shiftId) {
+
+        showRecordSaleError(
+            "Please select a shift."
+        );
+
+        return;
+
+    }
+
+
+    if (!pumpId) {
+
+        showRecordSaleError(
+            "Please select a pump."
+        );
+
+        return;
+
+    }
+
+
+    if (!nozzleId) {
+
+        showRecordSaleError(
+            "Please select a nozzle."
+        );
+
+        return;
+
+    }
+
+
+    if (
+        !Number.isFinite(
+            liters
+        ) ||
+        liters <= 0
+    ) {
+
+        showRecordSaleError(
+            "Please enter a valid litres value."
+        );
+
+        return;
+
+    }
+
+
+    if (
+        !Number.isFinite(
+            pricePerLitre
+        ) ||
+        pricePerLitre <= 0
+    ) {
+
+        showRecordSaleError(
+            "Please enter a valid price per litre."
+        );
+
+        return;
+
+    }
+
+
+    if (
+        !paymentMethod
+    ) {
+
+        showRecordSaleError(
+            "Please select a payment method."
+        );
+
+        return;
+
+    }
+
+
+    const calculatedAmount =
+        Number(
+            (
+                liters *
+                pricePerLitre
+            ).toFixed(2)
+        );
+
+
+    /* =====================================================
+       SUBMIT
+    ===================================================== */
+
+    try {
+
+        SalesState.isSubmitting =
+            true;
+
+
+        setSaveSaleButtonLoading(
+            true
+        );
+
+
+        /*
+         * IMPORTANT
+         *
+         * The frontend uses "liters"
+         * for compatibility.
+         *
+         * The backend controller converts
+         * it to the database column:
+         *
+         * litres
+         */
+
+        const saleData = {
+
+            station_id:
+                stationId,
+
+            pump_id:
+                pumpId,
+
+            nozzle_id:
+                nozzleId,
+
+            shift_id:
+                shiftId,
+
+            liters:
+                liters,
+
+            price_per_litre:
+                pricePerLitre,
+
+            amount:
+                calculatedAmount,
+
+            payment_method:
+                paymentMethod
+
+        };
+
+
+        console.log(
+            "Saving sale:",
+            saleData
+        );
+
+
+        const response =
+            await FuelGapAPI.createSale(
+                saleData
+            );
+
+
+        console.log(
+            "Sale created:",
+            response
+        );
+
+
+        alert(
+            "Sale recorded successfully."
+        );
+
+
+        closeRecordSaleModal();
+
+
+        await refreshSalesData();
+
+
+    } catch (error) {
+
+        console.error(
+            "Create sale error:",
+            error
+        );
+
+
+        showRecordSaleError(
+            error?.message ||
+            "Unable to save the sale."
+        );
+
+
+    } finally {
+
+        SalesState.isSubmitting =
+            false;
+
+
+        setSaveSaleButtonLoading(
+            false
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   SAVE BUTTON LOADING
+========================================================= */
+
+function setSaveSaleButtonLoading(
+    loading
+) {
+
+    const button =
+        document.getElementById(
+            "saveSaleBtn"
+        );
+
+
+    if (!button) {
+
+        return;
+
+    }
+
+
+    if (loading) {
+
+        button.disabled =
+            true;
+
+
+        button.innerHTML = `
+
+            <i class="fas fa-spinner fa-spin"></i>
+
+            Saving...
+
+        `;
+
+    } else {
+
+        button.disabled =
+            false;
+
+
+        button.innerHTML = `
+
+            <i class="fas fa-save"></i>
+
+            Save Sale
+
+        `;
+
+    }
+
+}
+
+
+/* =========================================================
+   SHOW FORM ERROR
+========================================================= */
+
+function showRecordSaleError(
+    message
+) {
+
+    const element =
+        document.getElementById(
+            "recordSaleError"
+        );
+
+
+    if (!element) {
+
+        return;
+
+    }
+
+
+    element.innerHTML = `
+
+        <i class="fas fa-exclamation-circle"></i>
+
+        <span>
+
+            ${escapeHTML(
+                message
+            )}
+
+        </span>
+
+    `;
+
+
+    element.style.display =
+        "flex";
+
+}
+
+
+/* =========================================================
+   HIDE FORM ERROR
+========================================================= */
+
+function hideRecordSaleError() {
+
+    const element =
+        document.getElementById(
+            "recordSaleError"
+        );
+
+
+    if (!element) {
+
+        return;
+
+    }
+
+
+    element.style.display =
+        "none";
+
+
+    element.innerHTML =
+        "";
+
+}
+
+
+/* =========================================================
+   LOAD ALL BACKEND DATA
+========================================================= */
+
+async function refreshSalesData() {
+
+    try {
+
+        ensureFuelGapAPI();
+
+
+        SalesState.isLoading =
+            true;
+
+
+        setRefreshButtonLoading(
+            true
+        );
+
+
+        hideSalesError();
+
+
+        const [
+
+            salesResponse,
+
+            stationsResponse,
+
+            shiftsResponse,
+
+            pumpsResponse,
+
+            nozzlesResponse
+
+        ] = await Promise.all([
+
+            FuelGapAPI.getSales(),
+
+            FuelGapAPI.getStations(),
+
+            FuelGapAPI.getShifts(),
+
+            FuelGapAPI.getPumps(),
+
+            FuelGapAPI.getNozzles()
+
+        ]);
+
+
+        console.log(
+            "Sales response:",
+            salesResponse
+        );
+
+
+        console.log(
+            "Stations response:",
+            stationsResponse
+        );
+
+
+        console.log(
+            "Shifts response:",
+            shiftsResponse
+        );
+
+
+        console.log(
+            "Pumps response:",
+            pumpsResponse
+        );
+
+
+        console.log(
+            "Nozzles response:",
+            nozzlesResponse
+        );
+
+
+        SalesState.records =
+            normalizeCollectionResponse(
+                salesResponse,
+                ["sales"]
+            )
+                .map(
+                    normalizeSaleRecord
+                );
+
+
+        SalesState.stations =
+            normalizeCollectionResponse(
+                stationsResponse,
+                ["stations"]
+            )
+                .map(
+                    normalizeStation
+                )
+                .filter(
+                    item =>
+                        item.id
+                );
+
+
+        SalesState.shifts =
+            normalizeCollectionResponse(
+                shiftsResponse,
+                ["shifts"]
+            )
+                .map(
+                    normalizeShift
+                )
+                .filter(
+                    item =>
+                        item.id
+                );
+
+
+        SalesState.pumps =
+            normalizeCollectionResponse(
+                pumpsResponse,
+                ["pumps"]
+            )
+                .map(
+                    normalizePump
+                )
+                .filter(
+                    item =>
+                        item.id
+                );
+
+
+        SalesState.nozzles =
+            normalizeCollectionResponse(
+                nozzlesResponse,
+                ["nozzles"]
+            )
+                .map(
+                    normalizeNozzle
+                )
+                .filter(
+                    item =>
+                        item.id
+                );
+
+
+        console.log(
+            "Sales configuration loaded:",
+            {
+
+                stations:
+                    SalesState.stations.length,
+
+                shifts:
+                    SalesState.shifts.length,
+
+                pumps:
+                    SalesState.pumps.length,
+
+                nozzles:
+                    SalesState.nozzles.length,
+
+                sales:
+                    SalesState.records.length
+
+            }
+        );
+
+
+        loadStationFilter();
+
+        loadShiftFilter();
+
+        loadNozzleFilter();
+
+
+        applySalesFilters();
+
+
+        updateSalesStatistics();
+
+
+    } catch (error) {
+
+        console.error(
+            "Unable to load sales:",
+            error
+        );
+
+
+        showSalesError(
+            error?.message ||
+            "Unable to load sales records."
+        );
+
+
+    } finally {
+
+        SalesState.isLoading =
+            false;
+
+
+        setRefreshButtonLoading(
+            false
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   NORMALIZE COLLECTION
+========================================================= */
+
+function normalizeCollectionResponse(
+    response,
+    possibleKeys = []
+) {
+
+    if (
+        Array.isArray(
+            response
+        )
+    ) {
+
+        return response;
+
+    }
+
+
+    if (
+        response &&
+        Array.isArray(
+            response.data
+        )
+    ) {
+
+        return response.data;
+
+    }
+
+
+    if (
+        response &&
+        response.data
+    ) {
+
+        for (
+            const key of possibleKeys
+        ) {
+
+            if (
+                Array.isArray(
+                    response.data[key]
+                )
+            ) {
+
+                return response.data[key];
+
+            }
+
+        }
+
+    }
+
+
+    if (response) {
+
+        for (
+            const key of possibleKeys
+        ) {
+
+            if (
+                Array.isArray(
+                    response[key]
+                )
+            ) {
+
+                return response[key];
+
+            }
+
+        }
+
+    }
+
+
+    return [];
+
+}
+
+
+/* =========================================================
+   NORMALIZE STATION
+========================================================= */
+
+function normalizeStation(
+    station = {}
+) {
+
+    const id =
+        station.id ||
+        station.station_id ||
+        station.stationId ||
+        "";
+
+
+    const name =
+        station.name ||
+        station.station_name ||
+        station.stationName ||
+        `Station ${id || "-"}`;
+
+
+    const isActive =
+        station.is_active !==
+        false;
+
+
+    return {
+
+        id,
+
+        name,
+
+        address:
+            station.address ||
+            "",
+
+        city:
+            station.city ||
+            "",
+
+        state:
+            station.state ||
+            "",
+
+        status:
+            station.status ||
+            (
+                isActive
+                    ? "active"
+                    : "inactive"
+            ),
+
+        isActive,
+
+        raw:
+            station
+
+    };
+
+}
+
+
+/* =========================================================
+   NORMALIZE SHIFT
+========================================================= */
+
+function normalizeShift(
+    shift = {}
+) {
+
+    const id =
+        shift.id ||
+        shift.shift_id ||
+        shift.shiftId ||
+        "";
+
+
+    const stationId =
+        shift.station_id ||
+        shift.stationId ||
+        shift.station?.id ||
+        "";
+
+
+    const shiftName =
+        shift.name ||
+        shift.shift_name ||
+        shift.shiftName ||
+        shift.code ||
+        "";
+
+
+    const shiftDate =
+        shift.shift_date ||
+        shift.shiftDate ||
+        shift.date ||
+        "";
+
+
+    const status =
+        shift.status ||
+        "recorded";
+
+
+    let displayName =
+        shiftName;
+
+
+    if (!displayName) {
+
+        if (shiftDate) {
+
+            displayName =
+                `Shift - ${formatShiftDate(
+                    shiftDate
+                )}`;
+
+        } else {
+
+            displayName =
+                `Shift ${id || "-"}`;
+
+        }
+
+    }
+
+
+    return {
+
+        id,
+
+        stationId,
+
+        name:
+            displayName,
+
+        shiftDate,
+
+        status,
+
+        raw:
+            shift
+
+    };
+
+}
+
+
+/* =========================================================
+   NORMALIZE PUMP
+========================================================= */
+
+function normalizePump(
+    pump = {}
+) {
+
+    const id =
+        pump.id ||
+        pump.pump_id ||
+        pump.pumpId ||
+        "";
+
+
+    const stationId =
+        pump.station_id ||
+        pump.stationId ||
+        pump.station?.id ||
+        "";
+
+
+    const number =
+        pump.pump_number ??
+        pump.number ??
+        pump.pumpNumber ??
+        "";
+
+
+    const name =
+        pump.name ||
+        (
+            number !== ""
+                ? `Pump ${number}`
+                : `Pump ${id || "-"}`
+        );
+
+
+    const isActive =
+        pump.is_active !==
+        false;
+
+
+    return {
+
+        id,
+
+        stationId,
+
+        number,
+
+        name,
+
+        status:
+            pump.status ||
+            (
+                isActive
+                    ? "active"
+                    : "inactive"
+            ),
+
+        isActive,
+
+        raw:
+            pump
+
+    };
+
+}
+
+
+/* =========================================================
+   NORMALIZE NOZZLE
+========================================================= */
+
+function normalizeNozzle(
+    nozzle = {}
+) {
+
+    const id =
+        nozzle.id ||
+        nozzle.nozzle_id ||
+        nozzle.nozzleId ||
+        "";
+
+
+    const pumpId =
+        nozzle.pump_id ||
+        nozzle.pumpId ||
+        nozzle.pump?.id ||
+        "";
+
+
+    const stationId =
+        nozzle.station_id ||
+        nozzle.stationId ||
+        nozzle.pump?.station_id ||
+        nozzle.pump?.stationId ||
+        "";
+
+
+    const number =
+        nozzle.nozzle_number ??
+        nozzle.number ??
+        nozzle.nozzleNumber ??
+        "";
+
+
+    const product =
+        nozzle.product ||
+        "";
+
+
+    const name =
+        nozzle.name ||
+        (
+            number !== ""
+                ? `Nozzle ${number}`
+                : `Nozzle ${id || "-"}`
+        );
+
+
+    const isActive =
+        nozzle.is_active !==
+        false;
+
+
+    return {
+
+        id,
+
+        pumpId,
+
+        stationId,
+
+        number,
+
+        name,
+
+        product,
+
+        pricePerLitre:
+            Number(
+                nozzle.price_per_litre ??
+                nozzle.pricePerLitre ??
+                nozzle.price ??
+                0
+            ),
+
+        status:
+            nozzle.status ||
+            (
+                isActive
+                    ? "active"
+                    : "inactive"
+            ),
+
+        isActive,
+
+        raw:
+            nozzle
+
+    };
+
+}
+
+
+/* =========================================================
+   NORMALIZE SALE
+========================================================= */
+
+function normalizeSaleRecord(
+    sale = {}
+) {
+
+    const station =
+        sale.station ||
+        {};
+
+
+    const pump =
+        sale.pump ||
+        {};
+
+
+    const nozzle =
+        sale.nozzle ||
+        {};
+
+
+    const shift =
+        sale.shift ||
+        {};
+
+
+    const id =
+        sale.id ||
+        sale.sale_id ||
+        sale.saleId ||
+        "";
+
+
+    const stationId =
+        sale.station_id ||
+        sale.stationId ||
+        station.id ||
+        station.station_id ||
+        "";
+
+
+    const pumpId =
+        sale.pump_id ||
+        sale.pumpId ||
+        pump.id ||
+        pump.pump_id ||
+        "";
+
+
+    const nozzleId =
+        sale.nozzle_id ||
+        sale.nozzleId ||
+        nozzle.id ||
+        nozzle.nozzle_id ||
+        "";
+
+
+    const shiftId =
+        sale.shift_id ||
+        sale.shiftId ||
+        shift.id ||
+        shift.shift_id ||
+        "";
+
+
+    const liters =
+        Number(
+            sale.liters ??
+            sale.litres ??
+            0
+        );
+
+
+    const pricePerLitre =
+        Number(
+            sale.price_per_litre ??
+            sale.pricePerLitre ??
+            sale.price ??
+            0
+        );
+
+
+    const amount =
+        Number(
+            sale.amount ??
+            0
+        );
+
+
+    const createdAt =
+        sale.created_at ||
+        sale.createdAt ||
+        sale.recorded_at ||
+        sale.recordedAt ||
+        null;
+
+
+    const recordedBy =
+        sale.recorded_by ||
+        sale.recordedBy ||
+        "";
+
+
+    const recordedByName =
+        sale.recorded_by_name ||
+        sale.recordedByName ||
+        sale.user_name ||
+        sale.userName ||
+        "Unknown";
+
+
+    const paymentMethod =
+        sale.payment_method ||
+        sale.paymentMethod ||
+        "other";
+
+
+    const stationConfig =
+        SalesState.stations.find(
+            item =>
+                String(
+                    item.id
+                ) ===
+                String(
+                    stationId
+                )
+        );
+
+
+    const pumpConfig =
+        SalesState.pumps.find(
+            item =>
+                String(
+                    item.id
+                ) ===
+                String(
+                    pumpId
+                )
+        );
+
+
+    const nozzleConfig =
+        SalesState.nozzles.find(
+            item =>
+                String(
+                    item.id
+                ) ===
+                String(
+                    nozzleId
+                )
+        );
+
+
+    const shiftConfig =
+        SalesState.shifts.find(
+            item =>
+                String(
+                    item.id
+                ) ===
+                String(
+                    shiftId
+                )
+        );
+
+
+    const stationName =
+        station.name ||
+        sale.station_name ||
+        sale.stationName ||
+        stationConfig?.name ||
+        "Unknown Station";
+
+
+    const pumpNumber =
+        pump.pump_number ??
+        pump.number ??
+        pump.pumpNumber ??
+        sale.pump_number ??
+        pumpConfig?.number ??
+        "";
+
+
+    const pumpName =
+        pump.name ||
+        sale.pumpName ||
+        (
+            pumpNumber !== ""
+                ? `Pump ${pumpNumber}`
+                : pumpConfig?.name ||
+                  `Pump ${pumpId || "-"}`
+        );
+
+
+    const nozzleNumber =
+        nozzle.nozzle_number ??
+        nozzle.number ??
+        nozzle.nozzleNumber ??
+        sale.nozzle_number ??
+        nozzleConfig?.number ??
+        "";
+
+
+    const nozzleName =
+        nozzle.name ||
+        sale.nozzleName ||
+        (
+            nozzleNumber !== ""
+                ? `Nozzle ${nozzleNumber}`
+                : nozzleConfig?.name ||
+                  `Nozzle ${nozzleId || "-"}`
+        );
+
+
+    const shiftName =
+        shift.name ||
+        shift.shift_name ||
+        sale.shift_name ||
+        sale.shiftName ||
+        shiftConfig?.name ||
+        `Shift ${shiftId || "-"}`;
+
+
+    const shiftStatus =
+        shift.status ||
+        sale.shift_status ||
+        sale.shiftStatus ||
+        shiftConfig?.status ||
+        "recorded";
+
+
+    return {
+
+        id,
+
+        stationId,
+        stationName,
+
+        pumpId,
+        pumpName,
+
+        nozzleId,
+        nozzleName,
+
+        shiftId,
+        shiftName,
+        shiftStatus,
+
+        recordedBy,
+        recordedByName,
+
+        liters,
+        pricePerLitre,
+        amount,
+
+        paymentMethod,
+
+        createdAt,
+
+        raw:
+            sale
+
+    };
 
 }
 
@@ -946,28 +3738,89 @@ function loadStationFilter() {
             "salesStationFilter"
         );
 
+
     if (!select) {
+
         return;
+
     }
 
-    resetSelectOptions(select);
 
-    getVisibleStations()
-        .forEach(station => {
+    const currentValue =
+        select.value;
 
-            const option =
-                document.createElement("option");
 
-            option.value =
-                station.id;
+    select.innerHTML = `
 
-            option.textContent =
-                station.name ||
-                "Unnamed Station";
+        <option value="">
+            All Stations
+        </option>
 
-            select.appendChild(option);
+    `;
 
-        });
+
+    SalesState.stations
+        .slice()
+        .sort(
+            (a, b) =>
+                String(
+                    a.name
+                )
+                    .localeCompare(
+                        String(
+                            b.name
+                        )
+                    )
+        )
+        .forEach(
+            station => {
+
+                if (!station.id) {
+
+                    return;
+
+                }
+
+
+                const option =
+                    document.createElement(
+                        "option"
+                    );
+
+
+                option.value =
+                    String(
+                        station.id
+                    );
+
+
+                option.textContent =
+                    station.name;
+
+
+                select.appendChild(
+                    option
+                );
+
+            }
+        );
+
+
+    if (
+        Array.from(
+            select.options
+        )
+            .some(
+                option =>
+                    option.value ===
+                    currentValue
+            )
+    ) {
+
+        select.value =
+            currentValue;
+
+    }
 
 }
 
@@ -983,29 +3836,114 @@ function loadShiftFilter() {
             "salesShiftFilter"
         );
 
+
     if (!select) {
+
         return;
+
     }
 
-    resetSelectOptions(select);
 
-    getVisibleShifts()
-        .forEach(shift => {
+    const stationFilter =
+        document.getElementById(
+            "salesStationFilter"
+        );
+
+
+    const stationId =
+        stationFilter?.value ||
+        "";
+
+
+    const currentValue =
+        select.value;
+
+
+    select.innerHTML = `
+
+        <option value="">
+            All Shifts
+        </option>
+
+    `;
+
+
+    let shifts =
+        SalesState.shifts.slice();
+
+
+    if (
+        stationId
+    ) {
+
+        const filtered =
+            shifts.filter(
+                shift =>
+                    String(
+                        shift.stationId
+                    ) ===
+                    String(
+                        stationId
+                    )
+            );
+
+
+        if (
+            filtered.length
+        ) {
+
+            shifts =
+                filtered;
+
+        }
+
+    }
+
+
+    shifts.forEach(
+        shift => {
 
             const option =
-                document.createElement("option");
+                document.createElement(
+                    "option"
+                );
+
 
             option.value =
-                shift.id;
+                String(
+                    shift.id
+                );
+
 
             option.textContent =
-                shift.name ||
-                shift.shiftName ||
-                "Unnamed Shift";
+                buildShiftOptionLabel(
+                    shift
+                );
 
-            select.appendChild(option);
 
-        });
+            select.appendChild(
+                option
+            );
+
+        }
+    );
+
+
+    if (
+        Array.from(
+            select.options
+        )
+            .some(
+                option =>
+                    option.value ===
+                    currentValue
+            )
+    ) {
+
+        select.value =
+            currentValue;
+
+    }
 
 }
 
@@ -1021,1454 +3959,791 @@ function loadNozzleFilter() {
             "salesNozzleFilter"
         );
 
+
     if (!select) {
+
         return;
-    }
-
-    resetSelectOptions(select);
-
-    const stationIds =
-        getVisibleStationIds();
-
-    const visiblePumpIds =
-        getPumps()
-            .filter(
-                pump =>
-                    stationIds.includes(
-                        pump.stationId
-                    )
-            )
-            .map(
-                pump =>
-                    pump.id
-            );
-
-    getNozzles()
-        .filter(
-            nozzle =>
-                visiblePumpIds.includes(
-                    nozzle.pumpId
-                )
-        )
-        .forEach(nozzle => {
-
-            const option =
-                document.createElement("option");
-
-            option.value =
-                nozzle.id;
-
-            option.textContent =
-                getNozzleName(nozzle);
-
-            select.appendChild(option);
-
-        });
-
-}
-
-
-/* =========================================================
-   FILTER EVENTS
-========================================================= */
-
-function setupSalesFilters() {
-
-    const filterIds = [
-        "salesStationFilter",
-        "salesShiftFilter",
-        "salesNozzleFilter"
-    ];
-
-    filterIds.forEach(id => {
-
-        const element =
-            document.getElementById(id);
-
-        if (!element) {
-            return;
-        }
-
-        element.addEventListener(
-            "change",
-            () => {
-
-                SalesState.currentPage = 1;
-
-                renderSales();
-
-            }
-        );
-
-    });
-
-
-    const searchInput =
-        document.getElementById(
-            "salesSearch"
-        );
-
-    if (searchInput) {
-
-        let searchTimer;
-
-        searchInput.addEventListener(
-            "input",
-            () => {
-
-                clearTimeout(searchTimer);
-
-                searchTimer =
-                    setTimeout(() => {
-
-                        SalesState.currentPage = 1;
-
-                        renderSales();
-
-                    }, 200);
-
-            }
-        );
 
     }
 
-}
-
-
-/* =========================================================
-   CLEAR FILTERS
-========================================================= */
-
-function setupClearFilters() {
-
-    const button =
-        document.getElementById(
-            "clearSalesFilters"
-        );
-
-    if (!button) {
-        return;
-    }
-
-    button.addEventListener(
-        "click",
-        () => {
-
-            const station =
-                document.getElementById(
-                    "salesStationFilter"
-                );
-
-            const shift =
-                document.getElementById(
-                    "salesShiftFilter"
-                );
-
-            const nozzle =
-                document.getElementById(
-                    "salesNozzleFilter"
-                );
-
-            const search =
-                document.getElementById(
-                    "salesSearch"
-                );
-
-            if (station) {
-                station.value = "";
-            }
-
-            if (shift) {
-                shift.value = "";
-            }
-
-            if (nozzle) {
-                nozzle.value = "";
-            }
-
-            if (search) {
-                search.value = "";
-            }
-
-            SalesState.currentPage = 1;
-
-            renderSales();
-
-        }
-    );
-
-}
-
-
-/* =========================================================
-   SORTING
-========================================================= */
-
-function setupSorting() {
-
-    document
-        .querySelectorAll(
-            ".sales-sortable"
-        )
-        .forEach(column => {
-
-            column.addEventListener(
-                "click",
-                () => {
-
-                    const key =
-                        column.dataset.sort;
-
-                    if (
-                        SalesState.currentSort.key ===
-                        key
-                    ) {
-
-                        SalesState.currentSort.direction =
-                            SalesState.currentSort.direction ===
-                            "asc"
-                                ? "desc"
-                                : "asc";
-
-                    } else {
-
-                        SalesState.currentSort.key =
-                            key;
-
-                        SalesState.currentSort.direction =
-                            "asc";
-
-                    }
-
-                    renderSales();
-
-                }
-            );
-
-        });
-
-}
-
-
-/* =========================================================
-   PAGINATION EVENTS
-========================================================= */
-
-function setupPaginationEvents() {
-
-    const previousButton =
-        document.getElementById(
-            "previousPageButton"
-        );
-
-    const nextButton =
-        document.getElementById(
-            "nextPageButton"
-        );
-
-    if (previousButton) {
-
-        previousButton.addEventListener(
-            "click",
-            () => {
-
-                if (
-                    SalesState.currentPage > 1
-                ) {
-
-                    SalesState.currentPage--;
-
-                    renderSales();
-
-                }
-
-            }
-        );
-
-    }
-
-
-    if (nextButton) {
-
-        nextButton.addEventListener(
-            "click",
-            () => {
-
-                const totalPages =
-                    Math.ceil(
-                        SalesState.filteredRecords.length /
-                        SalesState.rowsPerPage
-                    );
-
-                if (
-                    SalesState.currentPage <
-                    totalPages
-                ) {
-
-                    SalesState.currentPage++;
-
-                    renderSales();
-
-                }
-
-            }
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   EMPTY STATE
-========================================================= */
-
-function setupEmptyStateButton() {
-
-    const button =
-        document.getElementById(
-            "emptyStateRefreshButton"
-        );
-
-    if (!button) {
-        return;
-    }
-
-    button.addEventListener(
-        "click",
-        refreshSalesData
-    );
-
-}
-
-
-/* =========================================================
-   READING HELPERS
-========================================================= */
-
-function getReadingType(reading) {
-
-    return (
-        reading.type ||
-        reading.readingType ||
-        reading.readingCategory ||
-        ""
-    )
-        .toString()
-        .toLowerCase()
-        .trim();
-
-}
-
-
-function getReadingValue(reading) {
-
-    const possibleValues = [
-
-        reading.reading,
-        reading.meterReading,
-        reading.value,
-        reading.meterValue,
-        reading.currentReading
-
-    ];
-
-    for (const value of possibleValues) {
-
-        if (
-            value === null ||
-            value === undefined ||
-            value === ""
-        ) {
-            continue;
-        }
-
-        const number =
-            Number(value);
-
-        if (!Number.isNaN(number)) {
-            return number;
-        }
-
-    }
-
-    return null;
-
-}
-
-
-function getReadingDate(reading) {
-
-    const possibleDates = [
-
-        reading.createdAt,
-        reading.timestamp,
-        reading.recordedAt,
-        reading.date,
-        reading.updatedAt
-
-    ];
-
-    for (const value of possibleDates) {
-
-        if (!value) {
-            continue;
-        }
-
-        const date =
-            new Date(value);
-
-        if (
-            !Number.isNaN(
-                date.getTime()
-            )
-        ) {
-            return date;
-        }
-
-    }
-
-    return null;
-
-}
-
-
-/* =========================================================
-   PRODUCT HELPERS
-========================================================= */
-
-function getNozzlePrice(nozzle) {
-
-    if (!nozzle) {
-        return 0;
-    }
-
-    const possiblePrices = [
-
-        nozzle.pricePerLitre,
-        nozzle.price,
-        nozzle.fuelPrice,
-        nozzle.sellingPrice,
-        nozzle.pricePerLiter
-
-    ];
-
-    for (const value of possiblePrices) {
-
-        const price =
-            Number(value);
-
-        if (
-            !Number.isNaN(price) &&
-            price > 0
-        ) {
-            return price;
-        }
-
-    }
-
-    return 0;
-
-}
-
-
-function getNozzleName(nozzle) {
-
-    if (!nozzle) {
-        return "Unknown Nozzle";
-    }
-
-    return (
-        nozzle.name ||
-        nozzle.nozzleName ||
-        nozzle.code ||
-        nozzle.label ||
-        `Nozzle ${nozzle.number || ""}`
-    );
-
-}
-
-
-function getPumpName(pump) {
-
-    if (!pump) {
-        return "Unknown Pump";
-    }
-
-    return (
-        pump.name ||
-        pump.pumpName ||
-        pump.code ||
-        `Pump ${pump.number || ""}`
-    );
-
-}
-
-
-/* =========================================================
-   SHIFT DATES
-========================================================= */
-
-function getShiftOpenDate(shift) {
-
-    const possibleDates = [
-
-        shift.openedAt,
-        shift.startDate,
-        shift.createdAt
-
-    ];
-
-    for (const value of possibleDates) {
-
-        if (!value) {
-            continue;
-        }
-
-        const date =
-            new Date(value);
-
-        if (
-            !Number.isNaN(
-                date.getTime()
-            )
-        ) {
-            return date;
-        }
-
-    }
-
-    return null;
-
-}
-
-
-function getShiftCloseDate(shift) {
-
-    const possibleDates = [
-
-        shift.closedAt,
-        shift.endDate,
-        shift.updatedAt
-
-    ];
-
-    for (const value of possibleDates) {
-
-        if (!value) {
-            continue;
-        }
-
-        const date =
-            new Date(value);
-
-        if (
-            !Number.isNaN(
-                date.getTime()
-            )
-        ) {
-            return date;
-        }
-
-    }
-
-    return new Date();
-
-}
-
-
-/* =========================================================
-   SHIFT READINGS
-========================================================= */
-
-function getReadingsForShift(
-    shift,
-    readings
-) {
-
-    const directShiftReadings =
-        readings.filter(
-            reading =>
-                reading.shiftId ===
-                shift.id
-        );
-
-    if (
-        directShiftReadings.length > 0
-    ) {
-
-        return directShiftReadings;
-
-    }
-
-
-    const shiftOpenDate =
-        getShiftOpenDate(shift);
-
-    const shiftCloseDate =
-        getShiftCloseDate(shift);
-
-
-    return readings.filter(reading => {
-
-        if (
-            reading.stationId !==
-            shift.stationId
-        ) {
-            return false;
-        }
-
-
-        const readingDate =
-            getReadingDate(reading);
-
-        if (!readingDate) {
-            return false;
-        }
-
-
-        if (
-            shiftOpenDate &&
-            readingDate < shiftOpenDate
-        ) {
-            return false;
-        }
-
-
-        if (
-            shiftCloseDate &&
-            readingDate > shiftCloseDate
-        ) {
-            return false;
-        }
-
-
-        return true;
-
-    });
-
-}
-
-
-/* =========================================================
-   BUILD SALES RECORDS
-========================================================= */
-
-function buildSalesRecords() {
-
-    const readings =
-        getMeterReadings();
-
-    const shifts =
-        getVisibleShifts();
-
-    const stations =
-        getStations();
-
-    const pumps =
-        getPumps();
-
-    const nozzles =
-        getNozzles();
-
-    const salesRecords = [];
-
-
-    shifts.forEach(shift => {
-
-        const shiftReadings =
-            getReadingsForShift(
-                shift,
-                readings
-            );
-
-
-        const nozzleGroups = {};
-
-
-        shiftReadings.forEach(reading => {
-
-            const nozzleId =
-                reading.nozzleId;
-
-            if (!nozzleId) {
-                return;
-            }
-
-            if (!nozzleGroups[nozzleId]) {
-                nozzleGroups[nozzleId] = [];
-            }
-
-            nozzleGroups[nozzleId]
-                .push(reading);
-
-        });
-
-
-        Object.keys(nozzleGroups)
-            .forEach(nozzleId => {
-
-                const nozzle =
-                    nozzles.find(
-                        item =>
-                            item.id === nozzleId
-                    );
-
-
-                const pump =
-                    pumps.find(
-                        item =>
-                            item.id ===
-                            (
-                                nozzle
-                                    ? nozzle.pumpId
-                                    : null
-                            )
-                    );
-
-
-                const station =
-                    stations.find(
-                        item =>
-                            item.id ===
-                            shift.stationId
-                    );
-
-
-                const nozzleReadings =
-                    nozzleGroups[nozzleId]
-                        .map(reading => ({
-
-                            ...reading,
-
-                            _date:
-                                getReadingDate(
-                                    reading
-                                ),
-
-                            _value:
-                                getReadingValue(
-                                    reading
-                                ),
-
-                            _type:
-                                getReadingType(
-                                    reading
-                                )
-
-                        }))
-                        .filter(
-                            reading =>
-                                reading._date &&
-                                reading._value !== null
-                        )
-                        .sort(
-                            (a, b) =>
-                                a._date -
-                                b._date
-                        );
-
-
-                if (
-                    nozzleReadings.length < 2
-                ) {
-                    return;
-                }
-
-
-                let openingReading =
-                    nozzleReadings.find(
-                        reading =>
-                            [
-                                "opening",
-                                "open",
-                                "opening_reading"
-                            ].includes(
-                                reading._type
-                            )
-                    );
-
-
-                let closingReading =
-                    [...nozzleReadings]
-                        .reverse()
-                        .find(
-                            reading =>
-                                [
-                                    "closing",
-                                    "close",
-                                    "closing_reading"
-                                ].includes(
-                                    reading._type
-                                )
-                        );
-
-
-                if (!openingReading) {
-                    openingReading =
-                        nozzleReadings[0];
-                }
-
-
-                if (!closingReading) {
-                    closingReading =
-                        nozzleReadings[
-                            nozzleReadings.length - 1
-                        ];
-                }
-
-
-                if (
-                    !openingReading ||
-                    !closingReading
-                ) {
-                    return;
-                }
-
-
-                if (
-                    closingReading._value <
-                    openingReading._value
-                ) {
-                    return;
-                }
-
-
-                const litresSold =
-                    closingReading._value -
-                    openingReading._value;
-
-
-                if (litresSold <= 0) {
-                    return;
-                }
-
-
-                const pricePerLitre =
-                    getNozzlePrice(nozzle);
-
-
-                const expectedSales =
-                    litresSold *
-                    pricePerLitre;
-
-
-                salesRecords.push({
-
-                    id:
-                        `${shift.id}-${nozzleId}`,
-
-                    shiftId:
-                        shift.id,
-
-                    shiftName:
-                        shift.name ||
-                        shift.shiftName ||
-                        "Unnamed Shift",
-
-                    stationId:
-                        shift.stationId,
-
-                    stationName:
-                        station
-                            ? station.name
-                            : "Unknown Station",
-
-                    pumpId:
-                        pump
-                            ? pump.id
-                            : null,
-
-                    pumpName:
-                        getPumpName(pump),
-
-                    nozzleId,
-
-                    nozzleName:
-                        getNozzleName(nozzle),
-
-                    openingReading:
-                        openingReading._value,
-
-                    closingReading:
-                        closingReading._value,
-
-                    litresSold,
-
-                    pricePerLitre,
-
-                    expectedSales,
-
-                    shiftStatus:
-                        (
-                            shift.status ||
-                            "closed"
-                        )
-                            .toLowerCase(),
-
-                    openedAt:
-                        shift.openedAt,
-
-                    closedAt:
-                        shift.closedAt
-
-                });
-
-            });
-
-    });
-
-
-    return salesRecords;
-
-}
-
-
-/* =========================================================
-   GET FILTERS
-========================================================= */
-
-function getSalesFilters() {
 
     const stationFilter =
         document.getElementById(
             "salesStationFilter"
         );
 
-    const shiftFilter =
-        document.getElementById(
-            "salesShiftFilter"
-        );
 
-    const nozzleFilter =
-        document.getElementById(
-            "salesNozzleFilter"
-        );
-
-    const searchInput =
-        document.getElementById(
-            "salesSearch"
-        );
+    const stationId =
+        stationFilter?.value ||
+        "";
 
 
-    return {
+    const currentValue =
+        select.value;
 
-        stationId:
-            stationFilter
-                ? stationFilter.value
-                : "",
 
-        shiftId:
-            shiftFilter
-                ? shiftFilter.value
-                : "",
+    select.innerHTML = `
 
-        nozzleId:
-            nozzleFilter
-                ? nozzleFilter.value
-                : "",
+        <option value="">
+            All Nozzles
+        </option>
 
-        search:
-            searchInput
-                ? searchInput.value
-                    .toLowerCase()
-                    .trim()
-                : ""
+    `;
 
-    };
+
+    let nozzles =
+        SalesState.nozzles.slice();
+
+
+    if (
+        stationId
+    ) {
+
+        const stationPumpIds =
+            new Set(
+                SalesState.pumps
+                    .filter(
+                        pump =>
+                            String(
+                                pump.stationId
+                            ) ===
+                            String(
+                                stationId
+                            )
+                    )
+                    .map(
+                        pump =>
+                            String(
+                                pump.id
+                            )
+                    )
+            );
+
+
+        const filtered =
+            nozzles.filter(
+                nozzle =>
+
+                    String(
+                        nozzle.stationId
+                    ) ===
+                    String(
+                        stationId
+                    ) ||
+
+                    stationPumpIds.has(
+                        String(
+                            nozzle.pumpId
+                        )
+                    )
+            );
+
+
+        if (
+            filtered.length
+        ) {
+
+            nozzles =
+                filtered;
+
+        }
+
+    }
+
+
+    nozzles.forEach(
+        nozzle => {
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+
+            option.value =
+                String(
+                    nozzle.id
+                );
+
+
+            option.textContent =
+                buildNozzleOptionLabel(
+                    nozzle
+                );
+
+
+            select.appendChild(
+                option
+            );
+
+        }
+    );
+
+
+    if (
+        Array.from(
+            select.options
+        )
+            .some(
+                option =>
+                    option.value ===
+                    currentValue
+            )
+    ) {
+
+        select.value =
+            currentValue;
+
+    }
 
 }
 
 
 /* =========================================================
-   FILTER RECORDS
+   SHIFT LABEL
 ========================================================= */
 
-function filterSalesRecords(
-    records,
-    filters
+function buildShiftOptionLabel(
+    shift
 ) {
 
-    return records.filter(record => {
-
-        if (
-            filters.stationId &&
-            record.stationId !==
-            filters.stationId
-        ) {
-            return false;
-        }
+    let label =
+        shift.name ||
+        `Shift ${shift.id || "-"}`;
 
 
-        if (
-            filters.shiftId &&
-            record.shiftId !==
-            filters.shiftId
-        ) {
-            return false;
-        }
+    if (
+        shift.shiftDate
+    ) {
+
+        label +=
+            ` • ${formatShiftDate(
+                shift.shiftDate
+            )}`;
+
+    }
 
 
-        if (
-            filters.nozzleId &&
-            record.nozzleId !==
-            filters.nozzleId
-        ) {
-            return false;
-        }
+    if (
+        shift.status
+    ) {
+
+        label +=
+            ` • ${formatShiftStatus(
+                shift.status
+            )}`;
+
+    }
 
 
-        if (filters.search) {
-
-            const searchableText =
-                `
-                    ${record.stationName}
-                    ${record.shiftName}
-                    ${record.pumpName}
-                    ${record.nozzleName}
-                `
-                    .toLowerCase();
-
-
-            if (
-                !searchableText.includes(
-                    filters.search
-                )
-            ) {
-                return false;
-            }
-
-        }
-
-
-        return true;
-
-    });
+    return label;
 
 }
 
 
 /* =========================================================
-   SORT RECORDS
+   NOZZLE LABEL
 ========================================================= */
 
-function sortSalesRecords(records) {
+function buildNozzleOptionLabel(
+    nozzle
+) {
+
+    let label =
+        nozzle.name ||
+        `Nozzle ${nozzle.id || "-"}`;
+
+
+    if (
+        nozzle.product
+    ) {
+
+        label +=
+            ` • ${String(
+                nozzle.product
+            ).toUpperCase()}`;
+
+    }
+
+
+    const pump =
+        SalesState.pumps.find(
+            item =>
+                String(
+                    item.id
+                ) ===
+                String(
+                    nozzle.pumpId
+                )
+        );
+
+
+    if (pump) {
+
+        label +=
+            ` • ${pump.name}`;
+
+    }
+
+
+    return label;
+
+}
+
+
+/* =========================================================
+   APPLY FILTERS
+========================================================= */
+
+function applySalesFilters() {
+
+    const search =
+        (
+            document.getElementById(
+                "salesSearch"
+            )?.value ||
+            ""
+        )
+            .trim()
+            .toLowerCase();
+
+
+    const stationId =
+        document.getElementById(
+            "salesStationFilter"
+        )?.value ||
+        "";
+
+
+    const shiftId =
+        document.getElementById(
+            "salesShiftFilter"
+        )?.value ||
+        "";
+
+
+    const nozzleId =
+        document.getElementById(
+            "salesNozzleFilter"
+        )?.value ||
+        "";
+
+
+    const paymentMethod =
+        document.getElementById(
+            "salesPaymentFilter"
+        )?.value ||
+        "";
+
+
+    const selectedDate =
+        document.getElementById(
+            "salesDateFilter"
+        )?.value ||
+        "";
+
+
+    SalesState.filteredRecords =
+        SalesState.records.filter(
+            sale => {
+
+                if (search) {
+
+                    const searchable = [
+
+                        sale.id,
+                        sale.stationName,
+                        sale.pumpName,
+                        sale.nozzleName,
+                        sale.shiftName,
+                        sale.recordedByName,
+                        sale.paymentMethod,
+                        sale.liters,
+                        sale.amount
+
+                    ]
+                        .join(" ")
+                        .toLowerCase();
+
+
+                    if (
+                        !searchable.includes(
+                            search
+                        )
+                    ) {
+
+                        return false;
+
+                    }
+
+                }
+
+
+                if (
+                    stationId &&
+                    String(
+                        sale.stationId
+                    ) !==
+                    String(
+                        stationId
+                    )
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (
+                    shiftId &&
+                    String(
+                        sale.shiftId
+                    ) !==
+                    String(
+                        shiftId
+                    )
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (
+                    nozzleId &&
+                    String(
+                        sale.nozzleId
+                    ) !==
+                    String(
+                        nozzleId
+                    )
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (
+                    paymentMethod &&
+                    String(
+                        sale.paymentMethod
+                    )
+                        .toLowerCase() !==
+                    String(
+                        paymentMethod
+                    )
+                        .toLowerCase()
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (
+                    selectedDate
+                ) {
+
+                    if (
+                        !sale.createdAt
+                    ) {
+
+                        return false;
+
+                    }
+
+
+                    if (
+                        formatDateForInput(
+                            sale.createdAt
+                        ) !==
+                        selectedDate
+                    ) {
+
+                        return false;
+
+                    }
+
+                }
+
+
+                return true;
+
+            }
+        );
+
+
+    renderSales();
+
+    updateSalesStatistics();
+
+}
+
+
+/* =========================================================
+   SORT
+========================================================= */
+
+function sortSales(
+    records
+) {
 
     const {
         key,
         direction
-    } = SalesState.currentSort;
+    } =
+        SalesState.currentSort;
 
 
-    return [...records]
-        .sort((a, b) => {
+    const multiplier =
+        direction ===
+        "asc"
+            ? 1
+            : -1;
+
+
+    return [
+        ...records
+    ].sort(
+        (
+            a,
+            b
+        ) => {
 
             let valueA =
                 a[key];
+
 
             let valueB =
                 b[key];
 
 
             if (
-                typeof valueA === "string"
+                key ===
+                "createdAt"
             ) {
 
                 valueA =
-                    valueA.toLowerCase();
+                    valueA
+                        ? new Date(
+                            valueA
+                        ).getTime()
+                        : 0;
 
-            }
-
-
-            if (
-                typeof valueB === "string"
-            ) {
 
                 valueB =
-                    valueB.toLowerCase();
+                    valueB
+                        ? new Date(
+                            valueB
+                        ).getTime()
+                        : 0;
 
             }
 
 
             if (
-                valueA === undefined ||
-                valueA === null
+                typeof valueA ===
+                "number" &&
+                typeof valueB ===
+                "number"
             ) {
-                valueA = "";
+
+                return (
+                    valueA -
+                    valueB
+                ) *
+                multiplier;
+
             }
 
 
-            if (
-                valueB === undefined ||
-                valueB === null
-            ) {
-                valueB = "";
-            }
+            return String(
+                valueA ??
+                ""
+            )
+                .localeCompare(
+                    String(
+                        valueB ??
+                        ""
+                    )
+                ) *
+                multiplier;
 
-
-            if (valueA < valueB) {
-                return direction === "asc"
-                    ? -1
-                    : 1;
-            }
-
-
-            if (valueA > valueB) {
-                return direction === "asc"
-                    ? 1
-                    : -1;
-            }
-
-
-            return 0;
-
-        });
+        }
+    );
 
 }
 
 
 /* =========================================================
-   RENDER SALES
+   RENDER SALES TABLE
 ========================================================= */
 
 function renderSales() {
 
-    const filters =
-        getSalesFilters();
-
-
-    const filteredRecords =
-        filterSalesRecords(
-            SalesState.records,
-            filters
-        );
-
-
-    const sortedRecords =
-        sortSalesRecords(
-            filteredRecords
-        );
-
-
-    SalesState.filteredRecords =
-        sortedRecords;
-
-
-    const tableBody =
+    const tbody =
         document.getElementById(
             "salesTableBody"
         );
 
-    const emptyState =
-        document.getElementById(
-            "emptySalesState"
-        );
 
-    const pagination =
-        document.getElementById(
-            "salesPagination"
-        );
+    if (!tbody) {
 
-
-    if (!tableBody) {
         return;
+
     }
 
 
-    tableBody.innerHTML = "";
+    const sorted =
+        sortSales(
+            SalesState.filteredRecords
+        );
+
+
+    const totalRecords =
+        sorted.length;
+
+
+    const totalPages =
+        Math.max(
+            1,
+            Math.ceil(
+                totalRecords /
+                SalesState.rowsPerPage
+            )
+        );
 
 
     if (
-        sortedRecords.length === 0
+        SalesState.currentPage >
+        totalPages
     ) {
 
-        if (emptyState) {
-            emptyState.classList.remove(
-                "hidden"
-            );
-        }
-
-        if (pagination) {
-            pagination.classList.add(
-                "hidden"
-            );
-        }
-
-    } else {
-
-        if (emptyState) {
-            emptyState.classList.add(
-                "hidden"
-            );
-        }
-
-
-        const totalPages =
-            Math.ceil(
-                sortedRecords.length /
-                SalesState.rowsPerPage
-            );
-
-
-        if (
-            SalesState.currentPage >
-            totalPages
-        ) {
-
-            SalesState.currentPage =
-                totalPages;
-
-        }
-
-
-        const startIndex =
-            (
-                SalesState.currentPage - 1
-            ) *
-            SalesState.rowsPerPage;
-
-
-        const endIndex =
-            startIndex +
-            SalesState.rowsPerPage;
-
-
-        const pageRecords =
-            sortedRecords.slice(
-                startIndex,
-                endIndex
-            );
-
-
-        pageRecords.forEach(record => {
-
-            const row =
-                document.createElement("tr");
-
-
-            row.innerHTML = `
-
-                <td>
-
-                    <div class="sales-station">
-
-                        <div class="sales-station-avatar">
-                            ${getStationInitials(
-                                record.stationName
-                            )}
-                        </div>
-
-                        <div class="sales-station-info">
-
-                            <strong class="sales-station-name">
-                                ${escapeHTML(
-                                    record.stationName
-                                )}
-                            </strong>
-
-                            <span class="sales-station-subtitle">
-                                Station operation
-                            </span>
-
-                        </div>
-
-                    </div>
-
-                </td>
-
-
-                <td>
-
-                    <span class="sales-shift">
-                        ${escapeHTML(
-                            record.shiftName
-                        )}
-                    </span>
-
-                </td>
-
-
-                <td>
-
-                    <div class="sales-pump">
-
-                        <strong class="sales-pump-name">
-                            ${escapeHTML(
-                                record.pumpName
-                            )}
-                        </strong>
-
-                        <span class="sales-nozzle-name">
-                            ${escapeHTML(
-                                record.nozzleName
-                            )}
-                        </span>
-
-                    </div>
-
-                </td>
-
-
-                <td>
-
-                    <div class="sales-meter">
-
-                        <span>
-                            ${formatReading(
-                                record.openingReading
-                            )}
-                        </span>
-
-                        <span class="sales-meter-arrow">
-                            →
-                        </span>
-
-                        <span>
-                            ${formatReading(
-                                record.closingReading
-                            )}
-                        </span>
-
-                    </div>
-
-                </td>
-
-
-                <td>
-
-                    <strong class="sales-volume">
-                        ${formatLitresNumber(
-                            record.litresSold
-                        )}
-                    </strong>
-
-                    <span class="sales-volume-unit">
-                        L
-                    </span>
-
-                </td>
-
-
-                <td>
-
-                    <span class="sales-money">
-                        ${formatCurrency(
-                            record.pricePerLitre
-                        )}
-                    </span>
-
-                </td>
-
-
-                <td>
-
-                    <strong class="sales-money-primary">
-                        ${formatCurrency(
-                            record.expectedSales
-                        )}
-                    </strong>
-
-                </td>
-
-
-                <td>
-
-                    ${getShiftStatusBadge(
-                        record.shiftStatus
-                    )}
-
-                </td>
-
-            `;
-
-
-            tableBody.appendChild(row);
-
-        });
-
-
-        renderPagination();
+        SalesState.currentPage =
+            totalPages;
 
     }
 
 
-    updateSalesStats(
-        filteredRecords
-    );
+    const startIndex =
+        (
+            SalesState.currentPage -
+            1
+        ) *
+        SalesState.rowsPerPage;
 
 
-    updateSalesRecordBadge(
-        filteredRecords.length
+    const pageRecords =
+        sorted.slice(
+            startIndex,
+            startIndex +
+            SalesState.rowsPerPage
+        );
+
+
+    if (
+        !pageRecords.length
+    ) {
+
+        tbody.innerHTML = `
+
+            <tr>
+
+                <td
+                    colspan="11"
+                    class="empty-state"
+                >
+
+                    <div class="empty-state-content">
+
+                        <div class="empty-state-icon">
+
+                            <i class="fas fa-receipt"></i>
+
+                        </div>
+
+
+                        <h3>
+                            No sales found
+                        </h3>
+
+
+                        <p>
+                            There are no sales records matching your current filters.
+                        </p>
+
+                    </div>
+
+                </td>
+
+            </tr>
+
+        `;
+
+
+        renderPagination(
+            totalRecords
+        );
+
+
+        return;
+
+    }
+
+
+    tbody.innerHTML =
+        pageRecords
+            .map(
+                renderSaleRow
+            )
+            .join("");
+
+
+    renderPagination(
+        totalRecords
     );
 
 }
 
 
 /* =========================================================
-   STATUS BADGE
+   SALE ROW
 ========================================================= */
 
-function getShiftStatusBadge(status) {
-
-    const normalizedStatus =
-        (
-            status ||
-            ""
-        )
-            .toLowerCase();
-
-
-    const isOpen =
-        normalizedStatus === "open" ||
-        normalizedStatus === "active";
-
+function renderSaleRow(
+    sale
+) {
 
     return `
 
-        <span
-            class="sales-status ${
-                isOpen
-                    ? "sales-status-active"
-                    : "sales-status-closed"
-            }"
-        >
+        <tr>
 
-            <span class="sales-status-dot"></span>
 
-            ${
-                isOpen
-                    ? "Active"
-                    : "Closed"
-            }
+            <td>
 
-        </span>
+                <span class="record-id">
+
+                    ${escapeHTML(
+                        String(
+                            sale.id ||
+                            "-"
+                        )
+                    )}
+
+                </span>
+
+            </td>
+
+
+            <td>
+
+                ${escapeHTML(
+                    sale.stationName
+                )}
+
+            </td>
+
+
+            <td>
+
+                ${escapeHTML(
+                    sale.pumpName
+                )}
+
+            </td>
+
+
+            <td>
+
+                ${escapeHTML(
+                    sale.nozzleName
+                )}
+
+            </td>
+
+
+            <td>
+
+                ${escapeHTML(
+                    sale.shiftName
+                )}
+
+            </td>
+
+
+            <td>
+
+                <strong>
+
+                    ${formatLitres(
+                        sale.liters
+                    )}
+
+                </strong>
+
+            </td>
+
+
+            <td>
+
+                ${formatCurrency(
+                    sale.pricePerLitre
+                )}
+
+            </td>
+
+
+            <td>
+
+                <strong>
+
+                    ${formatCurrency(
+                        sale.amount
+                    )}
+
+                </strong>
+
+            </td>
+
+
+            <td>
+
+                <span class="payment-badge">
+
+                    ${escapeHTML(
+                        formatPaymentMethod(
+                            sale.paymentMethod
+                        )
+                    )}
+
+                </span>
+
+            </td>
+
+
+            <td>
+
+                ${escapeHTML(
+                    sale.recordedByName ||
+                    "Unknown"
+                )}
+
+            </td>
+
+
+            <td>
+
+                ${formatDateTime(
+                    sale.createdAt
+                )}
+
+            </td>
+
+
+        </tr>
 
     `;
-
-}
-
-
-/* =========================================================
-   RECORD BADGE
-========================================================= */
-
-function updateSalesRecordBadge(count) {
-
-    const badge =
-        document.getElementById(
-            "salesRecordBadge"
-        );
-
-    if (!badge) {
-        return;
-    }
-
-    badge.textContent =
-        `${count} ${
-            count === 1
-                ? "Record"
-                : "Records"
-        }`;
 
 }
 
@@ -2477,186 +4752,288 @@ function updateSalesRecordBadge(count) {
    PAGINATION
 ========================================================= */
 
-function renderPagination() {
+function renderPagination(
+    totalRecords
+) {
 
-    const pagination =
+    const container =
         document.getElementById(
             "salesPagination"
         );
 
-    const pagesContainer =
-        document.getElementById(
-            "paginationPages"
-        );
 
-    const info =
-        document.getElementById(
-            "paginationInfo"
-        );
+    if (!container) {
 
-    const previousButton =
-        document.getElementById(
-            "previousPageButton"
-        );
+        return;
 
-    const nextButton =
-        document.getElementById(
-            "nextPageButton"
+    }
+
+
+    const totalPages =
+        Math.max(
+            1,
+            Math.ceil(
+                totalRecords /
+                SalesState.rowsPerPage
+            )
         );
 
 
     if (
-        !pagination ||
-        !pagesContainer
+        totalRecords ===
+        0
     ) {
-        return;
-    }
 
-
-    const totalRecords =
-        SalesState.filteredRecords.length;
-
-    const totalPages =
-        Math.ceil(
-            totalRecords /
-            SalesState.rowsPerPage
-        );
-
-
-    if (totalPages <= 1) {
-
-        pagination.classList.add(
-            "hidden"
-        );
+        container.innerHTML =
+            "";
 
         return;
 
     }
 
 
-    pagination.classList.remove(
-        "hidden"
-    );
+    let html = `
+
+        <div class="pagination-info">
+
+            Showing
+
+            <strong>
+
+                ${
+                    (
+                        (
+                            SalesState.currentPage -
+                            1
+                        ) *
+                        SalesState.rowsPerPage
+                    ) + 1
+                }
+
+            </strong>
+
+            -
+
+            <strong>
+
+                ${
+                    Math.min(
+                        SalesState.currentPage *
+                        SalesState.rowsPerPage,
+                        totalRecords
+                    )
+                }
+
+            </strong>
+
+            of
+
+            <strong>
+                ${totalRecords}
+            </strong>
+
+        </div>
 
 
-    const startRecord =
-        (
-            (
-                SalesState.currentPage - 1
-            ) *
-            SalesState.rowsPerPage
-        ) + 1;
+        <div class="pagination-buttons">
 
 
-    const endRecord =
+            <button
+                type="button"
+                class="pagination-btn"
+                data-page="prev"
+                ${
+                    SalesState.currentPage <=
+                    1
+                        ? "disabled"
+                        : ""
+                }
+            >
+
+                <i class="fas fa-chevron-left"></i>
+
+            </button>
+
+    `;
+
+
+    const totalVisible =
+        5;
+
+
+    let start =
+        Math.max(
+            1,
+            SalesState.currentPage -
+            2
+        );
+
+
+    let end =
         Math.min(
-            SalesState.currentPage *
-            SalesState.rowsPerPage,
-            totalRecords
+            totalPages,
+            start +
+            totalVisible -
+            1
         );
 
 
-    if (info) {
+    if (
+        end -
+        start +
+        1 <
+        totalVisible
+    ) {
 
-        info.textContent =
-            `Showing ${startRecord}-${endRecord} of ${totalRecords} records`;
-
-    }
-
-
-    if (previousButton) {
-
-        previousButton.disabled =
-            SalesState.currentPage === 1;
-
-    }
-
-
-    if (nextButton) {
-
-        nextButton.disabled =
-            SalesState.currentPage ===
-            totalPages;
+        start =
+            Math.max(
+                1,
+                end -
+                totalVisible +
+                1
+            );
 
     }
-
-
-    pagesContainer.innerHTML = "";
 
 
     for (
-        let page = 1;
-        page <= totalPages;
+        let page =
+            start;
+        page <=
+            end;
         page++
     ) {
 
-        const button =
-            document.createElement(
-                "button"
-            );
+        html += `
+
+            <button
+                type="button"
+                class="pagination-btn ${
+                    page ===
+                    SalesState.currentPage
+                        ? "active"
+                        : ""
+                }"
+                data-page="${page}"
+            >
+
+                ${page}
+
+            </button>
+
+        `;
+
+    }
 
 
-        button.type = "button";
+    html += `
 
-        button.className =
-            "sales-page-btn";
+            <button
+                type="button"
+                class="pagination-btn"
+                data-page="next"
+                ${
+                    SalesState.currentPage >=
+                    totalPages
+                        ? "disabled"
+                        : ""
+                }
+            >
 
+                <i class="fas fa-chevron-right"></i>
 
-        if (
-            page ===
-            SalesState.currentPage
-        ) {
-
-            button.classList.add(
-                "active"
-            );
-
-        }
-
-
-        button.textContent =
-            page;
+            </button>
 
 
-        button.addEventListener(
-            "click",
-            () => {
+        </div>
 
-                SalesState.currentPage =
-                    page;
+    `;
 
-                renderSales();
+
+    container.innerHTML =
+        html;
+
+
+    container
+        .querySelectorAll(
+            ".pagination-btn"
+        )
+        .forEach(
+            button => {
+
+                button.addEventListener(
+                    "click",
+                    () => {
+
+                        const page =
+                            button.dataset.page;
+
+
+                        if (
+                            page ===
+                            "prev"
+                        ) {
+
+                            SalesState.currentPage =
+                                Math.max(
+                                    1,
+                                    SalesState.currentPage -
+                                    1
+                                );
+
+                        } else if (
+                            page ===
+                            "next"
+                        ) {
+
+                            SalesState.currentPage =
+                                Math.min(
+                                    totalPages,
+                                    SalesState.currentPage +
+                                    1
+                                );
+
+                        } else {
+
+                            SalesState.currentPage =
+                                Number(
+                                    page
+                                );
+
+                        }
+
+
+                        renderSales();
+
+                    }
+                );
 
             }
         );
-
-
-        pagesContainer.appendChild(
-            button
-        );
-
-    }
 
 }
 
 
 /* =========================================================
-   UPDATE STATS
+   STATISTICS
 ========================================================= */
 
-function updateSalesStats(records) {
+function updateSalesStatistics() {
 
-    const totalSales =
+    const records =
+        SalesState.filteredRecords;
+
+
+    const totalRevenue =
         records.reduce(
             (
                 total,
-                record
+                sale
             ) =>
                 total +
-                (
-                    Number(
-                        record.expectedSales
-                    ) || 0
+                Number(
+                    sale.amount ||
+                    0
                 ),
             0
         );
@@ -2666,232 +5043,513 @@ function updateSalesStats(records) {
         records.reduce(
             (
                 total,
-                record
+                sale
             ) =>
                 total +
-                (
-                    Number(
-                        record.litresSold
-                    ) || 0
+                Number(
+                    sale.liters ||
+                    0
                 ),
             0
         );
 
 
-    const weightedAveragePrice =
-        totalLitres > 0
-            ? totalSales / totalLitres
+    const recordCount =
+        records.length;
+
+
+    const averageSale =
+        recordCount
+            ? totalRevenue /
+              recordCount
             : 0;
 
 
-    const averageVolume =
-        records.length > 0
-            ? totalLitres / records.length
-            : 0;
+    document.getElementById(
+        "salesTotalRevenue"
+    ).textContent =
+        formatCurrency(
+            totalRevenue
+        );
 
 
-    const activeShifts =
-        getVisibleShifts()
-            .filter(
-                shift =>
-                    [
-                        "open",
-                        "active"
-                    ].includes(
-                        (
-                            shift.status ||
-                            ""
-                        )
-                            .toLowerCase()
-                    )
+    document.getElementById(
+        "salesTotalLitres"
+    ).textContent =
+        formatLitres(
+            totalLitres
+        );
+
+
+    document.getElementById(
+        "salesRecordCount"
+    ).textContent =
+        recordCount.toLocaleString();
+
+
+    document.getElementById(
+        "salesAverageSale"
+    ).textContent =
+        formatCurrency(
+            averageSale
+        );
+
+}
+
+
+/* =========================================================
+   PAYMENT METHOD
+========================================================= */
+
+function formatPaymentMethod(
+    paymentMethod
+) {
+
+    const value =
+        String(
+            paymentMethod ||
+            "other"
+        )
+            .toLowerCase();
+
+
+    const labels = {
+
+        cash:
+            "Cash",
+
+        pos:
+            "POS",
+
+        transfer:
+            "Transfer",
+
+        bank_transfer:
+            "Bank Transfer",
+
+        card:
+            "Card",
+
+        other:
+            "Other"
+
+    };
+
+
+    return (
+        labels[value] ||
+        value
+            .replaceAll(
+                "_",
+                " "
             )
-            .length;
-
-
-    const activeStationIds =
-        new Set(
-            getVisibleShifts()
-                .filter(
-                    shift =>
-                        [
-                            "open",
-                            "active"
-                        ].includes(
-                            (
-                                shift.status ||
-                                ""
-                            )
-                                .toLowerCase()
-                        )
-                )
-                .map(
-                    shift =>
-                        shift.stationId
-                )
-        );
-
-
-    const totalSalesElement =
-        document.getElementById(
-            "totalSalesAmount"
-        );
-
-    const totalLitresElement =
-        document.getElementById(
-            "totalLitresSold"
-        );
-
-    const activeShiftElement =
-        document.getElementById(
-            "activeShiftCount"
-        );
-
-    const recordCountElement =
-        document.getElementById(
-            "salesRecordCount"
-        );
-
-    const averagePriceElement =
-        document.getElementById(
-            "averagePricePerLitre"
-        );
-
-    const averageVolumeElement =
-        document.getElementById(
-            "averageVolumePerRecord"
-        );
-
-    const activeStationElement =
-        document.getElementById(
-            "activeStationCount"
-        );
-
-
-    if (totalSalesElement) {
-
-        totalSalesElement.textContent =
-            formatCurrency(
-                totalSales
-            );
-
-    }
-
-
-    if (totalLitresElement) {
-
-        totalLitresElement.textContent =
-            formatLitres(
-                totalLitres
-            );
-
-    }
-
-
-    if (activeShiftElement) {
-
-        activeShiftElement.textContent =
-            activeShifts;
-
-    }
-
-
-    if (recordCountElement) {
-
-        recordCountElement.textContent =
-            records.length;
-
-    }
-
-
-    if (averagePriceElement) {
-
-        averagePriceElement.textContent =
-            formatCurrency(
-                weightedAveragePrice
-            );
-
-    }
-
-
-    if (averageVolumeElement) {
-
-        averageVolumeElement.textContent =
-            formatLitres(
-                averageVolume
-            );
-
-    }
-
-
-    if (activeStationElement) {
-
-        activeStationElement.textContent =
-            activeStationIds.size;
-
-    }
-
-}
-
-
-/* =========================================================
-   LAST UPDATED
-========================================================= */
-
-function updateLastUpdated() {
-
-    const element =
-        document.getElementById(
-            "salesLastUpdated"
-        );
-
-    if (!element) {
-        return;
-    }
-
-    const now =
-        new Date();
-
-    element.textContent =
-        now.toLocaleTimeString(
-            "en-NG",
-            {
-                hour: "2-digit",
-                minute: "2-digit"
-            }
-        );
-
-}
-
-
-/* =========================================================
-   EXPORT SALES
-========================================================= */
-
-function setupExportButton() {
-
-    const button =
-        document.getElementById(
-            "exportSalesButton"
-        );
-
-    if (!button) {
-        return;
-    }
-
-    button.addEventListener(
-        "click",
-        exportSalesToCSV
+            .replace(
+                /\b\w/g,
+                char =>
+                    char.toUpperCase()
+            )
     );
 
 }
 
 
-function exportSalesToCSV() {
+/* =========================================================
+   REFRESH BUTTON
+========================================================= */
+
+function setRefreshButtonLoading(
+    loading
+) {
+
+    const button =
+        document.getElementById(
+            "refreshSalesBtn"
+        );
+
+
+    if (!button) {
+
+        return;
+
+    }
+
+
+    if (loading) {
+
+        button.disabled =
+            true;
+
+
+        button.innerHTML = `
+
+            <i class="fas fa-spinner fa-spin"></i>
+
+            Loading...
+
+        `;
+
+    } else {
+
+        button.disabled =
+            false;
+
+
+        button.innerHTML = `
+
+            <i class="fas fa-sync-alt"></i>
+
+            Refresh
+
+        `;
+
+    }
+
+}
+
+
+/* =========================================================
+   ERROR
+========================================================= */
+
+function showSalesError(
+    message
+) {
+
+    const element =
+        document.getElementById(
+            "salesError"
+        );
+
+
+    if (!element) {
+
+        return;
+
+    }
+
+
+    element.innerHTML = `
+
+        <i class="fas fa-exclamation-triangle"></i>
+
+        <span>
+
+            ${escapeHTML(
+                message
+            )}
+
+        </span>
+
+    `;
+
+
+    element.style.display =
+        "block";
+
+}
+
+
+/* =========================================================
+   HIDE ERROR
+========================================================= */
+
+function hideSalesError() {
+
+    const element =
+        document.getElementById(
+            "salesError"
+        );
+
+
+    if (!element) {
+
+        return;
+
+    }
+
+
+    element.style.display =
+        "none";
+
+
+    element.innerHTML =
+        "";
+
+}
+
+
+/* =========================================================
+   CURRENCY
+========================================================= */
+
+function formatCurrency(
+    value
+) {
+
+    const number =
+        Number(
+            value ||
+            0
+        );
+
+
+    return (
+        "₦" +
+        number.toLocaleString(
+            "en-NG",
+            {
+                minimumFractionDigits:
+                    2,
+
+                maximumFractionDigits:
+                    2
+            }
+        )
+    );
+
+}
+
+
+/* =========================================================
+   LITRES
+========================================================= */
+
+function formatLitres(
+    value
+) {
+
+    const number =
+        Number(
+            value ||
+            0
+        );
+
+
+    return (
+        number.toLocaleString(
+            "en-NG",
+            {
+                minimumFractionDigits:
+                    2,
+
+                maximumFractionDigits:
+                    2
+            }
+        ) +
+        " L"
+    );
+
+}
+
+
+/* =========================================================
+   DATE TIME
+========================================================= */
+
+function formatDateTime(
+    value
+) {
+
+    if (!value) {
+
+        return "-";
+
+    }
+
+
+    const date =
+        new Date(
+            value
+        );
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return "-";
+
+    }
+
+
+    return date.toLocaleString(
+        "en-NG",
+        {
+            year:
+                "numeric",
+
+            month:
+                "short",
+
+            day:
+                "2-digit",
+
+            hour:
+                "2-digit",
+
+            minute:
+                "2-digit"
+        }
+    );
+
+}
+
+
+/* =========================================================
+   SHIFT DATE
+========================================================= */
+
+function formatShiftDate(
+    value
+) {
+
+    if (!value) {
+
+        return "";
+
+    }
+
+
+    const date =
+        new Date(
+            value
+        );
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return String(
+            value
+        );
+
+    }
+
+
+    return date.toLocaleDateString(
+        "en-NG",
+        {
+            year:
+                "numeric",
+
+            month:
+                "short",
+
+            day:
+                "2-digit"
+        }
+    );
+
+}
+
+
+/* =========================================================
+   SHIFT STATUS
+========================================================= */
+
+function formatShiftStatus(
+    status
+) {
+
+    return String(
+        status ||
+        "recorded"
+    )
+        .replaceAll(
+            "_",
+            " "
+        )
+        .replace(
+            /\b\w/g,
+            char =>
+                char.toUpperCase()
+        );
+
+}
+
+
+/* =========================================================
+   DATE FOR INPUT
+========================================================= */
+
+function formatDateForInput(
+    value
+) {
+
+    if (!value) {
+
+        return "";
+
+    }
+
+
+    const date =
+        new Date(
+            value
+        );
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return "";
+
+    }
+
+
+    const year =
+        date.getFullYear();
+
+
+    const month =
+        String(
+            date.getMonth() +
+            1
+        )
+            .padStart(
+                2,
+                "0"
+            );
+
+
+    const day =
+        String(
+            date.getDate()
+        )
+            .padStart(
+                2,
+                "0"
+            );
+
+
+    return (
+        `${year}-${month}-${day}`
+    );
+
+}
+
+
+/* =========================================================
+   CSV EXPORT
+========================================================= */
+
+function exportSalesCSV() {
 
     const records =
         SalesState.filteredRecords;
 
-    if (!records.length) {
+
+    if (
+        !records.length
+    ) {
 
         alert(
             "There are no sales records to export."
@@ -2904,59 +5562,82 @@ function exportSalesToCSV() {
 
     const headers = [
 
+        "Sale ID",
         "Station",
-        "Shift",
         "Pump",
         "Nozzle",
-        "Opening Reading",
-        "Closing Reading",
-        "Litres Sold",
+        "Shift",
+        "Litres",
         "Price Per Litre",
-        "Expected Sales",
-        "Status"
+        "Amount",
+        "Payment Method",
+        "Recorded By",
+        "Created At"
 
     ];
 
 
     const rows =
-        records.map(record => [
+        records.map(
+            sale => [
 
-            record.stationName,
-            record.shiftName,
-            record.pumpName,
-            record.nozzleName,
-            record.openingReading,
-            record.closingReading,
-            record.litresSold,
-            record.pricePerLitre,
-            record.expectedSales,
-            record.shiftStatus
+                sale.id,
 
-        ]);
+                sale.stationName,
+
+                sale.pumpName,
+
+                sale.nozzleName,
+
+                sale.shiftName,
+
+                sale.liters,
+
+                sale.pricePerLitre,
+
+                sale.amount,
+
+                formatPaymentMethod(
+                    sale.paymentMethod
+                ),
+
+                sale.recordedByName,
+
+                sale.createdAt
+
+            ]
+        );
 
 
-    const csvContent =
-        [
-            headers,
-            ...rows
-        ]
-            .map(row =>
+    const csv = [
+
+        headers,
+
+        ...rows
+
+    ]
+        .map(
+            row =>
                 row
-                    .map(value =>
-                        `"${String(value)
-                            .replace(
-                                /"/g,
-                                '""'
-                            )}"`
+                    .map(
+                        value =>
+                            `"${String(
+                                value ??
+                                ""
+                            )
+                                .replaceAll(
+                                    '"',
+                                    '""'
+                                )}"`
                     )
                     .join(",")
-            )
-            .join("\n");
+        )
+        .join("\n");
 
 
     const blob =
         new Blob(
-            [csvContent],
+            [csv],
             {
                 type:
                     "text/csv;charset=utf-8;"
@@ -2971,17 +5652,17 @@ function exportSalesToCSV() {
 
 
     const link =
-        document.createElement("a");
+        document.createElement(
+            "a"
+        );
 
 
-    link.href = url;
+    link.href =
+        url;
+
 
     link.download =
-        `fuelgap-sales-${
-            new Date()
-                .toISOString()
-                .split("T")[0]
-        }.csv`;
+        `fuelgap-sales-${getTodayDate()}.csv`;
 
 
     document.body.appendChild(
@@ -3005,148 +5686,78 @@ function exportSalesToCSV() {
 
 
 /* =========================================================
-   HELPERS
+   TODAY
 ========================================================= */
 
-function getStationInitials(name) {
+function getTodayDate() {
 
-    const value =
+    const date =
+        new Date();
+
+
+    const year =
+        date.getFullYear();
+
+
+    const month =
         String(
-            name || "Station"
+            date.getMonth() +
+            1
         )
-            .trim();
+            .padStart(
+                2,
+                "0"
+            );
 
-    const words =
-        value.split(/\s+/);
 
-    if (words.length === 1) {
+    const day =
+        String(
+            date.getDate()
+        )
+            .padStart(
+                2,
+                "0"
+            );
 
-        return value
-            .substring(0, 2)
-            .toUpperCase();
-
-    }
 
     return (
-        words[0][0] +
-        words[1][0]
-    )
-        .toUpperCase();
-
-}
-
-
-function escapeHTML(value) {
-
-    const text =
-        String(
-            value ?? ""
-        );
-
-    const div =
-        document.createElement("div");
-
-    div.textContent =
-        text;
-
-    return div.innerHTML;
+        `${year}-${month}-${day}`
+    );
 
 }
 
 
 /* =========================================================
-   FORMATTERS
+   ESCAPE HTML
 ========================================================= */
 
-function formatCurrency(amount) {
+function escapeHTML(
+    value
+) {
 
-    const value =
-        Number(amount) || 0;
-
-
-    return value.toLocaleString(
-        "en-NG",
-        {
-
-            style:
-                "currency",
-
-            currency:
-                "NGN",
-
-            minimumFractionDigits:
-                2,
-
-            maximumFractionDigits:
-                2
-
-        }
-    );
-
-}
-
-
-function formatLitres(litres) {
-
-    const value =
-        Number(litres) || 0;
-
-
-    return `${value.toLocaleString(
-        "en-NG",
-        {
-
-            minimumFractionDigits:
-                2,
-
-            maximumFractionDigits:
-                2
-
-        }
-    )} L`;
-
-}
-
-
-function formatLitresNumber(litres) {
-
-    const value =
-        Number(litres) || 0;
-
-
-    return value.toLocaleString(
-        "en-NG",
-        {
-
-            minimumFractionDigits:
-                2,
-
-            maximumFractionDigits:
-                2
-
-        }
-    );
-
-}
-
-
-function formatReading(reading) {
-
-    const value =
-        Number(reading) || 0;
-
-
-    return value.toLocaleString(
-        "en-NG",
-        {
-
-            minimumFractionDigits:
-                2,
-
-            maximumFractionDigits:
-                2
-
-        }
-    );
+    return String(
+        value ??
+        ""
+    )
+        .replaceAll(
+            "&",
+            "&amp;"
+        )
+        .replaceAll(
+            "<",
+            "&lt;"
+        )
+        .replaceAll(
+            ">",
+            "&gt;"
+        )
+        .replaceAll(
+            '"',
+            "&quot;"
+        )
+        .replaceAll(
+            "'",
+            "&#039;"
+        );
 
 }

@@ -1,173 +1,1036 @@
-/* ==========================================
+/* =========================================================
    FUELGAP - PROFESSIONAL SHIFT MANAGEMENT
-========================================== */
+   REAL BACKEND VERSION
+   SUPABASE + EXPRESS
+   HTTPONLY COOKIE SESSION
+   NO LOCALSTORAGE AUTHENTICATION
+   NO LOCALSTORAGE SHIFT DATA
 
-const SHIFTS_STORAGE_KEY = "fuelgap_shifts";
-const STAFF_STORAGE_KEY = "fuelgap_staff";
-const STATIONS_STORAGE_KEY = "fuelgap_stations";
+   BACKEND:
+   http://localhost:7000
+
+   FRONTEND:
+   http://localhost:5500
+========================================================= */
 
 
-/* ==========================================
-   PAGE STATE
-========================================== */
+/* =========================================================
+   API CONFIGURATION
+========================================================= */
 
-const ShiftState = {
-    searchTerm: ""
+const FUELGAP_API_BASE_URL =
+    window.FUELGAP_API_BASE_URL ||
+    "http://localhost:7000/api";
+
+const SHIFT_API =
+    `${FUELGAP_API_BASE_URL}/shifts`;
+
+const STATION_API =
+    `${FUELGAP_API_BASE_URL}/stations`;
+
+const STAFF_API =
+    `${FUELGAP_API_BASE_URL}/staff`;
+
+
+/* =========================================================
+   SHIFT STATE
+========================================================= */
+
+const ShiftsState = {
+
+    shifts: [],
+
+    stations: [],
+
+    staff: [],
+
+    filteredShifts: [],
+
+    searchTerm: "",
+
+    loading: false,
+
+    currentUser: null
+
 };
 
 
-/* ==========================================
-   PAGE LOAD
-========================================== */
+/* =========================================================
+   INITIALIZATION
+========================================================= */
 
-document.addEventListener("DOMContentLoaded", () => {
+function initializeShiftPage() {
 
-    const currentUser = FuelGapUtils.getCurrentUser();
-
-    if (!currentUser) {
-        window.location.href = "../login.html";
+    if (window.__fuelGapShiftsInitialized) {
         return;
     }
 
-    if (!hasPermission(currentUser.role, "shifts")) {
-        window.location.href = "./dashboard.html";
-        return;
-    }
+    window.__fuelGapShiftsInitialized = true;
 
-    setTimeout(() => {
+    initShiftsPage();
 
-        renderShiftsPage();
-        setupShiftEvents();
-        renderShifts();
-
-    }, 0);
-
-});
+}
 
 
-/* ==========================================
-   STORAGE
-========================================== */
-
-function getStorageData(key) {
+async function initShiftsPage() {
 
     try {
 
-        const data = localStorage.getItem(key);
+        /*
+         * Wait for FuelGap utilities/API
+         */
+        await waitForFuelGapDependencies();
 
-        if (!data) return [];
 
-        const parsed = JSON.parse(data);
+        /*
+         * Get authenticated user
+         */
+        let currentUser = null;
 
-        return Array.isArray(parsed)
-            ? parsed
-            : [];
+        if (
+            window.FuelGapUtils &&
+            typeof FuelGapUtils.getCurrentUser === "function"
+        ) {
 
-    } catch (error) {
+            currentUser =
+                await FuelGapUtils.getCurrentUser();
 
-        console.error(`Unable to load ${key}:`, error);
+        }
+        else if (
+            window.FuelGapAPI &&
+            typeof FuelGapAPI.getCurrentUser === "function"
+        ) {
 
-        return [];
+            currentUser =
+                await FuelGapAPI.getCurrentUser();
+
+        }
+
+
+        /*
+         * Authentication check
+         */
+        if (!currentUser) {
+
+            window.location.href =
+                "login.html";
+
+            return;
+
+        }
+
+
+        ShiftsState.currentUser =
+            currentUser;
+
+
+        /*
+         * Permission check
+         */
+        const role =
+            getCurrentUserRole();
+
+
+        const allowedRoles = [
+            "owner",
+            "admin",
+            "manager",
+            "attendant"
+        ];
+
+
+        if (
+            !allowedRoles.includes(role)
+        ) {
+
+            window.location.href =
+                "dashboard.html";
+
+            return;
+
+        }
+
+
+        /*
+         * Wait for application shell
+         */
+        await waitForPageContent();
+
+
+        /*
+         * Render only inside #pageContent.
+         *
+         * IMPORTANT:
+         * We do NOT replace #app.
+         * This keeps the sidebar and navbar.
+         */
+        renderShiftsPage();
+
+
+        /*
+         * Setup events
+         */
+        setupShiftEvents();
+
+
+        /*
+         * Load backend data
+         */
+        await loadShiftData();
+
+    }
+    catch (error) {
+
+        console.error(
+            "SHIFT PAGE INITIALIZATION ERROR:",
+            error
+        );
+
+        showToast(
+            error.message ||
+            "Unable to load shift management.",
+            "error"
+        );
 
     }
 
 }
 
 
-function getShifts() {
-    return getStorageData(SHIFTS_STORAGE_KEY);
+/* =========================================================
+   WAIT FOR DEPENDENCIES
+========================================================= */
+
+async function waitForFuelGapDependencies() {
+
+    let attempts = 0;
+
+    while (
+        attempts < 100
+    ) {
+
+        if (
+            (
+                window.FuelGapUtils &&
+                typeof FuelGapUtils.getCurrentUser === "function"
+            )
+            ||
+            (
+                window.FuelGapAPI &&
+                typeof FuelGapAPI.getCurrentUser === "function"
+            )
+        ) {
+
+            return true;
+
+        }
+
+        await sleep(50);
+
+        attempts++;
+
+    }
+
+    return false;
+
 }
 
 
-function saveShifts(shifts) {
+/* =========================================================
+   WAIT FOR PAGE CONTENT
+========================================================= */
 
-    localStorage.setItem(
-        SHIFTS_STORAGE_KEY,
-        JSON.stringify(shifts)
+async function waitForPageContent() {
+
+    let attempts = 0;
+
+    while (
+        attempts < 100
+    ) {
+
+        const pageContent =
+            document.getElementById(
+                "pageContent"
+            );
+
+        if (pageContent) {
+
+            return pageContent;
+
+        }
+
+        await sleep(50);
+
+        attempts++;
+
+    }
+
+
+    throw new Error(
+        "Application page content container was not found."
     );
 
 }
 
 
-function getStations() {
-    return getStorageData(STATIONS_STORAGE_KEY);
+/* =========================================================
+   DOM READY
+========================================================= */
+
+if (
+    document.readyState ===
+    "loading"
+) {
+
+    document.addEventListener(
+        "DOMContentLoaded",
+        initializeShiftPage
+    );
+
+}
+else {
+
+    initializeShiftPage();
+
 }
 
 
-function getStaff() {
-    return getStorageData(STAFF_STORAGE_KEY);
+/* =========================================================
+   SLEEP
+========================================================= */
+
+function sleep(
+    milliseconds
+) {
+
+    return new Promise(
+        resolve =>
+            setTimeout(
+                resolve,
+                milliseconds
+            )
+    );
+
 }
 
 
-/* ==========================================
-   USER ACCESS
-========================================== */
+/* =========================================================
+   API REQUEST HELPER
+========================================================= */
 
-function getVisibleStations() {
+async function shiftApiRequest(
+    url,
+    options = {}
+) {
 
-    const currentUser =
-        FuelGapUtils.getCurrentUser();
+    try {
 
-    const stations =
-        getStations();
+        const requestOptions = {
 
-    if (!currentUser) {
-        return [];
-    }
+            ...options,
 
+            credentials:
+                "include",
 
-    if (currentUser.role === "admin") {
+            headers: {
 
-        return stations;
+                "Content-Type":
+                    "application/json",
 
-    }
+                ...(options.headers || {})
 
+            }
 
-    if (currentUser.role === "owner") {
-
-        return stations.filter(
-            station =>
-                station.organizationId ===
-                currentUser.organizationId
-        );
-
-    }
+        };
 
 
-    if (currentUser.role === "manager") {
+        const response =
+            await fetch(
+                url,
+                requestOptions
+            );
 
-        if (currentUser.stationId) {
 
-            return stations.filter(
-                station =>
-                    station.id ===
-                    currentUser.stationId
+        let data = null;
+
+
+        try {
+
+            data =
+                await response.json();
+
+        }
+        catch {
+
+            data = null;
+
+        }
+
+
+        /*
+         * Authentication expired
+         */
+        if (
+            response.status === 401
+        ) {
+
+            console.warn(
+                "SHIFT API: Session expired."
+            );
+
+            window.location.href =
+                "login.html";
+
+            return null;
+
+        }
+
+
+        /*
+         * Forbidden
+         */
+        if (
+            response.status === 403
+        ) {
+
+            throw new Error(
+                data?.message ||
+                "You do not have permission to perform this action."
             );
 
         }
 
-        return stations.filter(
-            station =>
-                station.organizationId ===
-                currentUser.organizationId
+
+        /*
+         * Server error
+         */
+        if (
+            !response.ok
+        ) {
+
+            throw new Error(
+                data?.message ||
+                `Request failed with status ${response.status}`
+            );
+
+        }
+
+
+        return data;
+
+    }
+    catch (error) {
+
+        console.error(
+            "SHIFT API REQUEST ERROR:",
+            error
+        );
+
+        throw error;
+
+    }
+
+}
+
+
+/* =========================================================
+   LOAD ALL SHIFT DATA
+========================================================= */
+
+async function loadShiftData() {
+
+    ShiftsState.loading =
+        true;
+
+
+    setShiftLoadingState(
+        true
+    );
+
+
+    try {
+
+        await Promise.all([
+            loadStations(),
+            loadStaff(),
+            loadShifts()
+        ]);
+
+
+        populateStationFilters();
+
+        populateCreateShiftStations();
+
+
+        renderShiftStatistics();
+
+        renderShiftTable();
+
+    }
+    catch (error) {
+
+        console.error(
+            "LOAD SHIFT DATA ERROR:",
+            error
+        );
+
+        showToast(
+            error.message ||
+            "Unable to load shift data.",
+            "error"
+        );
+
+    }
+    finally {
+
+        ShiftsState.loading =
+            false;
+
+        setShiftLoadingState(
+            false
         );
 
     }
 
+}
+
+
+/* =========================================================
+   LOAD STATIONS
+========================================================= */
+
+async function loadStations() {
+
+    const response =
+        await shiftApiRequest(
+            STATION_API
+        );
+
+
+    if (!response) {
+
+        return;
+
+    }
+
+
+    /*
+     * Support:
+     *
+     * {
+     *   success: true,
+     *   data: {
+     *      stations: []
+     *   }
+     * }
+     *
+     * and older:
+     *
+     * {
+     *   success: true,
+     *   data: []
+     * }
+     */
+
+    let stations = [];
+
 
     if (
-        currentUser.role === "staff" ||
-        currentUser.role === "attendant"
+        Array.isArray(
+            response?.data?.stations
+        )
     ) {
 
-        if (!currentUser.stationId) {
+        stations =
+            response.data.stations;
+
+    }
+    else if (
+        Array.isArray(
+            response?.data
+        )
+    ) {
+
+        stations =
+            response.data;
+
+    }
+    else if (
+        Array.isArray(
+            response?.stations
+        )
+    ) {
+
+        stations =
+            response.stations;
+
+    }
+
+
+    ShiftsState.stations =
+        stations
+            .map(normalizeStation)
+            .filter(Boolean);
+
+}
+
+
+/* =========================================================
+   NORMALIZE STATION
+========================================================= */
+
+function normalizeStation(
+    station
+) {
+
+    if (!station) {
+
+        return null;
+
+    }
+
+
+    return {
+
+        id:
+            station.id ||
+            station.station_id,
+
+        name:
+            station.name ||
+            station.station_name ||
+            "Unnamed Station",
+
+        address:
+            station.address ||
+            "",
+
+        city:
+            station.city ||
+            "",
+
+        state:
+            station.state ||
+            "",
+
+        status:
+            String(
+                station.status ||
+                (
+                    station.is_active === false
+                        ? "inactive"
+                        : "active"
+                )
+            )
+                .toLowerCase()
+                .trim(),
+
+        is_active:
+            station.is_active !== false
+
+    };
+
+}
+
+
+/* =========================================================
+   LOAD STAFF
+========================================================= */
+
+async function loadStaff() {
+
+    const response =
+        await shiftApiRequest(
+            STAFF_API
+        );
+
+
+    if (!response) {
+
+        return;
+
+    }
+
+
+    let staff = [];
+
+
+    /*
+     * Support common backend response shapes.
+     */
+
+    if (
+        Array.isArray(
+            response?.data?.staff
+        )
+    ) {
+
+        staff =
+            response.data.staff;
+
+    }
+    else if (
+        Array.isArray(
+            response?.data?.users
+        )
+    ) {
+
+        staff =
+            response.data.users;
+
+    }
+    else if (
+        Array.isArray(
+            response?.data
+        )
+    ) {
+
+        staff =
+            response.data;
+
+    }
+    else if (
+        Array.isArray(
+            response?.staff
+        )
+    ) {
+
+        staff =
+            response.staff;
+
+    }
+
+
+    ShiftsState.staff =
+        staff
+            .map(normalizeStaff)
+            .filter(Boolean);
+
+}
+
+
+/* =========================================================
+   NORMALIZE STAFF
+========================================================= */
+
+function normalizeStaff(
+    staff
+) {
+
+    if (!staff) {
+
+        return null;
+
+    }
+
+
+    return {
+
+        id:
+            staff.id ||
+            staff.user_id ||
+            staff.auth_user_id,
+
+        full_name:
+            staff.full_name ||
+            staff.name ||
+            "Unnamed Staff",
+
+        email:
+            staff.email ||
+            "",
+
+        phone:
+            staff.phone ||
+            "",
+
+        role:
+            String(
+                staff.role ||
+                ""
+            )
+                .toLowerCase()
+                .trim(),
+
+        station_id:
+            staff.station_id ||
+            staff.stationId ||
+            null,
+
+        is_active:
+            staff.is_active !== false
+
+    };
+
+}
+
+
+/* =========================================================
+   LOAD SHIFTS
+========================================================= */
+
+async function loadShifts() {
+
+    const response =
+        await shiftApiRequest(
+            SHIFT_API
+        );
+
+
+    if (!response) {
+
+        return;
+
+    }
+
+
+    /*
+     * IMPORTANT FIX
+     *
+     * Backend returns:
+     *
+     * {
+     *   success: true,
+     *   data: {
+     *      shifts: [...]
+     *   }
+     * }
+     */
+
+    let shifts = [];
+
+
+    if (
+        Array.isArray(
+            response?.data?.shifts
+        )
+    ) {
+
+        shifts =
+            response.data.shifts;
+
+    }
+    else if (
+        Array.isArray(
+            response?.data
+        )
+    ) {
+
+        shifts =
+            response.data;
+
+    }
+    else if (
+        Array.isArray(
+            response?.shifts
+        )
+    ) {
+
+        shifts =
+            response.shifts;
+
+    }
+
+
+    ShiftsState.shifts =
+        shifts
+            .map(normalizeShift)
+            .filter(Boolean);
+
+
+    applyShiftFilters();
+
+}
+
+
+/* =========================================================
+   NORMALIZE SHIFT
+========================================================= */
+
+function normalizeShift(
+    shift
+) {
+
+    if (!shift) {
+
+        return null;
+
+    }
+
+
+    return {
+
+        id:
+            shift.id,
+
+        station_id:
+            shift.station_id ||
+            null,
+
+        station:
+            shift.station ||
+            null,
+
+        opened_by:
+            shift.opened_by ||
+            null,
+
+        closed_by:
+            shift.closed_by ||
+            null,
+
+        shift_name:
+            shift.shift_name ||
+            "Unnamed Shift",
+
+        shift_date:
+            shift.shift_date ||
+            "",
+
+        shift_time:
+            shift.shift_time ||
+            shift.start_time ||
+            "",
+
+        end_shift:
+            shift.end_shift ||
+            shift.end_time ||
+            "",
+
+        status:
+            String(
+                shift.status ||
+                "scheduled"
+            )
+                .toLowerCase()
+                .trim(),
+
+        created_at:
+            shift.created_at ||
+            null
+
+    };
+
+}
+
+
+/* =========================================================
+   CURRENT USER ROLE
+========================================================= */
+
+function getCurrentUserRole() {
+
+    return String(
+        ShiftsState.currentUser?.role ||
+        ""
+    )
+        .toLowerCase()
+        .trim();
+
+}
+
+
+/* =========================================================
+   CURRENT USER STATION
+========================================================= */
+
+function getCurrentUserStationId() {
+
+    return (
+        ShiftsState.currentUser?.station_id ||
+        ShiftsState.currentUser?.stationId ||
+        null
+    );
+
+}
+
+
+/* =========================================================
+   CHECK CAN CREATE
+========================================================= */
+
+function canCreateShift() {
+
+    return [
+        "owner",
+        "admin",
+        "manager"
+    ].includes(
+        getCurrentUserRole()
+    );
+
+}
+
+
+/* =========================================================
+   CHECK CAN MANAGE
+========================================================= */
+
+function canManageShift() {
+
+    return [
+        "owner",
+        "admin",
+        "manager"
+    ].includes(
+        getCurrentUserRole()
+    );
+
+}
+
+
+/* =========================================================
+   GET VISIBLE STATIONS
+========================================================= */
+
+function getVisibleStations() {
+
+    const role =
+        getCurrentUserRole();
+
+
+    /*
+     * Owner/Admin
+     */
+    if (
+        role === "owner" ||
+        role === "admin"
+    ) {
+
+        return [
+            ...ShiftsState.stations
+        ];
+
+    }
+
+
+    /*
+     * Manager/Attendant
+     */
+    const stationId =
+        getCurrentUserStationId();
+
+
+    if (
+        role === "manager" ||
+        role === "attendant"
+    ) {
+
+        if (!stationId) {
+
             return [];
+
         }
 
-        return stations.filter(
+
+        return ShiftsState.stations.filter(
             station =>
-                station.id ===
-                currentUser.stationId
+                String(
+                    station.id
+                ) ===
+                String(
+                    stationId
+                )
         );
 
     }
@@ -178,367 +1041,1165 @@ function getVisibleStations() {
 }
 
 
-/* ==========================================
-   VISIBLE SHIFTS
-========================================== */
+/* =========================================================
+   GET VISIBLE STAFF
+========================================================= */
 
-function getVisibleShifts() {
+function getVisibleStaff() {
 
-    const stations =
-        getVisibleStations();
+    const role =
+        getCurrentUserRole();
 
-    const stationIds =
-        stations.map(
-            station => station.id
+
+    /*
+     * Only active attendants
+     */
+    const attendants =
+        ShiftsState.staff.filter(
+            staff =>
+                staff.role === "attendant" &&
+                staff.is_active
         );
 
-    return getShifts().filter(
-        shift =>
-            stationIds.includes(
-                shift.stationId
-            )
-    );
+
+    /*
+     * Owner/Admin
+     */
+    if (
+        role === "owner" ||
+        role === "admin"
+    ) {
+
+        return attendants;
+
+    }
+
+
+    /*
+     * Manager
+     */
+    if (
+        role === "manager"
+    ) {
+
+        const stationId =
+            getCurrentUserStationId();
+
+
+        if (!stationId) {
+
+            return [];
+
+        }
+
+
+        return attendants.filter(
+            staff =>
+                String(
+                    staff.station_id
+                ) ===
+                String(
+                    stationId
+                )
+        );
+
+    }
+
+
+    return [];
 
 }
 
 
-/* ==========================================
-   RENDER PAGE
-========================================== */
+/* =========================================================
+   APPLY FILTERS
+========================================================= */
+
+function applyShiftFilters() {
+
+    const search =
+        String(
+            ShiftsState.searchTerm ||
+            ""
+        )
+            .toLowerCase()
+            .trim();
+
+
+    const role =
+        getCurrentUserRole();
+
+
+    let visibleShifts =
+        [
+            ...ShiftsState.shifts
+        ];
+
+
+    /*
+     * Station restriction
+     */
+    if (
+        role === "manager" ||
+        role === "attendant"
+    ) {
+
+        const stationId =
+            getCurrentUserStationId();
+
+
+        if (stationId) {
+
+            visibleShifts =
+                visibleShifts.filter(
+                    shift =>
+                        String(
+                            shift.station_id
+                        ) ===
+                        String(
+                            stationId
+                        )
+                );
+
+        }
+        else {
+
+            visibleShifts = [];
+
+        }
+
+    }
+
+
+    /*
+     * Search
+     */
+    if (search) {
+
+        visibleShifts =
+            visibleShifts.filter(
+                shift => {
+
+                    const station =
+                        getStationName(
+                            shift.station_id
+                        );
+
+
+                    const searchableText =
+                        [
+                            shift.shift_name,
+                            shift.shift_date,
+                            shift.shift_time,
+                            shift.status,
+                            station
+                        ]
+                            .join(" ")
+                            .toLowerCase();
+
+
+                    return searchableText.includes(
+                        search
+                    );
+
+                }
+            );
+
+    }
+
+
+    ShiftsState.filteredShifts =
+        visibleShifts;
+
+}
+
+
+/* =========================================================
+   RENDER SHIFT PAGE
+========================================================= */
 
 function renderShiftsPage() {
 
-    const pageContent =
-        document.getElementById("pageContent");
+    /*
+     * IMPORTANT:
+     *
+     * Use #pageContent.
+     *
+     * NEVER replace #app.
+     *
+     * This preserves:
+     * - sidebar
+     * - navbar
+     * - user menu
+     * - application shell
+     */
 
-    if (!pageContent) return;
+    const pageContent =
+        document.getElementById(
+            "pageContent"
+        );
+
+
+    if (!pageContent) {
+
+        console.error(
+            "Shift page #pageContent element not found."
+        );
+
+        return;
+
+    }
+
+
+    const canCreate =
+        canCreateShift();
 
 
     pageContent.innerHTML = `
 
-        <div class="shifts-page">
+        <style>
 
-            <!-- =================================
-                 PAGE HEADER
-            ================================== -->
+            .fuelgap-shifts-page {
+                width: 100%;
+                max-width: 100%;
+            }
 
-            <header class="shifts-header">
 
-                <div class="shifts-header-content">
+            .fuelgap-shifts-page *,
+            .fuelgap-shifts-page *::before,
+            .fuelgap-shifts-page *::after {
+                box-sizing: border-box;
+            }
 
-                    <div class="shifts-eyebrow">
 
-                        <span class="shifts-eyebrow-dot"></span>
+            .shift-page-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 20px;
+                margin-bottom: 24px;
+            }
 
-                        OPERATIONS
 
+            .shift-page-title {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+            }
+
+
+            .shift-page-icon {
+                width: 50px;
+                height: 50px;
+                border-radius: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #fff7cc;
+                color: #d99b00;
+                font-size: 24px;
+                font-weight: 800;
+                flex-shrink: 0;
+            }
+
+
+            .shift-page-title h1 {
+                margin: 0 0 5px;
+                font-size: 27px;
+                font-weight: 800;
+                color: #151515;
+            }
+
+
+            .shift-page-title p {
+                margin: 0;
+                color: #777;
+                font-size: 14px;
+            }
+
+
+            .shift-btn {
+                border: none;
+                border-radius: 10px;
+                min-height: 42px;
+                padding: 0 16px;
+                font-weight: 700;
+                cursor: pointer;
+                transition: .2s ease;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 7px;
+                font-size: 14px;
+            }
+
+
+            .shift-btn:disabled {
+                opacity: .6;
+                cursor: not-allowed;
+            }
+
+
+            .shift-btn-primary {
+                background: #f5c400;
+                color: #151515;
+                box-shadow: 0 5px 15px rgba(245,196,0,.18);
+            }
+
+
+            .shift-btn-primary:hover {
+                background: #e8b900;
+                transform: translateY(-1px);
+            }
+
+
+            .shift-btn-secondary {
+                background: #f5f5f5;
+                color: #333;
+                border: 1px solid #e4e4e4;
+            }
+
+
+            .shift-btn-secondary:hover {
+                background: #ededed;
+            }
+
+
+            .shift-btn-success {
+                background: #16834b;
+                color: white;
+            }
+
+
+            .shift-btn-danger {
+                background: #c93636;
+                color: white;
+            }
+
+
+            .shift-btn-warning {
+                background: #f5c400;
+                color: #151515;
+            }
+
+
+            .shift-btn-sm {
+                min-height: 34px;
+                padding: 0 11px;
+                font-size: 12px;
+                border-radius: 8px;
+            }
+
+
+            .shift-stats {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 16px;
+                margin-bottom: 22px;
+            }
+
+
+            .shift-stat-card {
+                background: white;
+                border: 1px solid #ececec;
+                border-radius: 15px;
+                padding: 19px;
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                box-shadow: 0 5px 20px rgba(0,0,0,.035);
+            }
+
+
+            .shift-stat-icon {
+                width: 45px;
+                height: 45px;
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #fff8d7;
+                color: #c59600;
+                font-weight: 900;
+                font-size: 18px;
+            }
+
+
+            .shift-stat-card span {
+                display: block;
+                color: #777;
+                font-size: 12px;
+                margin-bottom: 4px;
+            }
+
+
+            .shift-stat-card strong {
+                display: block;
+                color: #161616;
+                font-size: 23px;
+                font-weight: 800;
+            }
+
+
+            .shift-card {
+                background: white;
+                border: 1px solid #eaeaea;
+                border-radius: 16px;
+                overflow: hidden;
+                box-shadow: 0 5px 22px rgba(0,0,0,.035);
+            }
+
+
+            .shift-card-header {
+                padding: 19px 20px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 15px;
+                border-bottom: 1px solid #eeeeee;
+            }
+
+
+            .shift-card-header h2 {
+                margin: 0 0 4px;
+                font-size: 18px;
+                color: #191919;
+            }
+
+
+            .shift-card-header p {
+                margin: 0;
+                color: #777;
+                font-size: 13px;
+            }
+
+
+            .shift-filters {
+                display: grid;
+                grid-template-columns: minmax(220px, 1fr) 170px 200px;
+                gap: 12px;
+                padding: 17px 20px;
+                border-bottom: 1px solid #eeeeee;
+                background: #fff;
+            }
+
+
+            .shift-search {
+                position: relative;
+            }
+
+
+            .shift-search-icon {
+                position: absolute;
+                left: 13px;
+                top: 50%;
+                transform: translateY(-50%);
+                color: #999;
+                pointer-events: none;
+            }
+
+
+            .shift-form-control {
+                width: 100%;
+                height: 42px;
+                border: 1px solid #dddddd;
+                border-radius: 9px;
+                padding: 0 12px;
+                background: white;
+                color: #222;
+                font-family: inherit;
+                outline: none;
+                transition: .2s ease;
+            }
+
+
+            .shift-search .shift-form-control {
+                padding-left: 38px;
+            }
+
+
+            .shift-form-control:focus {
+                border-color: #e4b600;
+                box-shadow: 0 0 0 3px rgba(245,196,0,.12);
+            }
+
+
+            .shift-table-wrapper {
+                width: 100%;
+                overflow-x: auto;
+                position: relative;
+            }
+
+
+            .shift-table-wrapper.loading {
+                opacity: .55;
+                pointer-events: none;
+            }
+
+
+            .shift-table {
+                width: 100%;
+                min-width: 850px;
+                border-collapse: collapse;
+            }
+
+
+            .shift-table th {
+                text-align: left;
+                padding: 13px 18px;
+                background: #fafafa;
+                border-bottom: 1px solid #e9e9e9;
+                color: #777;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: .04em;
+                white-space: nowrap;
+            }
+
+
+            .shift-table td {
+                padding: 15px 18px;
+                border-bottom: 1px solid #f0f0f0;
+                font-size: 13px;
+                color: #444;
+                vertical-align: middle;
+            }
+
+
+            .shift-table tbody tr:hover {
+                background: #fffdf2;
+            }
+
+
+            .shift-primary {
+                font-weight: 750;
+                color: #171717;
+            }
+
+
+            .shift-secondary {
+                display: block;
+                color: #999;
+                font-size: 11px;
+                margin-top: 3px;
+            }
+
+
+            .shift-actions {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+
+
+            .shift-status {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 5px 9px;
+                border-radius: 999px;
+                font-size: 11px;
+                font-weight: 750;
+                text-transform: capitalize;
+            }
+
+
+            .shift-status::before {
+                content: "";
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: currentColor;
+            }
+
+
+            .shift-status-scheduled {
+                background: #fff6d4;
+                color: #a47a00;
+            }
+
+
+            .shift-status-open {
+                background: #e7f7ef;
+                color: #16834b;
+            }
+
+
+            .shift-status-closed {
+                background: #eeeeee;
+                color: #666;
+            }
+
+
+            .shift-status-cancelled {
+                background: #fdeaea;
+                color: #c93636;
+            }
+
+
+            .shift-empty {
+                text-align: center;
+                padding: 55px 20px !important;
+            }
+
+
+            .shift-empty-icon {
+                width: 55px;
+                height: 55px;
+                margin: 0 auto 12px;
+                border-radius: 50%;
+                background: #fff7d5;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #c59600;
+                font-size: 22px;
+                font-weight: 900;
+            }
+
+
+            .shift-empty h3 {
+                margin: 0 0 6px;
+                font-size: 16px;
+                color: #222;
+            }
+
+
+            .shift-empty p {
+                margin: 0;
+                color: #999;
+                font-size: 13px;
+            }
+
+
+            .shift-modal-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 9999;
+                background: rgba(0,0,0,.48);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+
+
+            .shift-modal-overlay.hidden {
+                display: none;
+            }
+
+
+            .shift-modal {
+                width: min(620px, 100%);
+                max-height: 90vh;
+                overflow-y: auto;
+                background: white;
+                border-radius: 17px;
+                box-shadow: 0 25px 70px rgba(0,0,0,.2);
+            }
+
+
+            .shift-modal-header {
+                padding: 20px;
+                border-bottom: 1px solid #eeeeee;
+                display: flex;
+                justify-content: space-between;
+                gap: 15px;
+                align-items: flex-start;
+            }
+
+
+            .shift-modal-header h2 {
+                margin: 0 0 5px;
+                font-size: 19px;
+            }
+
+
+            .shift-modal-header p {
+                margin: 0;
+                font-size: 12px;
+                color: #888;
+            }
+
+
+            .shift-modal-close {
+                width: 34px;
+                height: 34px;
+                border: none;
+                border-radius: 8px;
+                background: #f4f4f4;
+                color: #555;
+                font-size: 22px;
+                cursor: pointer;
+                line-height: 1;
+            }
+
+
+            .shift-modal-body {
+                padding: 20px;
+            }
+
+
+            .shift-form-group {
+                margin-bottom: 16px;
+            }
+
+
+            .shift-form-group label {
+                display: block;
+                margin-bottom: 7px;
+                font-size: 12px;
+                font-weight: 700;
+                color: #333;
+            }
+
+
+            .shift-form-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 13px;
+            }
+
+
+            .shift-attendants {
+                border: 1px solid #e2e2e2;
+                border-radius: 10px;
+                padding: 10px;
+                max-height: 180px;
+                overflow-y: auto;
+            }
+
+
+            .shift-checkbox {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 10px;
+                border-radius: 8px;
+                cursor: pointer;
+            }
+
+
+            .shift-checkbox:hover {
+                background: #fffbea;
+            }
+
+
+            .shift-checkbox input {
+                width: 16px;
+                height: 16px;
+                accent-color: #f5c400;
+                flex-shrink: 0;
+            }
+
+
+            .shift-checkbox strong {
+                display: block;
+                font-size: 13px;
+                color: #222;
+            }
+
+
+            .shift-checkbox small {
+                display: block;
+                margin-top: 2px;
+                color: #999;
+                font-size: 11px;
+            }
+
+
+            .shift-muted {
+                color: #999;
+                font-size: 12px;
+                margin: 7px;
+            }
+
+
+            .shift-form-message {
+                padding: 10px 12px;
+                border-radius: 8px;
+                margin-bottom: 15px;
+                font-size: 12px;
+                line-height: 1.5;
+            }
+
+
+            .shift-form-message.hidden {
+                display: none;
+            }
+
+
+            .shift-form-message.error {
+                background: #fff0f0;
+                color: #b72e2e;
+                border: 1px solid #ffd4d4;
+            }
+
+
+            .shift-form-message.success {
+                background: #effbf4;
+                color: #147441;
+                border: 1px solid #d2f0df;
+            }
+
+
+            .shift-modal-footer {
+                padding-top: 4px;
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+            }
+
+
+            .shift-toast-container {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 10000;
+                display: flex;
+                flex-direction: column;
+                gap: 9px;
+                width: min(360px, calc(100vw - 40px));
+            }
+
+
+            .shift-toast {
+                background: #202020;
+                color: white;
+                border-radius: 10px;
+                padding: 13px 15px;
+                font-size: 13px;
+                box-shadow: 0 10px 30px rgba(0,0,0,.18);
+                animation: shiftToastIn .25s ease;
+            }
+
+
+            .shift-toast-success {
+                border-left: 4px solid #16834b;
+            }
+
+
+            .shift-toast-error {
+                border-left: 4px solid #c93636;
+            }
+
+
+            @keyframes shiftToastIn {
+
+                from {
+                    opacity: 0;
+                    transform: translateY(-8px);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+
+            }
+
+
+            @media (max-width: 1000px) {
+
+                .shift-stats {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+
+                .shift-filters {
+                    grid-template-columns: 1fr 1fr;
+                }
+
+                .shift-search {
+                    grid-column: 1 / -1;
+                }
+
+            }
+
+
+            @media (max-width: 700px) {
+
+                .shift-page-header {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+
+                .shift-page-title h1 {
+                    font-size: 22px;
+                }
+
+                .shift-stats {
+                    grid-template-columns: 1fr;
+                }
+
+                .shift-filters {
+                    grid-template-columns: 1fr;
+                }
+
+                .shift-search {
+                    grid-column: auto;
+                }
+
+                .shift-card-header {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+
+                .shift-form-row {
+                    grid-template-columns: 1fr;
+                }
+
+                .shift-modal-overlay {
+                    padding: 10px;
+                }
+
+                .shift-modal {
+                    max-height: 95vh;
+                }
+
+            }
+
+        </style>
+
+
+        <section class="fuelgap-shifts-page">
+
+            <!-- PAGE HEADER -->
+
+            <div class="shift-page-header">
+
+                <div class="shift-page-title">
+
+                    <div class="shift-page-icon">
+                        ↔
                     </div>
 
+                    <div>
 
-                    <h1>
-                        Shift Management
-                    </h1>
+                        <h1>
+                            Shift Management
+                        </h1>
 
+                        <p>
+                            Create, monitor and manage fuel station shifts.
+                        </p>
 
-                    <p>
-                        Create, monitor and manage station
-                        shifts and assigned attendants.
-                    </p>
+                    </div>
 
                 </div>
 
 
-                <div class="shifts-header-actions">
+                ${
+                    canCreate
+                        ? `
+                            <button
+                                type="button"
+                                class="shift-btn shift-btn-primary"
+                                id="createShiftBtn"
+                            >
+                                <span>+</span>
+                                Create Shift
+                            </button>
+                        `
+                        : ""
+                }
 
-                    <button
-                        type="button"
-                        class="shift-btn shift-btn-primary"
-                        id="openShiftModal"
-                    >
+            </div>
 
-                        <span class="shift-btn-icon">
-                            +
+
+            <!-- STATISTICS -->
+
+            <section
+                class="shift-stats"
+                id="shiftStats"
+            >
+
+                <div class="shift-stat-card">
+
+                    <div class="shift-stat-icon">
+                        ↔
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Total Shifts
                         </span>
 
-                        Create Shift
+                        <strong>
+                            0
+                        </strong>
 
-                    </button>
+                    </div>
 
                 </div>
 
-            </header>
 
+                <div class="shift-stat-card">
 
-            <!-- =================================
-                 KPI CARDS
-            ================================== -->
+                    <div class="shift-stat-icon">
+                        ●
+                    </div>
 
-            <section class="shift-kpi-grid">
+                    <div>
 
-                <article class="shift-kpi-card">
-
-                    <div class="shift-kpi-top">
-
-                        <div class="shift-kpi-icon icon-total">
-                            <svg viewBox="0 0 24 24">
-                                <rect x="3" y="4" width="18" height="16" rx="3"/>
-                                <path d="M7 8h10"/>
-                                <path d="M7 12h6"/>
-                                <path d="M7 16h4"/>
-                            </svg>
-                        </div>
-
-                        <span class="shift-kpi-trend">
-                            ALL
+                        <span>
+                            Open
                         </span>
 
+                        <strong>
+                            0
+                        </strong>
+
                     </div>
 
+                </div>
 
-                    <div class="shift-kpi-label">
-                        Total Shifts
+
+                <div class="shift-stat-card">
+
+                    <div class="shift-stat-icon">
+                        ✓
                     </div>
 
+                    <div>
 
-                    <strong
-                        id="totalShifts"
-                        class="shift-kpi-value"
-                    >
-                        0
-                    </strong>
-
-
-                    <span class="shift-kpi-description">
-                        Recorded station shifts
-                    </span>
-
-                </article>
-
-
-                <article class="shift-kpi-card shift-kpi-active">
-
-                    <div class="shift-kpi-top">
-
-                        <div class="shift-kpi-icon icon-active">
-                            <svg viewBox="0 0 24 24">
-                                <circle cx="12" cy="12" r="8"/>
-                                <path d="M12 8v4l3 2"/>
-                            </svg>
-                        </div>
-
-                        <span class="shift-live-label">
-                            LIVE
+                        <span>
+                            Closed
                         </span>
 
+                        <strong>
+                            0
+                        </strong>
+
                     </div>
 
+                </div>
 
-                    <div class="shift-kpi-label">
-                        Active Shifts
+
+                <div class="shift-stat-card">
+
+                    <div class="shift-stat-icon">
+                        !
                     </div>
 
+                    <div>
 
-                    <strong
-                        id="openShifts"
-                        class="shift-kpi-value"
-                    >
-                        0
-                    </strong>
-
-
-                    <span class="shift-kpi-description">
-                        Currently operating
-                    </span>
-
-                </article>
-
-
-                <article class="shift-kpi-card">
-
-                    <div class="shift-kpi-top">
-
-                        <div class="shift-kpi-icon icon-closed">
-                            <svg viewBox="0 0 24 24">
-                                <path d="M6 4h12v16H6z"/>
-                                <path d="m9 12 2 2 4-4"/>
-                            </svg>
-                        </div>
-
-                        <span class="shift-kpi-trend">
-                            DONE
+                        <span>
+                            Cancelled
                         </span>
 
-                    </div>
-
-
-                    <div class="shift-kpi-label">
-                        Closed Shifts
-                    </div>
-
-
-                    <strong
-                        id="closedShifts"
-                        class="shift-kpi-value"
-                    >
-                        0
-                    </strong>
-
-
-                    <span class="shift-kpi-description">
-                        Completed operations
-                    </span>
-
-                </article>
-
-
-                <article class="shift-kpi-card">
-
-                    <div class="shift-kpi-top">
-
-                        <div class="shift-kpi-icon icon-staff">
-                            <svg viewBox="0 0 24 24">
-                                <circle cx="9" cy="8" r="3"/>
-                                <circle cx="17" cy="9" r="2.5"/>
-                                <path d="M3 20c0-3 2.5-5 6-5s6 2 6 5"/>
-                                <path d="M15 15c3 0 5 2 5 5"/>
-                            </svg>
-                        </div>
-
-                        <span class="shift-kpi-trend">
-                            STAFF
-                        </span>
+                        <strong>
+                            0
+                        </strong>
 
                     </div>
 
-
-                    <div class="shift-kpi-label">
-                        Assigned Staff
-                    </div>
-
-
-                    <strong
-                        id="assignedStaffCount"
-                        class="shift-kpi-value"
-                    >
-                        0
-                    </strong>
-
-
-                    <span class="shift-kpi-description">
-                        Staff assigned to shifts
-                    </span>
-
-                </article>
+                </div>
 
             </section>
 
 
-            <!-- =================================
-                 SHIFT MANAGEMENT CARD
-            ================================== -->
+            <!-- SHIFT RECORDS -->
 
-            <section class="shift-management-card">
+            <section class="shift-card">
 
-                <div class="shift-section-header">
+                <div class="shift-card-header">
 
                     <div>
 
-                        <div class="shift-section-title-row">
+                        <h2>
+                            Shift Records
+                        </h2>
 
-                            <div class="shift-section-title-icon">
-
-                                <svg viewBox="0 0 24 24">
-                                    <rect x="3" y="5" width="18" height="15" rx="2"/>
-                                    <path d="M8 3v4"/>
-                                    <path d="M16 3v4"/>
-                                    <path d="M3 10h18"/>
-                                </svg>
-
-                            </div>
-
-
-                            <div>
-
-                                <h2>
-                                    Station Shifts
-                                </h2>
-
-                                <p>
-                                    Monitor active and completed
-                                    station operations.
-                                </p>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="shift-record-count">
-
-                        <span
-                            class="shift-count-dot"
-                        ></span>
-
-                        <span id="shiftRecordCount">
-                            0 shifts
-                        </span>
-
-                    </div>
-
-                </div>
-
-
-                <!-- =================================
-                     TOOLBAR
-                ================================== -->
-
-                <div class="shift-toolbar">
-
-                    <div class="shift-search">
-
-                        <svg viewBox="0 0 24 24">
-
-                            <circle
-                                cx="11"
-                                cy="11"
-                                r="7"
-                            />
-
-                            <path
-                                d="m20 20-4-4"
-                            />
-
-                        </svg>
-
-
-                        <input
-                            type="search"
-                            id="shiftSearch"
-                            placeholder="Search by shift, station or status..."
-                            autocomplete="off"
-                        />
+                        <p>
+                            View and manage your station shifts.
+                        </p>
 
                     </div>
 
 
                     <button
                         type="button"
-                        class="shift-filter-button"
-                        id="clearShiftSearch"
+                        class="shift-btn shift-btn-secondary"
+                        id="refreshShiftsBtn"
                     >
-                        Clear
+                        ↻
+                        Refresh
                     </button>
 
                 </div>
 
 
-                <!-- =================================
-                     TABLE
-                ================================== -->
+                <!-- FILTERS -->
 
-                <div class="shift-table-container">
+                <div class="shift-filters">
+
+                    <div class="shift-search">
+
+                        <span class="shift-search-icon">
+                            🔍
+                        </span>
+
+                        <input
+                            type="search"
+                            id="shiftSearch"
+                            class="shift-form-control"
+                            placeholder="Search shifts..."
+                            autocomplete="off"
+                        >
+
+                    </div>
+
+
+                    <select
+                        id="shiftStatusFilter"
+                        class="shift-form-control"
+                    >
+
+                        <option value="">
+                            All Statuses
+                        </option>
+
+                        <option value="scheduled">
+                            Scheduled
+                        </option>
+
+                        <option value="open">
+                            Open
+                        </option>
+
+                        <option value="closed">
+                            Closed
+                        </option>
+
+                        <option value="cancelled">
+                            Cancelled
+                        </option>
+
+                    </select>
+
+
+                    <select
+                        id="shiftStationFilter"
+                        class="shift-form-control"
+                    >
+
+                        <option value="">
+                            All Stations
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- TABLE -->
+
+                <div
+                    class="shift-table-wrapper"
+                    id="shiftTableContainer"
+                >
 
                     <table class="shift-table">
 
@@ -547,31 +2208,31 @@ function renderShiftsPage() {
                             <tr>
 
                                 <th>
-                                    SHIFT
+                                    Shift
                                 </th>
 
                                 <th>
-                                    STATION
+                                    Station
                                 </th>
 
                                 <th>
-                                    WORKING HOURS
+                                    Date
                                 </th>
 
                                 <th>
-                                    ASSIGNED STAFF
+                                    Start
                                 </th>
 
                                 <th>
-                                    STATUS
+                                    End
                                 </th>
 
                                 <th>
-                                    OPENED
+                                    Status
                                 </th>
 
-                                <th class="shift-action-header">
-                                    ACTION
+                                <th>
+                                    Actions
                                 </th>
 
                             </tr>
@@ -581,517 +2242,485 @@ function renderShiftsPage() {
 
                         <tbody
                             id="shiftTableBody"
-                        ></tbody>
+                        >
+
+                            <tr>
+
+                                <td
+                                    colspan="7"
+                                    class="shift-empty"
+                                >
+                                    Loading shifts...
+                                </td>
+
+                            </tr>
+
+                        </tbody>
 
                     </table>
-
-                </div>
-
-
-                <!-- =================================
-                     EMPTY STATE
-                ================================== -->
-
-                <div
-                    id="emptyShiftState"
-                    class="shift-empty-state hidden"
-                >
-
-                    <div class="shift-empty-icon">
-
-                        <svg viewBox="0 0 24 24">
-                            <rect
-                                x="3"
-                                y="5"
-                                width="18"
-                                height="15"
-                                rx="2"
-                            />
-                            <path d="M8 3v4"/>
-                            <path d="M16 3v4"/>
-                            <path d="M3 10h18"/>
-                            <path d="M9 15h6"/>
-                        </svg>
-
-                    </div>
-
-
-                    <h3>
-                        No shifts found
-                    </h3>
-
-
-                    <p>
-                        Create a shift to start managing
-                        station operations.
-                    </p>
-
-
-                    <button
-                        type="button"
-                        class="shift-btn shift-btn-primary"
-                        id="emptyCreateShiftButton"
-                    >
-                        + Create First Shift
-                    </button>
 
                 </div>
 
             </section>
 
 
-            <!-- =================================
-                 CREATE SHIFT MODAL
-            ================================== -->
+            ${
+                canCreate
+                    ? `
 
-            <div
-                id="shiftModal"
-                class="shift-modal hidden"
-            >
+                        <!-- CREATE SHIFT MODAL -->
 
-                <div
-                    class="shift-modal-overlay"
-                ></div>
-
-
-                <div
-                    class="shift-modal-dialog"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="shiftModalTitle"
-                >
-
-                    <div class="shift-modal-top">
-
-                        <div class="shift-modal-icon">
-
-                            <svg viewBox="0 0 24 24">
-                                <rect
-                                    x="3"
-                                    y="5"
-                                    width="18"
-                                    height="15"
-                                    rx="2"
-                                />
-                                <path d="M8 3v4"/>
-                                <path d="M16 3v4"/>
-                                <path d="M3 10h18"/>
-                                <path d="M12 13v4"/>
-                                <path d="M10 15h4"/>
-                            </svg>
-
-                        </div>
-
-
-                        <button
-                            type="button"
-                            id="closeShiftModal"
-                            class="shift-modal-close"
-                            aria-label="Close"
+                        <div
+                            class="shift-modal-overlay hidden"
+                            id="shiftModal"
                         >
-                            ×
-                        </button>
 
-                    </div>
+                            <div
+                                class="shift-modal"
+                                role="dialog"
+                                aria-modal="true"
+                                aria-labelledby="shiftModalTitle"
+                            >
 
+                                <div class="shift-modal-header">
 
-                    <div class="shift-modal-header">
+                                    <div>
 
-                        <span class="shift-modal-eyebrow">
-                            NEW OPERATION
-                        </span>
+                                        <h2 id="shiftModalTitle">
+                                            Create Shift
+                                        </h2>
 
-
-                        <h2 id="shiftModalTitle">
-                            Create New Shift
-                        </h2>
-
-
-                        <p>
-                            Configure the station, working
-                            hours and assigned attendants.
-                        </p>
-
-                    </div>
-
-
-                    <form
-                        id="shiftForm"
-                        class="shift-form"
-                    >
-
-                        <div class="shift-form-grid">
-
-                            <div class="shift-form-group full">
-
-                                <label for="shiftName">
-                                    Shift Name
-                                    <span>*</span>
-                                </label>
-
-
-                                <div class="shift-input-wrapper">
-
-                                    <svg viewBox="0 0 24 24">
-                                        <path d="M4 5h16v14H4z"/>
-                                        <path d="M8 9h8"/>
-                                        <path d="M8 13h5"/>
-                                    </svg>
-
-
-                                    <input
-                                        id="shiftName"
-                                        type="text"
-                                        name="name"
-                                        placeholder="e.g. Morning Shift"
-                                        required
-                                    />
-
-                                </div>
-
-                            </div>
-
-
-                            <div class="shift-form-group full">
-
-                                <label for="shiftStation">
-                                    Station
-                                    <span>*</span>
-                                </label>
-
-
-                                <div class="shift-input-wrapper">
-
-                                    <svg viewBox="0 0 24 24">
-                                        <path d="M4 21V5l8-3 8 3v16"/>
-                                        <path d="M8 21v-5h8v5"/>
-                                        <path d="M9 8h6"/>
-                                    </svg>
-
-
-                                    <select
-                                        id="shiftStation"
-                                        name="stationId"
-                                        required
-                                    >
-
-                                        <option value="">
-                                            Select station
-                                        </option>
-
-                                    </select>
-
-                                </div>
-
-                            </div>
-
-
-                            <div class="shift-form-group">
-
-                                <label for="shiftStartTime">
-                                    Start Time
-                                    <span>*</span>
-                                </label>
-
-
-                                <div class="shift-input-wrapper">
-
-                                    <svg viewBox="0 0 24 24">
-                                        <circle
-                                            cx="12"
-                                            cy="12"
-                                            r="8"
-                                        />
-                                        <path d="M12 8v4l3 2"/>
-                                    </svg>
-
-
-                                    <input
-                                        id="shiftStartTime"
-                                        type="time"
-                                        name="startTime"
-                                        required
-                                    />
-
-                                </div>
-
-                            </div>
-
-
-                            <div class="shift-form-group">
-
-                                <label for="shiftEndTime">
-                                    End Time
-                                    <span>*</span>
-                                </label>
-
-
-                                <div class="shift-input-wrapper">
-
-                                    <svg viewBox="0 0 24 24">
-                                        <circle
-                                            cx="12"
-                                            cy="12"
-                                            r="8"
-                                        />
-                                        <path d="M12 8v4l3 2"/>
-                                    </svg>
-
-
-                                    <input
-                                        id="shiftEndTime"
-                                        type="time"
-                                        name="endTime"
-                                        required
-                                    />
-
-                                </div>
-
-                            </div>
-
-
-                            <div class="shift-form-group full">
-
-                                <div class="shift-staff-label-row">
-
-                                    <label>
-                                        Assign Staff
-                                        <span>*</span>
-                                    </label>
-
-
-                                    <span
-                                        id="selectedStaffCount"
-                                        class="selected-staff-count"
-                                    >
-                                        0 selected
-                                    </span>
-
-                                </div>
-
-
-                                <div
-                                    id="staffCheckboxList"
-                                    class="shift-staff-list"
-                                >
-
-                                    <div class="shift-staff-placeholder">
-
-                                        <svg viewBox="0 0 24 24">
-                                            <circle
-                                                cx="12"
-                                                cy="8"
-                                                r="3"
-                                            />
-                                            <path
-                                                d="M5 20c0-4 3-6 7-6s7 2 7 6"
-                                            />
-                                        </svg>
-
-                                        <span>
-                                            Select a station first
-                                        </span>
+                                        <p>
+                                            Set up a new station shift and assign attendants.
+                                        </p>
 
                                     </div>
 
+
+                                    <button
+                                        type="button"
+                                        class="shift-modal-close"
+                                        id="closeShiftModal"
+                                        aria-label="Close"
+                                    >
+                                        ×
+                                    </button>
+
+                                </div>
+
+
+                                <div class="shift-modal-body">
+
+                                    <form
+                                        id="createShiftForm"
+                                    >
+
+                                        <div class="shift-form-group">
+
+                                            <label for="shiftName">
+                                                Shift Name
+                                            </label>
+
+                                            <input
+                                                type="text"
+                                                id="shiftName"
+                                                class="shift-form-control"
+                                                placeholder="e.g. Morning Shift"
+                                                required
+                                            >
+
+                                        </div>
+
+
+                                        <div class="shift-form-group">
+
+                                            <label for="shiftStation">
+                                                Station
+                                            </label>
+
+                                            <select
+                                                id="shiftStation"
+                                                class="shift-form-control"
+                                                required
+                                            >
+
+                                                <option value="">
+                                                    Select station
+                                                </option>
+
+                                            </select>
+
+                                        </div>
+
+
+                                        <div class="shift-form-row">
+
+                                            <div class="shift-form-group">
+
+                                                <label for="shiftDate">
+                                                    Shift Date
+                                                </label>
+
+                                                <input
+                                                    type="date"
+                                                    id="shiftDate"
+                                                    class="shift-form-control"
+                                                    required
+                                                >
+
+                                            </div>
+
+
+                                            <div class="shift-form-group">
+
+                                                <label for="shiftStartTime">
+                                                    Start Time
+                                                </label>
+
+                                                <input
+                                                    type="time"
+                                                    id="shiftStartTime"
+                                                    class="shift-form-control"
+                                                    required
+                                                >
+
+                                            </div>
+
+                                        </div>
+
+
+                                        <div class="shift-form-group">
+
+                                            <label for="shiftEndTime">
+                                                Expected End Time
+                                            </label>
+
+                                            <input
+                                                type="time"
+                                                id="shiftEndTime"
+                                                class="shift-form-control"
+                                            >
+
+                                        </div>
+
+
+                                        <div class="shift-form-group">
+
+                                            <label>
+                                                Assign Attendants
+                                            </label>
+
+                                            <div
+                                                id="shiftAttendants"
+                                                class="shift-attendants"
+                                            >
+
+                                                <p class="shift-muted">
+                                                    Select a station first.
+                                                </p>
+
+                                            </div>
+
+                                        </div>
+
+
+                                        <div
+                                            id="shiftFormMessage"
+                                            class="shift-form-message hidden"
+                                        ></div>
+
+
+                                        <div class="shift-modal-footer">
+
+                                            <button
+                                                type="button"
+                                                class="shift-btn shift-btn-secondary"
+                                                id="cancelShiftModal"
+                                            >
+                                                Cancel
+                                            </button>
+
+
+                                            <button
+                                                type="submit"
+                                                class="shift-btn shift-btn-primary"
+                                                id="saveShiftBtn"
+                                            >
+                                                Create Shift
+                                            </button>
+
+                                        </div>
+
+                                    </form>
+
                                 </div>
 
                             </div>
 
                         </div>
 
+                    `
+                    : ""
+            }
 
-                        <div
-                            id="shiftMessage"
-                            class="shift-form-message hidden"
-                        ></div>
-
-
-                        <div class="shift-modal-actions">
-
-                            <button
-                                type="button"
-                                id="cancelShiftModal"
-                                class="shift-btn shift-btn-secondary"
-                            >
-                                Cancel
-                            </button>
-
-
-                            <button
-                                type="submit"
-                                class="shift-btn shift-btn-primary"
-                                id="createShiftSubmit"
-                            >
-
-                                <span>
-                                    Create Shift
-                                </span>
-
-                            </button>
-
-                        </div>
-
-                    </form>
-
-                </div>
-
-            </div>
-
-        </div>
+        </section>
 
     `;
 
+
+    /*
+     * Populate initial controls
+     */
+    populateStationFilters();
+
+    populateCreateShiftStations();
+
+    setDefaultShiftDate();
+
 }
 
 
-/* ==========================================
-   EVENTS
-========================================== */
+/* =========================================================
+   SETUP EVENTS
+========================================================= */
 
 function setupShiftEvents() {
 
-    setupShiftModal();
-
-    setupStationChange();
-
-    setupShiftForm();
-
-    setupShiftSearch();
-
-    setupClearSearch();
-
-}
+    const createShiftBtn =
+        document.getElementById(
+            "createShiftBtn"
+        );
 
 
-/* ==========================================
-   MODAL
-========================================== */
+    if (createShiftBtn) {
 
-function setupShiftModal() {
+        createShiftBtn.addEventListener(
+            "click",
+            openShiftModal
+        );
+
+    }
+
+
+    const closeModalButton =
+        document.getElementById(
+            "closeShiftModal"
+        );
+
+
+    if (closeModalButton) {
+
+        closeModalButton.addEventListener(
+            "click",
+            closeShiftModalWindow
+        );
+
+    }
+
+
+    const cancelModalButton =
+        document.getElementById(
+            "cancelShiftModal"
+        );
+
+
+    if (cancelModalButton) {
+
+        cancelModalButton.addEventListener(
+            "click",
+            closeShiftModalWindow
+        );
+
+    }
+
 
     const modal =
-        document.getElementById("shiftModal");
-
-    const openButton =
-        document.getElementById("openShiftModal");
-
-    const emptyButton =
         document.getElementById(
-            "emptyCreateShiftButton"
+            "shiftModal"
         );
 
-    const closeButton =
-        document.getElementById("closeShiftModal");
 
-    const cancelButton =
-        document.getElementById("cancelShiftModal");
+    if (modal) {
 
-    if (!modal) return;
+        modal.addEventListener(
+            "click",
+            event => {
 
+                if (
+                    event.target === modal
+                ) {
 
-    const openModal = () => {
+                    closeShiftModalWindow();
 
-        resetShiftForm();
+                }
 
-        loadStationsIntoShiftSelect();
-
-        modal.classList.remove("hidden");
-
-        document.body.classList.add(
-            "shift-modal-open"
-        );
-
-        setTimeout(() => {
-
-            const input =
-                document.getElementById("shiftName");
-
-            if (input) {
-                input.focus();
             }
-
-        }, 100);
-
-    };
-
-
-    const closeModal = () => {
-
-        modal.classList.add("hidden");
-
-        document.body.classList.remove(
-            "shift-modal-open"
-        );
-
-    };
-
-
-    if (openButton) {
-
-        openButton.addEventListener(
-            "click",
-            openModal
         );
 
     }
 
 
-    if (emptyButton) {
+    const form =
+        document.getElementById(
+            "createShiftForm"
+        );
 
-        emptyButton.addEventListener(
-            "click",
-            openModal
+
+    if (form) {
+
+        form.addEventListener(
+            "submit",
+            handleCreateShift
         );
 
     }
 
 
-    if (closeButton) {
+    const stationSelect =
+        document.getElementById(
+            "shiftStation"
+        );
 
-        closeButton.addEventListener(
-            "click",
-            closeModal
+
+    if (stationSelect) {
+
+        stationSelect.addEventListener(
+            "change",
+            handleStationChange
         );
 
     }
 
 
-    if (cancelButton) {
+    const search =
+        document.getElementById(
+            "shiftSearch"
+        );
 
-        cancelButton.addEventListener(
-            "click",
-            closeModal
+
+    if (search) {
+
+        search.addEventListener(
+            "input",
+            event => {
+
+                ShiftsState.searchTerm =
+                    event.target.value;
+
+                renderShiftTable();
+
+            }
         );
 
     }
 
 
-    const overlay =
-        modal.querySelector(
-            ".shift-modal-overlay"
+    const statusFilter =
+        document.getElementById(
+            "shiftStatusFilter"
         );
 
-    if (overlay) {
 
-        overlay.addEventListener(
-            "click",
-            closeModal
+    if (statusFilter) {
+
+        statusFilter.addEventListener(
+            "change",
+            renderShiftTable
         );
 
     }
 
 
+    const stationFilter =
+        document.getElementById(
+            "shiftStationFilter"
+        );
+
+
+    if (stationFilter) {
+
+        stationFilter.addEventListener(
+            "change",
+            renderShiftTable
+        );
+
+    }
+
+
+    const refresh =
+        document.getElementById(
+            "refreshShiftsBtn"
+        );
+
+
+    if (refresh) {
+
+        refresh.addEventListener(
+            "click",
+            async () => {
+
+                refresh.disabled =
+                    true;
+
+                refresh.textContent =
+                    "Refreshing...";
+
+
+                try {
+
+                    await loadShiftData();
+
+                    showToast(
+                        "Shift data refreshed.",
+                        "success"
+                    );
+
+                }
+                catch (error) {
+
+                    console.error(
+                        "REFRESH ERROR:",
+                        error
+                    );
+
+                }
+                finally {
+
+                    refresh.disabled =
+                        false;
+
+                    refresh.innerHTML =
+                        "↻ Refresh";
+
+                }
+
+            }
+        );
+
+    }
+
+
+    /*
+     * Event delegation for shift actions
+     */
+    document.addEventListener(
+        "click",
+        handleShiftActionClick
+    );
+
+
+    /*
+     * Escape closes modal
+     */
     document.addEventListener(
         "keydown",
         event => {
 
             if (
-                event.key === "Escape" &&
-                !modal.classList.contains("hidden")
+                event.key === "Escape"
             ) {
 
-                closeModal();
+                closeShiftModalWindow();
 
             }
 
@@ -1101,85 +2730,237 @@ function setupShiftModal() {
 }
 
 
-/* ==========================================
-   RESET FORM
-========================================== */
+/* =========================================================
+   SHIFT ACTION CLICK
+========================================================= */
 
-function resetShiftForm() {
+async function handleShiftActionClick(
+    event
+) {
 
-    const form =
-        document.getElementById("shiftForm");
-
-    if (form) {
-        form.reset();
-    }
-
-
-    const staffList =
-        document.getElementById(
-            "staffCheckboxList"
+    const button =
+        event.target.closest(
+            "[data-shift-action]"
         );
 
-    if (staffList) {
 
-        staffList.innerHTML = `
+    if (!button) {
 
-            <div class="shift-staff-placeholder">
-
-                <svg viewBox="0 0 24 24">
-                    <circle
-                        cx="12"
-                        cy="8"
-                        r="3"
-                    />
-                    <path
-                        d="M5 20c0-4 3-6 7-6s7 2 7 6"
-                    />
-                </svg>
-
-                <span>
-                    Select a station first
-                </span>
-
-            </div>
-
-        `;
+        return;
 
     }
 
 
-    updateSelectedStaffCount();
+    const action =
+        button.dataset.shiftAction;
 
 
-    const message =
-        document.getElementById(
-            "shiftMessage"
+    const shiftId =
+        button.dataset.shiftId;
+
+
+    if (
+        !action ||
+        !shiftId
+    ) {
+
+        return;
+
+    }
+
+
+    if (
+        action === "open"
+    ) {
+
+        await openExistingShift(
+            shiftId
         );
 
-    if (message) {
+        return;
 
-        message.textContent = "";
+    }
 
-        message.className =
-            "shift-form-message hidden";
+
+    if (
+        action === "close"
+    ) {
+
+        await closeExistingShift(
+            shiftId
+        );
+
+        return;
+
+    }
+
+
+    if (
+        action === "cancel"
+    ) {
+
+        await cancelExistingShift(
+            shiftId
+        );
+
+        return;
+
+    }
+
+
+    if (
+        action === "attendants"
+    ) {
+
+        await viewShiftAttendants(
+            shiftId
+        );
 
     }
 
 }
 
 
-/* ==========================================
-   LOAD STATIONS
-========================================== */
+/* =========================================================
+   OPEN CREATE SHIFT MODAL
+========================================================= */
 
-function loadStationsIntoShiftSelect() {
+function openShiftModal() {
 
-    const select =
+    const modal =
+        document.getElementById(
+            "shiftModal"
+        );
+
+
+    if (!modal) {
+
+        return;
+
+    }
+
+
+    const form =
+        document.getElementById(
+            "createShiftForm"
+        );
+
+
+    if (form) {
+
+        form.reset();
+
+    }
+
+
+    const message =
+        document.getElementById(
+            "shiftFormMessage"
+        );
+
+
+    hideFormMessage(
+        message
+    );
+
+
+    populateCreateShiftStations();
+
+    setDefaultShiftDate();
+
+
+    const stationSelect =
         document.getElementById(
             "shiftStation"
         );
 
-    if (!select) return;
+
+    /*
+     * If only one station is available,
+     * automatically select it.
+     */
+
+    if (
+        stationSelect &&
+        stationSelect.options.length === 2
+    ) {
+
+        stationSelect.selectedIndex =
+            1;
+
+        handleStationChange();
+
+    }
+    else {
+
+        const attendants =
+            document.getElementById(
+                "shiftAttendants"
+            );
+
+        if (attendants) {
+
+            attendants.innerHTML = `
+                <p class="shift-muted">
+                    Select a station first.
+                </p>
+            `;
+
+        }
+
+    }
+
+
+    modal.classList.remove(
+        "hidden"
+    );
+
+}
+
+
+/* =========================================================
+   CLOSE MODAL
+========================================================= */
+
+function closeShiftModalWindow() {
+
+    const modal =
+        document.getElementById(
+            "shiftModal"
+        );
+
+
+    if (!modal) {
+
+        return;
+
+    }
+
+
+    modal.classList.add(
+        "hidden"
+    );
+
+}
+
+
+/* =========================================================
+   POPULATE STATION FILTER
+========================================================= */
+
+function populateStationFilters() {
+
+    const select =
+        document.getElementById(
+            "shiftStationFilter"
+        );
+
+
+    if (!select) {
+
+        return;
+
+    }
 
 
     const stations =
@@ -1187,1290 +2968,1833 @@ function loadStationsIntoShiftSelect() {
 
 
     select.innerHTML = `
-
         <option value="">
-            Select station
+            All Stations
         </option>
-
     `;
 
 
-    stations.forEach(station => {
+    stations.forEach(
+        station => {
 
-        const option =
-            document.createElement("option");
+            const option =
+                document.createElement(
+                    "option"
+                );
 
-        option.value =
-            station.id;
 
-        option.textContent =
-            station.name ||
-            "Unnamed Station";
+            option.value =
+                station.id;
 
-        select.appendChild(option);
 
-    });
+            option.textContent =
+                station.name;
+
+
+            select.appendChild(
+                option
+            );
+
+        }
+    );
 
 }
 
 
-/* ==========================================
-   STATION CHANGE
-========================================== */
+/* =========================================================
+   POPULATE CREATE SHIFT STATIONS
+========================================================= */
 
-function setupStationChange() {
+function populateCreateShiftStations() {
+
+    const select =
+        document.getElementById(
+            "shiftStation"
+        );
+
+
+    if (!select) {
+
+        return;
+
+    }
+
+
+    const stations =
+        getVisibleStations();
+
+
+    select.innerHTML = `
+        <option value="">
+            Select station
+        </option>
+    `;
+
+
+    stations.forEach(
+        station => {
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+
+            option.value =
+                station.id;
+
+
+            option.textContent =
+                station.name;
+
+
+            select.appendChild(
+                option
+            );
+
+        }
+    );
+
+}
+
+
+/* =========================================================
+   HANDLE STATION CHANGE
+========================================================= */
+
+function handleStationChange() {
 
     const stationSelect =
         document.getElementById(
             "shiftStation"
         );
 
-    if (!stationSelect) return;
 
-
-    stationSelect.addEventListener(
-        "change",
-        event => {
-
-            loadStaffForStation(
-                event.target.value
-            );
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   LOAD STAFF
-========================================== */
-
-function loadStaffForStation(stationId) {
-
-    const container =
+    const attendantsContainer =
         document.getElementById(
-            "staffCheckboxList"
+            "shiftAttendants"
         );
 
-    if (!container) return;
+
+    if (
+        !stationSelect ||
+        !attendantsContainer
+    ) {
+
+        return;
+
+    }
+
+
+    const stationId =
+        stationSelect.value;
 
 
     if (!stationId) {
 
-        resetStaffPlaceholder(
-            "Select a station first"
-        );
-
-        updateSelectedStaffCount();
-
-        return;
-
-    }
-
-
-    const staff =
-        getStaff().filter(
-            member =>
-                member.stationId ===
-                stationId
-        );
-
-
-    if (staff.length === 0) {
-
-        resetStaffPlaceholder(
-            "No staff assigned to this station"
-        );
-
-        updateSelectedStaffCount();
-
-        return;
-
-    }
-
-
-    container.innerHTML = "";
-
-
-    staff.forEach(member => {
-
-        const label =
-            document.createElement("label");
-
-        label.className =
-            "shift-staff-item";
-
-
-        const initials =
-            getInitials(
-                member.fullName ||
-                member.name ||
-                "Staff"
-            );
-
-
-        label.innerHTML = `
-
-            <input
-                type="checkbox"
-                name="assignedStaff"
-                value="${escapeHTML(member.id)}"
-            >
-
-
-            <span class="shift-staff-check">
-
-                <svg viewBox="0 0 24 24">
-                    <path d="m5 12 4 4L19 6"/>
-                </svg>
-
-            </span>
-
-
-            <span class="shift-staff-avatar">
-                ${escapeHTML(initials)}
-            </span>
-
-
-            <span class="shift-staff-info">
-
-                <strong>
-                    ${escapeHTML(
-                        member.fullName ||
-                        member.name ||
-                        "Unknown Staff"
-                    )}
-                </strong>
-
-                <small>
-                    ${escapeHTML(
-                        formatRole(
-                            member.role ||
-                            "Staff"
-                        )
-                    )}
-                </small>
-
-            </span>
-
+        attendantsContainer.innerHTML = `
+            <p class="shift-muted">
+                Select a station first.
+            </p>
         `;
 
-
-        container.appendChild(label);
-
-    });
-
-
-    container
-        .querySelectorAll(
-            'input[name="assignedStaff"]'
-        )
-        .forEach(input => {
-
-            input.addEventListener(
-                "change",
-                updateSelectedStaffCount
-            );
-
-        });
-
-
-    updateSelectedStaffCount();
-
-}
-
-
-/* ==========================================
-   STAFF PLACEHOLDER
-========================================== */
-
-function resetStaffPlaceholder(message) {
-
-    const container =
-        document.getElementById(
-            "staffCheckboxList"
-        );
-
-    if (!container) return;
-
-
-    container.innerHTML = `
-
-        <div class="shift-staff-placeholder">
-
-            <svg viewBox="0 0 24 24">
-                <circle
-                    cx="12"
-                    cy="8"
-                    r="3"
-                />
-                <path
-                    d="M5 20c0-4 3-6 7-6s7 2 7 6"
-                />
-            </svg>
-
-            <span>
-                ${escapeHTML(message)}
-            </span>
-
-        </div>
-
-    `;
-
-}
-
-
-/* ==========================================
-   STAFF COUNT
-========================================== */
-
-function updateSelectedStaffCount() {
-
-    const selected =
-        document.querySelectorAll(
-            '#staffCheckboxList input[name="assignedStaff"]:checked'
-        ).length;
-
-
-    const element =
-        document.getElementById(
-            "selectedStaffCount"
-        );
-
-
-    if (element) {
-
-        element.textContent =
-            `${selected} ${
-                selected === 1
-                    ? "selected"
-                    : "selected"
-            }`;
+        return;
 
     }
 
-}
 
-
-/* ==========================================
-   CREATE SHIFT
-========================================== */
-
-function setupShiftForm() {
-
-    const form =
-        document.getElementById(
-            "shiftForm"
-        );
-
-    if (!form) return;
-
-
-    form.addEventListener(
-        "submit",
-        event => {
-
-            event.preventDefault();
-
-
-            const formData =
-                new FormData(form);
-
-
-            const name =
+    const attendants =
+        getVisibleStaff().filter(
+            staff =>
                 String(
-                    formData.get("name") || ""
-                ).trim();
-
-
-            const stationId =
-                formData.get("stationId");
-
-
-            const startTime =
-                formData.get("startTime");
-
-
-            const endTime =
-                formData.get("endTime");
-
-
-            const assignedStaff =
-                formData.getAll(
-                    "assignedStaff"
-                );
-
-
-            const message =
-                document.getElementById(
-                    "shiftMessage"
-                );
-
-
-            if (
-                !name ||
-                !stationId ||
-                !startTime ||
-                !endTime
-            ) {
-
-                showShiftMessage(
-                    message,
-                    "Please complete all required fields.",
-                    "error"
-                );
-
-                return;
-
-            }
-
-
-            if (
-                assignedStaff.length === 0
-            ) {
-
-                showShiftMessage(
-                    message,
-                    "Please assign at least one staff member.",
-                    "error"
-                );
-
-                return;
-
-            }
-
-
-            const currentUser =
-                FuelGapUtils.getCurrentUser();
-
-
-            const station =
-                getStations().find(
-                    item =>
-                        item.id ===
-                        stationId
-                );
-
-
-            if (!station) {
-
-                showShiftMessage(
-                    message,
-                    "Selected station could not be found.",
-                    "error"
-                );
-
-                return;
-
-            }
-
-
-            const shifts =
-                getShifts();
-
-
-            const newShift = {
-
-                id:
-                    `SHIFT-${Date.now()}-${Math.floor(
-                        Math.random() * 1000
-                    )}`,
-
-                organizationId:
-                    station.organizationId ||
-                    null,
-
-                stationId,
-
-                name,
-
-                startTime,
-
-                endTime,
-
-                assignedStaff,
-
-                status:
-                    "open",
-
-                openedBy:
-                    currentUser
-                        ? currentUser.id
-                        : null,
-
-                openedByName:
-                    currentUser
-                        ? (
-                            currentUser.fullName ||
-                            currentUser.name ||
-                            "Unknown"
-                        )
-                        : "Unknown",
-
-                openedAt:
-                    new Date().toISOString(),
-
-                closedAt:
-                    null
-
-            };
-
-
-            shifts.push(newShift);
-
-
-            saveShifts(shifts);
-
-
-            showShiftMessage(
-                message,
-                "Shift created successfully.",
-                "success"
-            );
-
-
-            renderShifts();
-
-
-            const submitButton =
-                document.getElementById(
-                    "createShiftSubmit"
-                );
-
-
-            if (submitButton) {
-
-                submitButton.disabled = true;
-
-                submitButton.innerHTML = `
-                    <span>Shift Created ✓</span>
-                `;
-
-            }
-
-
-            setTimeout(() => {
-
-                const modal =
-                    document.getElementById(
-                        "shiftModal"
-                    );
-
-                if (modal) {
-
-                    modal.classList.add(
-                        "hidden"
-                    );
-
-                }
-
-
-                document.body.classList.remove(
-                    "shift-modal-open"
-                );
-
-
-                resetShiftForm();
-
-
-                if (submitButton) {
-
-                    submitButton.disabled =
-                        false;
-
-                    submitButton.innerHTML = `
-                        <span>Create Shift</span>
-                    `;
-
-                }
-
-            }, 900);
-
-        }
-    );
-
-}
-
-
-/* ==========================================
-   RENDER SHIFTS
-========================================== */
-
-function renderShifts(searchTerm = null) {
-
-    const shifts =
-        getVisibleShifts();
-
-    const stations =
-        getStations();
-
-    const staff =
-        getStaff();
-
-
-    const tableBody =
-        document.getElementById(
-            "shiftTableBody"
-        );
-
-    const emptyState =
-        document.getElementById(
-            "emptyShiftState"
+                    staff.station_id
+                ) ===
+                String(
+                    stationId
+                )
         );
 
 
-    if (!tableBody) return;
+    if (!attendants.length) {
 
+        attendantsContainer.innerHTML = `
+            <p class="shift-muted">
+                No active attendants are assigned to this station.
+            </p>
+        `;
 
-    if (searchTerm !== null) {
-
-        ShiftState.searchTerm =
-            searchTerm;
+        return;
 
     }
 
 
-    const search =
-        ShiftState.searchTerm
-            .toLowerCase()
-            .trim();
-
-
-    const filteredShifts =
-        shifts.filter(shift => {
-
-            const station =
-                stations.find(
-                    item =>
-                        item.id ===
-                        shift.stationId
-                );
-
-
-            const shiftName =
-                shift.name ||
-                shift.shiftName ||
-                "";
-
-
-            const stationName =
-                station
-                    ? station.name || ""
-                    : "";
-
-
-            const status =
-                shift.status ||
-                "";
-
-
-            const searchable =
-                `
-                    ${shiftName}
-                    ${stationName}
-                    ${status}
-                    ${shift.startTime || ""}
-                    ${shift.endTime || ""}
-                `
-                    .toLowerCase();
-
-
-            return searchable.includes(
-                search
-            );
-
-        });
-
-
-    tableBody.innerHTML = "";
-
-
-    if (
-        filteredShifts.length === 0
-    ) {
-
-        if (emptyState) {
-
-            emptyState.classList.remove(
-                "hidden"
-            );
-
-        }
-
-    } else {
-
-        if (emptyState) {
-
-            emptyState.classList.add(
-                "hidden"
-            );
-
-        }
-
-
-        filteredShifts
-            .sort(
-                (a, b) =>
-                    new Date(
-                        b.openedAt || 0
-                    ) -
-                    new Date(
-                        a.openedAt || 0
-                    )
-            )
-            .forEach(
-                shift => {
-
-                    const station =
-                        stations.find(
-                            item =>
-                                item.id ===
-                                shift.stationId
-                        );
-
-
-                    const assignedStaff =
-                        Array.isArray(
-                            shift.assignedStaff
-                        )
-                            ? shift.assignedStaff
-                            : [];
-
-
-                    const assignedMembers =
-                        assignedStaff
-                            .map(
-                                staffId =>
-                                    staff.find(
-                                        member =>
-                                            member.id ===
-                                            staffId
-                                    )
-                            )
-                            .filter(Boolean);
-
-
-                    const row =
-                        document.createElement(
-                            "tr"
-                        );
-
-
-                    row.innerHTML = `
-
-                        <!-- SHIFT -->
-
-                        <td>
-
-                            <div class="shift-name-cell">
-
-                                <div class="shift-name-icon">
-
-                                    <svg viewBox="0 0 24 24">
-                                        <circle
-                                            cx="12"
-                                            cy="12"
-                                            r="8"
-                                        />
-                                        <path
-                                            d="M12 8v4l3 2"
-                                        />
-                                    </svg>
-
-                                </div>
-
-
-                                <div>
-
-                                    <strong>
-                                        ${escapeHTML(
-                                            shift.name ||
-                                            shift.shiftName ||
-                                            "Unnamed Shift"
-                                        )}
-                                    </strong>
-
-                                    <small>
-                                        ${escapeHTML(
-                                            shift.id || ""
-                                        )}
-                                    </small>
-
-                                </div>
-
-                            </div>
-
-                        </td>
-
-
-                        <!-- STATION -->
-
-                        <td>
-
-                            <div class="shift-station-cell">
-
-                                <span class="station-marker">
-
-                                    <svg viewBox="0 0 24 24">
-                                        <path
-                                            d="M4 21V5l8-3 8 3v16"
-                                        />
-                                        <path
-                                            d="M8 21v-5h8v5"
-                                        />
-                                        <path
-                                            d="M9 8h6"
-                                        />
-                                    </svg>
-
-                                </span>
-
-
-                                <span>
-
-                                    ${escapeHTML(
-                                        station
-                                            ? station.name
-                                            : "Unknown Station"
-                                    )}
-
-                                </span>
-
-                            </div>
-
-                        </td>
-
-
-                        <!-- TIME -->
-
-                        <td>
-
-                            <div class="shift-time-cell">
-
-                                <strong>
-                                    ${escapeHTML(
-                                        shift.startTime ||
-                                        "--:--"
-                                    )}
-                                    <span>→</span>
-                                    ${escapeHTML(
-                                        shift.endTime ||
-                                        "--:--"
-                                    )}
-                                </strong>
-
-                                <small>
-                                    Shift hours
-                                </small>
-
-                            </div>
-
-                        </td>
-
-
-                        <!-- STAFF -->
-
-                        <td>
-
-                            <div class="shift-staff-summary">
-
-                                <div class="shift-avatar-stack">
-
-                                    ${renderStaffAvatars(
-                                        assignedMembers
-                                    )}
-
-                                </div>
-
-
-                                <span class="staff-total">
-
-                                    ${
-                                        assignedMembers.length
-                                    }
-
-                                    ${
-                                        assignedMembers.length === 1
-                                            ? "staff"
-                                            : "staff"
-                                    }
-
-                                </span>
-
-                            </div>
-
-                        </td>
-
-
-                        <!-- STATUS -->
-
-                        <td>
-
-                            ${getShiftStatusBadge(
-                                shift.status
-                            )}
-
-                        </td>
-
-
-                        <!-- OPENED -->
-
-                        <td>
-
-                            <div class="shift-opened-cell">
-
-                                <strong>
-                                    ${formatShiftDateShort(
-                                        shift.openedAt
-                                    )}
-                                </strong>
-
-                                <small>
-                                    ${formatShiftTime(
-                                        shift.openedAt
-                                    )}
-                                </small>
-
-                            </div>
-
-                        </td>
-
-
-                        <!-- ACTION -->
-
-                        <td class="shift-action-cell">
+    attendantsContainer.innerHTML =
+        attendants
+            .map(
+                staff => `
+
+                    <label class="shift-checkbox">
+
+                        <input
+                            type="checkbox"
+                            name="shift_attendants"
+                            value="${escapeHtml(
+                                staff.id
+                            )}"
+                        >
+
+                        <span>
+
+                            <strong>
+                                ${escapeHtml(
+                                    staff.full_name
+                                )}
+                            </strong>
 
                             ${
-                                shift.status === "open"
-
-                                ? `
-
-                                    <button
-                                        type="button"
-                                        class="shift-close-button close-shift-btn"
-                                        data-id="${escapeHTML(
-                                            shift.id
-                                        )}"
-                                    >
-
-                                        <svg viewBox="0 0 24 24">
-                                            <path
-                                                d="M6 4h12v16H6z"
-                                            />
-                                            <path
-                                                d="m9 12 2 2 4-4"
-                                            />
-                                        </svg>
-
-                                        Close Shift
-
-                                    </button>
-
-                                `
-
-                                : `
-
-                                    <span class="shift-completed">
-
-                                        <svg viewBox="0 0 24 24">
-                                            <path
-                                                d="m5 12 4 4L19 6"
-                                            />
-                                        </svg>
-
-                                        Completed
-
-                                    </span>
-
-                                `
+                                staff.email
+                                    ? `
+                                        <small>
+                                            ${escapeHtml(
+                                                staff.email
+                                            )}
+                                        </small>
+                                    `
+                                    : ""
                             }
 
-                        </td>
+                        </span>
 
-                    `;
+                    </label>
 
-
-                    tableBody.appendChild(row);
-
-                }
-            );
-
-    }
-
-
-    updateShiftStats(shifts);
-
-    setupCloseShiftButtons();
-
-}
-
-
-/* ==========================================
-   STAFF AVATARS
-========================================== */
-
-function renderStaffAvatars(members) {
-
-    const maxVisible = 3;
-
-    const visible =
-        members.slice(
-            0,
-            maxVisible
-        );
-
-
-    let html =
-        visible
-            .map(member => `
-
-                <span
-                    class="shift-avatar"
-                    title="${escapeHTML(
-                        member.fullName ||
-                        member.name ||
-                        "Staff"
-                    )}"
-                >
-                    ${escapeHTML(
-                        getInitials(
-                            member.fullName ||
-                            member.name ||
-                            "Staff"
-                        )
-                    )}
-                </span>
-
-            `)
+                `
+            )
             .join("");
 
-
-    if (members.length > maxVisible) {
-
-        html += `
-
-            <span class="shift-avatar shift-avatar-more">
-
-                +${members.length - maxVisible}
-
-            </span>
-
-        `;
-
-    }
-
-
-    return html || `
-
-        <span class="shift-avatar shift-avatar-empty">
-            —
-        </span>
-
-    `;
-
 }
 
 
-/* ==========================================
-   STATUS BADGE
-========================================== */
+/* =========================================================
+   DEFAULT SHIFT DATE
+========================================================= */
 
-function getShiftStatusBadge(status) {
+function setDefaultShiftDate() {
 
-    const normalized =
-        String(
-            status || "closed"
-        )
-            .toLowerCase()
-            .trim();
-
-
-    const isOpen =
-        normalized === "open" ||
-        normalized === "active";
-
-
-    return `
-
-        <span
-            class="
-                shift-status-badge
-                ${
-                    isOpen
-                        ? "shift-status-open"
-                        : "shift-status-closed"
-                }
-            "
-        >
-
-            <span class="shift-status-dot"></span>
-
-            ${
-                isOpen
-                    ? "Active"
-                    : "Closed"
-            }
-
-        </span>
-
-    `;
-
-}
-
-
-/* ==========================================
-   CLOSE SHIFT BUTTONS
-========================================== */
-
-function setupCloseShiftButtons() {
-
-    const buttons =
-        document.querySelectorAll(
-            ".close-shift-btn"
+    const input =
+        document.getElementById(
+            "shiftDate"
         );
 
 
-    buttons.forEach(button => {
+    if (!input) {
 
-        button.addEventListener(
-            "click",
-            () => {
-
-                closeShift(
-                    button.dataset.id
-                );
-
-            }
-        );
-
-    });
-
-}
-
-
-/* ==========================================
-   CLOSE SHIFT
-========================================== */
-
-function closeShift(shiftId) {
-
-    const shifts =
-        getShifts();
-
-
-    const shift =
-        shifts.find(
-            item =>
-                item.id ===
-                shiftId
-        );
-
-
-    if (!shift) {
         return;
+
     }
+
+
+    const today =
+        new Date();
+
+
+    const year =
+        today.getFullYear();
+
+
+    const month =
+        String(
+            today.getMonth() + 1
+        )
+            .padStart(
+                2,
+                "0"
+            );
+
+
+    const day =
+        String(
+            today.getDate()
+        )
+            .padStart(
+                2,
+                "0"
+            );
+
+
+    input.value =
+        `${year}-${month}-${day}`;
+
+}
+
+
+/* =========================================================
+   CREATE SHIFT
+========================================================= */
+
+async function handleCreateShift(
+    event
+) {
+
+    event.preventDefault();
+
+
+    const form =
+        event.currentTarget;
+
+
+    const nameInput =
+        document.getElementById(
+            "shiftName"
+        );
+
+
+    const stationInput =
+        document.getElementById(
+            "shiftStation"
+        );
+
+
+    const dateInput =
+        document.getElementById(
+            "shiftDate"
+        );
+
+
+    const startInput =
+        document.getElementById(
+            "shiftStartTime"
+        );
+
+
+    const saveButton =
+        document.getElementById(
+            "saveShiftBtn"
+        );
+
+
+    const message =
+        document.getElementById(
+            "shiftFormMessage"
+        );
 
 
     const shiftName =
-        shift.name ||
-        shift.shiftName ||
-        "this shift";
+        nameInput?.value.trim();
+
+
+    const stationId =
+        stationInput?.value;
+
+
+    const shiftDate =
+        dateInput?.value;
+
+
+    const startTime =
+        startInput?.value;
+
+
+    /*
+     * Validation
+     */
+
+    if (!shiftName) {
+
+        showFormMessage(
+            message,
+            "Please enter a shift name.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    if (!stationId) {
+
+        showFormMessage(
+            message,
+            "Please select a station.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    if (!shiftDate) {
+
+        showFormMessage(
+            message,
+            "Please select a shift date.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    if (!startTime) {
+
+        showFormMessage(
+            message,
+            "Please select a start time.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    /*
+     * Check station permission
+     */
+
+    const allowedStation =
+        getVisibleStations().some(
+            station =>
+                String(
+                    station.id
+                ) ===
+                String(
+                    stationId
+                )
+        );
+
+
+    if (!allowedStation) {
+
+        showFormMessage(
+            message,
+            "You do not have permission to create a shift for this station.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    /*
+     * Selected attendants
+     */
+
+    const selectedAttendants =
+        Array.from(
+            document.querySelectorAll(
+                'input[name="shift_attendants"]:checked'
+            )
+        )
+            .map(
+                checkbox =>
+                    checkbox.value
+            )
+            .filter(Boolean);
+
+
+    /*
+     * Loading
+     */
+
+    if (saveButton) {
+
+        saveButton.disabled =
+            true;
+
+        saveButton.textContent =
+            "Creating...";
+
+    }
+
+
+    hideFormMessage(
+        message
+    );
+
+
+    try {
+
+        /*
+         * Backend createShift expects:
+         *
+         * station_id
+         * shift_name
+         * shift_date
+         * start_time
+         */
+
+        const payload = {
+
+            station_id:
+                stationId,
+
+            shift_name:
+                shiftName,
+
+            shift_date:
+                shiftDate,
+
+            start_time:
+                startTime
+
+        };
+
+
+        const response =
+            await shiftApiRequest(
+                SHIFT_API,
+                {
+
+                    method:
+                        "POST",
+
+                    body:
+                        JSON.stringify(
+                            payload
+                        )
+
+                }
+            );
+
+
+        if (!response) {
+
+            return;
+
+        }
+
+
+        if (
+            !response.success
+        ) {
+
+            throw new Error(
+                response.message ||
+                "Unable to create shift."
+            );
+
+        }
+
+
+        /*
+         * Get newly created shift
+         */
+
+        const createdShift =
+            response?.data?.shift ||
+            response?.shift ||
+            null;
+
+
+        const createdShiftId =
+            createdShift?.id ||
+            response?.data?.id ||
+            response?.id ||
+            null;
+
+
+        /*
+         * Assign attendants AFTER shift creation.
+         *
+         * This uses the new:
+         *
+         * POST /api/shifts/:id/attendants
+         */
+
+        if (
+            createdShiftId &&
+            selectedAttendants.length
+        ) {
+
+            try {
+
+                const attendantResponse =
+                    await shiftApiRequest(
+                        `${SHIFT_API}/${encodeURIComponent(
+                            createdShiftId
+                        )}/attendants`,
+                        {
+
+                            method:
+                                "POST",
+
+                            body:
+                                JSON.stringify({
+
+                                    attendant_ids:
+                                        selectedAttendants
+
+                                })
+
+                        }
+                    );
+
+
+                if (
+                    !attendantResponse?.success
+                ) {
+
+                    throw new Error(
+                        attendantResponse?.message ||
+                        "Shift was created, but attendants could not be assigned."
+                    );
+
+                }
+
+            }
+            catch (
+                attendantError
+            ) {
+
+                console.error(
+                    "ATTENDANT ASSIGNMENT ERROR:",
+                    attendantError
+                );
+
+
+                showToast(
+                    "Shift created, but attendants could not be assigned.",
+                    "error"
+                );
+
+            }
+
+        }
+
+
+        /*
+         * Success
+         */
+
+        showToast(
+            "Shift created successfully.",
+            "success"
+        );
+
+
+        form.reset();
+
+
+        setDefaultShiftDate();
+
+
+        closeShiftModalWindow();
+
+
+        await loadShiftData();
+
+    }
+    catch (error) {
+
+        console.error(
+            "CREATE SHIFT ERROR:",
+            error
+        );
+
+
+        showFormMessage(
+            message,
+            error.message ||
+            "Unable to create shift.",
+            "error"
+        );
+
+    }
+    finally {
+
+        if (saveButton) {
+
+            saveButton.disabled =
+                false;
+
+            saveButton.textContent =
+                "Create Shift";
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   OPEN EXISTING SHIFT
+========================================================= */
+
+async function openExistingShift(
+    shiftId
+) {
+
+    if (!shiftId) {
+
+        return;
+
+    }
 
 
     const confirmed =
-        confirm(
-            `Close "${shiftName}"?\n\nThis will mark the shift as completed.`
+        window.confirm(
+            "Are you sure you want to open this shift?"
         );
 
 
     if (!confirmed) {
+
         return;
+
     }
 
 
-    shift.status =
-        "closed";
+    try {
+
+        const response =
+            await shiftApiRequest(
+                `${SHIFT_API}/${encodeURIComponent(
+                    shiftId
+                )}/open`,
+                {
+
+                    method:
+                        "PATCH"
+
+                }
+            );
 
 
-    shift.closedAt =
-        new Date().toISOString();
+        if (!response) {
+
+            return;
+
+        }
 
 
-    saveShifts(shifts);
+        if (
+            !response.success
+        ) {
 
-
-    renderShifts();
-
-}
-
-
-/* ==========================================
-   SEARCH
-========================================== */
-
-function setupShiftSearch() {
-
-    const searchInput =
-        document.getElementById(
-            "shiftSearch"
-        );
-
-
-    if (!searchInput) return;
-
-
-    searchInput.addEventListener(
-        "input",
-        event => {
-
-            renderShifts(
-                event.target.value
+            throw new Error(
+                response.message ||
+                "Unable to open shift."
             );
 
         }
-    );
-
-}
 
 
-/* ==========================================
-   CLEAR SEARCH
-========================================== */
-
-function setupClearSearch() {
-
-    const button =
-        document.getElementById(
-            "clearShiftSearch"
+        showToast(
+            "Shift opened successfully.",
+            "success"
         );
 
 
-    if (!button) return;
+        await loadShiftData();
+
+    }
+    catch (error) {
+
+        console.error(
+            "OPEN SHIFT ERROR:",
+            error
+        );
 
 
-    button.addEventListener(
-        "click",
-        () => {
+        showToast(
+            error.message ||
+            "Unable to open shift.",
+            "error"
+        );
 
-            const input =
-                document.getElementById(
-                    "shiftSearch"
-                );
-
-
-            if (input) {
-                input.value = "";
-            }
-
-
-            ShiftState.searchTerm = "";
-
-
-            renderShifts();
-
-        }
-    );
+    }
 
 }
 
 
-/* ==========================================
-   UPDATE STATS
-========================================== */
+/* =========================================================
+   CLOSE EXISTING SHIFT
+========================================================= */
 
-function updateShiftStats(shifts) {
+async function closeExistingShift(
+    shiftId
+) {
+
+    if (!shiftId) {
+
+        return;
+
+    }
+
+
+    const confirmed =
+        window.confirm(
+            "Are you sure you want to close this shift?"
+        );
+
+
+    if (!confirmed) {
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await shiftApiRequest(
+                `${SHIFT_API}/${encodeURIComponent(
+                    shiftId
+                )}/close`,
+                {
+
+                    method:
+                        "PATCH"
+
+                }
+            );
+
+
+        if (!response) {
+
+            return;
+
+        }
+
+
+        if (
+            !response.success
+        ) {
+
+            throw new Error(
+                response.message ||
+                "Unable to close shift."
+            );
+
+        }
+
+
+        showToast(
+            "Shift closed successfully.",
+            "success"
+        );
+
+
+        await loadShiftData();
+
+    }
+    catch (error) {
+
+        console.error(
+            "CLOSE SHIFT ERROR:",
+            error
+        );
+
+
+        showToast(
+            error.message ||
+            "Unable to close shift.",
+            "error"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   CANCEL EXISTING SHIFT
+========================================================= */
+
+async function cancelExistingShift(
+    shiftId
+) {
+
+    if (!shiftId) {
+
+        return;
+
+    }
+
+
+    const confirmed =
+        window.confirm(
+            "Are you sure you want to cancel this shift?"
+        );
+
+
+    if (!confirmed) {
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await shiftApiRequest(
+                `${SHIFT_API}/${encodeURIComponent(
+                    shiftId
+                )}/cancel`,
+                {
+
+                    method:
+                        "PATCH"
+
+                }
+            );
+
+
+        if (!response) {
+
+            return;
+
+        }
+
+
+        if (
+            !response.success
+        ) {
+
+            throw new Error(
+                response.message ||
+                "Unable to cancel shift."
+            );
+
+        }
+
+
+        showToast(
+            "Shift cancelled successfully.",
+            "success"
+        );
+
+
+        await loadShiftData();
+
+    }
+    catch (error) {
+
+        console.error(
+            "CANCEL SHIFT ERROR:",
+            error
+        );
+
+
+        showToast(
+            error.message ||
+            "Unable to cancel shift.",
+            "error"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   VIEW SHIFT ATTENDANTS
+========================================================= */
+
+async function viewShiftAttendants(
+    shiftId
+) {
+
+    if (!shiftId) {
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await shiftApiRequest(
+                `${SHIFT_API}/${encodeURIComponent(
+                    shiftId
+                )}/attendants`
+            );
+
+
+        if (!response?.success) {
+
+            throw new Error(
+                response?.message ||
+                "Unable to load shift attendants."
+            );
+
+        }
+
+
+        const attendants =
+            response?.data?.attendants ||
+            [];
+
+
+        if (!attendants.length) {
+
+            showToast(
+                "No attendants are assigned to this shift.",
+                "success"
+            );
+
+            return;
+
+        }
+
+
+        const names =
+            attendants
+                .map(
+                    attendant =>
+                        attendant.full_name ||
+                        attendant.name ||
+                        attendant.email ||
+                        "Unnamed Attendant"
+                )
+                .join("\n");
+
+
+        window.alert(
+            `Assigned Attendants:\n\n${names}`
+        );
+
+    }
+    catch (error) {
+
+        console.error(
+            "VIEW ATTENDANTS ERROR:",
+            error
+        );
+
+
+        showToast(
+            error.message ||
+            "Unable to load shift attendants.",
+            "error"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   RENDER STATISTICS
+========================================================= */
+
+function renderShiftStatistics() {
+
+    const container =
+        document.getElementById(
+            "shiftStats"
+        );
+
+
+    if (!container) {
+
+        return;
+
+    }
+
+
+    const shifts =
+        getVisibleShiftRecords();
+
 
     const total =
         shifts.length;
 
 
+    const scheduled =
+        shifts.filter(
+            shift =>
+                shift.status ===
+                "scheduled"
+        ).length;
+
+
     const open =
         shifts.filter(
             shift =>
-                [
-                    "open",
-                    "active"
-                ].includes(
-                    String(
-                        shift.status || ""
-                    ).toLowerCase()
-                )
+                shift.status ===
+                "open"
         ).length;
 
 
     const closed =
         shifts.filter(
             shift =>
-                String(
-                    shift.status || ""
-                ).toLowerCase() ===
+                shift.status ===
                 "closed"
         ).length;
 
 
-    const assignedStaff =
-        new Set(
-            shifts.flatMap(
+    const cancelled =
+        shifts.filter(
+            shift =>
+                shift.status ===
+                "cancelled"
+        ).length;
+
+
+    const cards =
+        container.querySelectorAll(
+            ".shift-stat-card strong"
+        );
+
+
+    /*
+     * Total
+     */
+    if (cards[0]) {
+
+        cards[0].textContent =
+            total;
+
+    }
+
+
+    /*
+     * Open
+     */
+    if (cards[1]) {
+
+        cards[1].textContent =
+            open;
+
+    }
+
+
+    /*
+     * Closed
+     */
+    if (cards[2]) {
+
+        cards[2].textContent =
+            closed;
+
+    }
+
+
+    /*
+     * Cancelled
+     */
+    if (cards[3]) {
+
+        cards[3].textContent =
+            cancelled;
+
+    }
+
+}
+
+
+/* =========================================================
+   GET VISIBLE SHIFT RECORDS
+========================================================= */
+
+function getVisibleShiftRecords() {
+
+    const role =
+        getCurrentUserRole();
+
+
+    let shifts =
+        [
+            ...ShiftsState.shifts
+        ];
+
+
+    if (
+        role === "manager" ||
+        role === "attendant"
+    ) {
+
+        const stationId =
+            getCurrentUserStationId();
+
+
+        if (!stationId) {
+
+            return [];
+
+        }
+
+
+        shifts =
+            shifts.filter(
                 shift =>
-                    Array.isArray(
-                        shift.assignedStaff
+                    String(
+                        shift.station_id
+                    ) ===
+                    String(
+                        stationId
                     )
-                        ? shift.assignedStaff
-                        : []
+            );
+
+    }
+
+
+    return shifts;
+
+}
+
+
+/* =========================================================
+   RENDER SHIFT TABLE
+========================================================= */
+
+function renderShiftTable() {
+
+    applyShiftFilters();
+
+
+    const tbody =
+        document.getElementById(
+            "shiftTableBody"
+        );
+
+
+    if (!tbody) {
+
+        return;
+
+    }
+
+
+    let shifts =
+        [
+            ...ShiftsState.filteredShifts
+        ];
+
+
+    /*
+     * Status filter
+     */
+
+    const statusFilter =
+        document.getElementById(
+            "shiftStatusFilter"
+        )?.value ||
+        "";
+
+
+    if (statusFilter) {
+
+        shifts =
+            shifts.filter(
+                shift =>
+                    shift.status ===
+                    statusFilter
+            );
+
+    }
+
+
+    /*
+     * Station filter
+     */
+
+    const stationFilter =
+        document.getElementById(
+            "shiftStationFilter"
+        )?.value ||
+        "";
+
+
+    if (stationFilter) {
+
+        shifts =
+            shifts.filter(
+                shift =>
+                    String(
+                        shift.station_id
+                    ) ===
+                    String(
+                        stationFilter
+                    )
+            );
+
+    }
+
+
+    /*
+     * Empty
+     */
+
+    if (!shifts.length) {
+
+        tbody.innerHTML = `
+
+            <tr>
+
+                <td
+                    colspan="7"
+                    class="shift-empty"
+                >
+
+                    <div class="shift-empty-icon">
+                        ↔
+                    </div>
+
+                    <h3>
+                        No shifts found
+                    </h3>
+
+                    <p>
+                        There are no shift records matching your filters.
+                    </p>
+
+                </td>
+
+            </tr>
+
+        `;
+
+        return;
+
+    }
+
+
+    /*
+     * Latest first
+     */
+
+    shifts.sort(
+        (a, b) => {
+
+            const dateA =
+                `${a.shift_date || ""} ${
+                    a.shift_time || ""
+                }`;
+
+
+            const dateB =
+                `${b.shift_date || ""} ${
+                    b.shift_time || ""
+                }`;
+
+
+            return dateB.localeCompare(
+                dateA
+            );
+
+        }
+    );
+
+
+    tbody.innerHTML =
+        shifts
+            .map(
+                renderShiftRow
             )
-        ).size;
+            .join("");
+
+}
 
 
-    setText(
-        "totalShifts",
-        total
-    );
+/* =========================================================
+   RENDER SHIFT ROW
+========================================================= */
+
+function renderShiftRow(
+    shift
+) {
+
+    const stationName =
+        getStationName(
+            shift.station_id
+        );
 
 
-    setText(
-        "openShifts",
-        open
-    );
+    const status =
+        normalizeStatus(
+            shift.status
+        );
 
 
-    setText(
-        "closedShifts",
-        closed
-    );
+    const role =
+        getCurrentUserRole();
 
 
-    setText(
-        "assignedStaffCount",
-        assignedStaff
-    );
+    const canManage =
+        [
+            "owner",
+            "admin",
+            "manager"
+        ].includes(
+            role
+        );
 
 
-    setText(
-        "shiftRecordCount",
-        `${total} ${
-            total === 1
-                ? "shift"
-                : "shifts"
-        }`
+    let actions =
+        `
+            <span class="shift-secondary">
+                —
+            </span>
+        `;
+
+
+    /*
+     * Scheduled:
+     * Open + Cancel
+     */
+
+    if (
+        canManage &&
+        status === "scheduled"
+    ) {
+
+        actions = `
+
+            <button
+                type="button"
+                class="shift-btn shift-btn-sm shift-btn-success"
+                data-shift-action="open"
+                data-shift-id="${escapeHtml(
+                    shift.id
+                )}"
+            >
+                Open
+            </button>
+
+
+            <button
+                type="button"
+                class="shift-btn shift-btn-sm shift-btn-danger"
+                data-shift-action="cancel"
+                data-shift-id="${escapeHtml(
+                    shift.id
+                )}"
+            >
+                Cancel
+            </button>
+
+        `;
+
+    }
+
+
+    /*
+     * Open:
+     * Close + View Attendants
+     */
+
+    else if (
+        canManage &&
+        status === "open"
+    ) {
+
+        actions = `
+
+            <button
+                type="button"
+                class="shift-btn shift-btn-sm shift-btn-success"
+                data-shift-action="close"
+                data-shift-id="${escapeHtml(
+                    shift.id
+                )}"
+            >
+                Close
+            </button>
+
+
+            <button
+                type="button"
+                class="shift-btn shift-btn-sm shift-btn-secondary"
+                data-shift-action="attendants"
+                data-shift-id="${escapeHtml(
+                    shift.id
+                )}"
+            >
+                Attendants
+            </button>
+
+        `;
+
+    }
+
+
+    /*
+     * Closed / Cancelled
+     */
+
+    else if (
+        status === "closed" ||
+        status === "cancelled"
+    ) {
+
+        actions = `
+
+            <button
+                type="button"
+                class="shift-btn shift-btn-sm shift-btn-secondary"
+                data-shift-action="attendants"
+                data-shift-id="${escapeHtml(
+                    shift.id
+                )}"
+            >
+                Attendants
+            </button>
+
+        `;
+
+    }
+
+
+    return `
+
+        <tr>
+
+            <td>
+
+                <div class="shift-primary">
+
+                    ${escapeHtml(
+                        shift.shift_name
+                    )}
+
+                </div>
+
+                <span class="shift-secondary">
+
+                    ${escapeHtml(
+                        String(
+                            shift.id || ""
+                        ).slice(0, 18)
+                    )}
+
+                </span>
+
+            </td>
+
+
+            <td>
+
+                ${escapeHtml(
+                    stationName
+                )}
+
+            </td>
+
+
+            <td>
+
+                ${escapeHtml(
+                    formatDate(
+                        shift.shift_date
+                    )
+                )}
+
+            </td>
+
+
+            <td>
+
+                ${escapeHtml(
+                    formatTime(
+                        shift.shift_time
+                    )
+                )}
+
+            </td>
+
+
+            <td>
+
+                ${escapeHtml(
+                    formatTime(
+                        shift.end_shift
+                    )
+                )}
+
+            </td>
+
+
+            <td>
+
+                <span
+                    class="shift-status shift-status-${escapeHtml(
+                        status
+                    )}"
+                >
+
+                    ${escapeHtml(
+                        capitalizeFirst(
+                            status
+                        )
+                    )}
+
+                </span>
+
+            </td>
+
+
+            <td>
+
+                <div class="shift-actions">
+
+                    ${actions}
+
+                </div>
+
+            </td>
+
+        </tr>
+
+    `;
+
+}
+
+
+/* =========================================================
+   GET STATION NAME
+========================================================= */
+
+function getStationName(
+    stationId
+) {
+
+    const station =
+        ShiftsState.stations.find(
+            item =>
+                String(
+                    item.id
+                ) ===
+                String(
+                    stationId
+                )
+        );
+
+
+    return (
+        station?.name ||
+        "Unknown Station"
     );
 
 }
 
 
-/* ==========================================
-   SHOW MESSAGE
-========================================== */
+/* =========================================================
+   NORMALIZE STATUS
+========================================================= */
 
-function showShiftMessage(
+function normalizeStatus(
+    status
+) {
+
+    return String(
+        status ||
+        "scheduled"
+    )
+        .toLowerCase()
+        .trim();
+
+}
+
+
+/* =========================================================
+   FORMAT DATE
+========================================================= */
+
+function formatDate(
+    value
+) {
+
+    if (!value) {
+
+        return "—";
+
+    }
+
+
+    const date =
+        new Date(
+            `${value}T00:00:00`
+        );
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return value;
+
+    }
+
+
+    return date.toLocaleDateString(
+        "en-NG",
+        {
+
+            year:
+                "numeric",
+
+            month:
+                "short",
+
+            day:
+                "numeric"
+
+        }
+    );
+
+}
+
+
+/* =========================================================
+   FORMAT TIME
+========================================================= */
+
+function formatTime(
+    value
+) {
+
+    if (!value) {
+
+        return "—";
+
+    }
+
+
+    const parts =
+        String(
+            value
+        ).split(":");
+
+
+    if (
+        parts.length < 2
+    ) {
+
+        return value;
+
+    }
+
+
+    let hour =
+        Number(
+            parts[0]
+        );
+
+
+    const minute =
+        parts[1];
+
+
+    if (
+        Number.isNaN(
+            hour
+        )
+    ) {
+
+        return value;
+
+    }
+
+
+    const period =
+        hour >= 12
+            ? "PM"
+            : "AM";
+
+
+    hour =
+        hour % 12 ||
+        12;
+
+
+    return `${hour}:${minute} ${period}`;
+
+}
+
+
+/* =========================================================
+   CAPITALIZE
+========================================================= */
+
+function capitalizeFirst(
+    value
+) {
+
+    if (!value) {
+
+        return "";
+
+    }
+
+
+    return (
+        value.charAt(0)
+            .toUpperCase() +
+        value.slice(1)
+    );
+
+}
+
+
+/* =========================================================
+   ESCAPE HTML
+========================================================= */
+
+function escapeHtml(
+    value
+) {
+
+    if (
+        value === null ||
+        value === undefined
+    ) {
+
+        return "";
+
+    }
+
+
+    return String(
+        value
+    )
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+
+}
+
+
+/* =========================================================
+   SHOW FORM MESSAGE
+========================================================= */
+
+function showFormMessage(
     element,
     message,
-    type
+    type = "error"
 ) {
 
     if (!element) {
-
-        alert(message);
 
         return;
 
@@ -2487,165 +4811,185 @@ function showShiftMessage(
 }
 
 
-/* ==========================================
-   DATE FORMAT
-========================================== */
+/* =========================================================
+   HIDE FORM MESSAGE
+========================================================= */
 
-function formatShiftDateShort(value) {
+function hideFormMessage(
+    element
+) {
 
-    if (!value) {
-        return "-";
+    if (!element) {
+
+        return;
+
     }
 
 
-    const date =
-        new Date(value);
+    element.textContent =
+        "";
 
 
-    if (
-        Number.isNaN(
-            date.getTime()
-        )
-    ) {
-        return "-";
+    element.className =
+        "shift-form-message hidden";
+
+}
+
+
+/* =========================================================
+   SET LOADING STATE
+========================================================= */
+
+function setShiftLoadingState(
+    loading
+) {
+
+    const container =
+        document.getElementById(
+            "shiftTableContainer"
+        );
+
+
+    if (!container) {
+
+        return;
+
     }
 
 
-    return date.toLocaleDateString(
-        "en-NG",
-        {
-            day: "2-digit",
-            month: "short",
-            year: "numeric"
-        }
+    if (loading) {
+
+        container.classList.add(
+            "loading"
+        );
+
+    }
+    else {
+
+        container.classList.remove(
+            "loading"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   SHOW TOAST
+========================================================= */
+
+function showToast(
+    message,
+    type = "success"
+) {
+
+    let container =
+        document.getElementById(
+            "fuelgapShiftToastContainer"
+        );
+
+
+    if (!container) {
+
+        container =
+            document.createElement(
+                "div"
+            );
+
+
+        container.id =
+            "fuelgapShiftToastContainer";
+
+
+        container.className =
+            "shift-toast-container";
+
+
+        document.body.appendChild(
+            container
+        );
+
+    }
+
+
+    const toast =
+        document.createElement(
+            "div"
+        );
+
+
+    toast.className =
+        `shift-toast shift-toast-${type}`;
+
+
+    toast.textContent =
+        message;
+
+
+    container.appendChild(
+        toast
+    );
+
+
+    setTimeout(
+        () => {
+
+            toast.style.opacity =
+                "0";
+
+            toast.style.transform =
+                "translateY(-8px)";
+
+            toast.style.transition =
+                ".25s ease";
+
+
+            setTimeout(
+                () => {
+
+                    toast.remove();
+
+                },
+                300
+            );
+
+        },
+        3500
     );
 
 }
 
 
-function formatShiftTime(value) {
+/* =========================================================
+   GLOBAL EXPORT
+========================================================= */
 
-    if (!value) {
-        return "-";
-    }
+window.FuelGapShifts = {
 
+    reload:
+        loadShiftData,
 
-    const date =
-        new Date(value);
+    refresh:
+        loadShiftData,
 
+    getState:
+        () =>
+            ShiftsState,
 
-    if (
-        Number.isNaN(
-            date.getTime()
-        )
-    ) {
-        return "-";
-    }
+    create:
+        handleCreateShift,
 
+    open:
+        openExistingShift,
 
-    return date.toLocaleTimeString(
-        "en-NG",
-        {
-            hour: "2-digit",
-            minute: "2-digit"
-        }
-    );
+    close:
+        closeExistingShift,
 
-}
+    cancel:
+        cancelExistingShift,
 
+    getAttendants:
+        viewShiftAttendants
 
-/* ==========================================
-   ROLE
-========================================== */
-
-function formatRole(role) {
-
-    if (!role) {
-        return "Staff";
-    }
-
-
-    return String(role)
-        .replace(/[_-]/g, " ")
-        .replace(
-            /\b\w/g,
-            letter =>
-                letter.toUpperCase()
-        );
-
-}
-
-
-/* ==========================================
-   INITIALS
-========================================== */
-
-function getInitials(name) {
-
-    const words =
-        String(name || "Staff")
-            .trim()
-            .split(/\s+/)
-            .filter(Boolean);
-
-
-    if (words.length === 1) {
-
-        return words[0]
-            .substring(0, 2)
-            .toUpperCase();
-
-    }
-
-
-    return (
-        words[0][0] +
-        words[words.length - 1][0]
-    ).toUpperCase();
-
-}
-
-
-/* ==========================================
-   SAFE TEXT
-========================================== */
-
-function escapeHTML(value) {
-
-    const text =
-        String(
-            value ?? ""
-        );
-
-
-    const div =
-        document.createElement("div");
-
-
-    div.textContent =
-        text;
-
-
-    return div.innerHTML;
-
-}
-
-
-/* ==========================================
-   SET TEXT
-========================================== */
-
-function setText(id, value) {
-
-    const element =
-        document.getElementById(id);
-
-
-    if (element) {
-
-        element.textContent =
-            value;
-
-    }
-
-}
+};
