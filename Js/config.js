@@ -1,7 +1,7 @@
 const FUELGAP_CONFIG = {
 
     API_BASE_URL:
-        "https://gap-backend-ywt2.onrender.com",
+        "https://gap-backend-ywt2.onrender.com/api",
 
     USE_MOCK_AUTH: false,
 
