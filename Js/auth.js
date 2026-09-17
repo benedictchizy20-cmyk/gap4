@@ -312,23 +312,24 @@ function setupRegister(form) {
                BACKEND REGISTRATION
             ================================================= */
 
-            const result =
-                await FuelGapAPI.register({
+           const result =
+         await FuelGapAPI.register({
 
-                    organization_name:
-                        companyName,
+            organization_name:
+              companyName,
 
-                    full_name:
-                        fullName,
+            full_name:
+            fullName,
 
-                    email,
+            email,
 
-                    password,
+           password,
 
-                    confirmpassword:
-                        confirmPassword
+           confirm_password:
+              confirmPassword
 
-                });
+    });
+             
 
 
             console.log(
