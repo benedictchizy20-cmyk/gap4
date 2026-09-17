@@ -8,7 +8,7 @@
 
 const FUELGAP_API_BASE_URL =
     window.FUELGAP_API_BASE_URL ||
-    "http://localhost:7000/api";
+    "https://gap-backend-ywt2.onrender.com/api";
 
 
 /* =========================================================

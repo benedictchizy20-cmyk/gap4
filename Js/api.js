@@ -2,7 +2,7 @@
    FUELGAP - API CLIENT
    COOKIE BASED AUTHENTICATION
    NO LOCALSTORAGE AUTHENTICATION
-   LOCALHOST BACKEND
+   PRODUCTION + LOCALHOST BACKEND SUPPORT
    PLATFORM + ORGANIZATION API
 ========================================================= */
 
@@ -103,11 +103,6 @@ const FuelGapAPI = {
                 data
             );
 
-            /*
-             * Only redirect when the actual authentication
-             * session is invalid.
-             */
-
             if (
                 endpoint === "/auth/me" ||
                 endpoint === "/auth/login"
@@ -124,7 +119,6 @@ const FuelGapAPI = {
                     window.location.href =
                         "/login.html";
                 }
-
             }
 
             throw new Error(
@@ -989,6 +983,211 @@ const FuelGapAPI = {
             `/gaps/${id}`,
             {
                 method: "DELETE"
+            }
+        );
+    },
+
+
+    /* =====================================================
+       ALERTS
+    ===================================================== */
+
+    async getAlerts(filters = {}) {
+
+        const params =
+            new URLSearchParams();
+
+        if (filters.station_id) {
+
+            params.append(
+                "station_id",
+                filters.station_id
+            );
+        }
+
+        if (filters.pump_id) {
+
+            params.append(
+                "pump_id",
+                filters.pump_id
+            );
+        }
+
+        if (filters.nozzle_id) {
+
+            params.append(
+                "nozzle_id",
+                filters.nozzle_id
+            );
+        }
+
+        if (filters.shift_id) {
+
+            params.append(
+                "shift_id",
+                filters.shift_id
+            );
+        }
+
+        if (filters.type) {
+
+            params.append(
+                "type",
+                filters.type
+            );
+        }
+
+        if (filters.severity) {
+
+            params.append(
+                "severity",
+                filters.severity
+            );
+        }
+
+        if (filters.status) {
+
+            params.append(
+                "status",
+                filters.status
+            );
+        }
+
+        const query =
+            params.toString()
+                ? `?${params.toString()}`
+                : "";
+
+        return this.request(
+            `/alerts${query}`,
+            {
+                method: "GET"
+            }
+        );
+    },
+
+
+    async getAlert(id) {
+
+        return this.request(
+            `/alerts/${id}`,
+            {
+                method: "GET"
+            }
+        );
+    },
+
+
+    async acknowledgeAlert(id) {
+
+        return this.request(
+            `/alerts/${id}/acknowledge`,
+            {
+                method: "PATCH"
+            }
+        );
+    },
+
+
+    async resolveAlert(id) {
+
+        return this.request(
+            `/alerts/${id}/resolve`,
+            {
+                method: "PATCH"
+            }
+        );
+    },
+
+
+    async deleteAlert(id) {
+
+        return this.request(
+            `/alerts/${id}`,
+            {
+                method: "DELETE"
+            }
+        );
+    },
+
+
+    /* =====================================================
+       REPORTS
+    ===================================================== */
+
+    async getReports(filters = {}) {
+
+        const params =
+            new URLSearchParams();
+
+        if (filters.station_id) {
+
+            params.append(
+                "station_id",
+                filters.station_id
+            );
+        }
+
+        if (filters.shift_id) {
+
+            params.append(
+                "shift_id",
+                filters.shift_id
+            );
+        }
+
+        if (filters.date) {
+
+            params.append(
+                "date",
+                filters.date
+            );
+        }
+
+        if (filters.start_date) {
+
+            params.append(
+                "start_date",
+                filters.start_date
+            );
+        }
+
+        if (filters.end_date) {
+
+            params.append(
+                "end_date",
+                filters.end_date
+            );
+        }
+
+        if (filters.report_type) {
+
+            params.append(
+                "report_type",
+                filters.report_type
+            );
+        }
+
+        const query =
+            params.toString()
+                ? `?${params.toString()}`
+                : "";
+
+        return this.request(
+            `/reports${query}`,
+            {
+                method: "GET"
+            }
+        );
+    },
+
+
+    async getReport(id) {
+
+        return this.request(
+            `/reports/${id}`,
+            {
+                method: "GET"
             }
         );
     }
