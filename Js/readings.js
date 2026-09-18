@@ -1,30 +1,36 @@
 /* =========================================================
    FUELGAP - METER READINGS
-   COMPLETE UPDATED VERSION
+   NEW CLASSIC FRONTEND VERSION
    ---------------------------------------------------------
-   FEATURES:
-   - Evidence is OPTIONAL
-   - Live camera evidence
-   - Upload existing image evidence
-   - No evidence required
-   - Historical reading date/time
-   - Station -> Pump -> Nozzle -> Shift
-   - Opening / Periodic / Closing / Correction
+   FEATURES
+   - White + Yellow FuelGap UI
+   - CSS embedded in JavaScript
    - Backend connected
    - Cookie authentication
-   - White + Yellow FuelGap UI
-   - CSS INCLUDED INSIDE THIS JS FILE
+   - Optional camera evidence
+   - Upload existing evidence
+   - Historical reading date/time
+   - Opening / Periodic / Closing / Correction
+   - Station -> Pump -> Nozzle
+   - Search and filters
+   - Reading statistics
+   - Evidence roll
+   - No localStorage authentication
+   - Plain JavaScript
 ========================================================= */
 
 (function () {
 
     "use strict";
 
-    /* =====================================================
-       GLOBAL STATE
-    ===================================================== */
+    console.log("FuelGap readings.js loaded successfully - New Classic Version.");
 
-    const MeterReadingsState = {
+
+    /* =========================================================
+       STATE
+    ========================================================= */
+
+    const State = {
 
         stations: [],
         pumps: [],
@@ -40,25 +46,25 @@
         isLoading: false,
         isSubmitting: false,
 
-        selectedEvidenceType: null
+        filters: {
+            station: "",
+            type: "",
+            search: ""
+        }
 
     };
 
 
-    /* =====================================================
-       ELEMENT HELPER
-    ===================================================== */
+    /* =========================================================
+       HELPERS
+    ========================================================= */
 
-    function getElement(id) {
+    function $(id) {
         return document.getElementById(id);
     }
 
 
-    /* =====================================================
-       ESCAPE HTML
-    ===================================================== */
-
-    function escapeHtml(value) {
+    function escapeHTML(value) {
 
         if (value === null || value === undefined) {
             return "";
@@ -73,11 +79,70 @@
     }
 
 
-    /* =====================================================
-       FORMAT DATE
-    ===================================================== */
+    function showToast(message, type) {
 
-    function formatDate(value) {
+        type = type || "info";
+
+        let container = $("fuelgapReadingToastContainer");
+
+        if (!container) {
+
+            container = document.createElement("div");
+
+            container.id = "fuelgapReadingToastContainer";
+
+            document.body.appendChild(container);
+        }
+
+
+        const toast = document.createElement("div");
+
+        toast.className = "fg-reading-toast fg-toast-" + type;
+
+        toast.innerHTML = `
+            <div class="fg-toast-icon">
+                ${type === "success" ? "✓" : type === "error" ? "!" : "i"}
+            </div>
+
+            <div class="fg-toast-message">
+                ${escapeHTML(message)}
+            </div>
+        `;
+
+        container.appendChild(toast);
+
+
+        setTimeout(function () {
+
+            toast.classList.add("fg-toast-hide");
+
+            setTimeout(function () {
+
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+
+            }, 300);
+
+        }, 3500);
+    }
+
+
+    function formatNumber(value) {
+
+        const number = Number(value);
+
+        if (!Number.isFinite(number)) {
+            return "0";
+        }
+
+        return number.toLocaleString("en-NG", {
+            maximumFractionDigits: 2
+        });
+    }
+
+
+    function formatDateTime(value) {
 
         if (!value) {
             return "—";
@@ -89,7 +154,7 @@
             return "—";
         }
 
-        return date.toLocaleString([], {
+        return date.toLocaleString("en-NG", {
             year: "numeric",
             month: "short",
             day: "2-digit",
@@ -99,56 +164,129 @@
     }
 
 
-    /* =====================================================
-       FORMAT NUMBER
-    ===================================================== */
+    function formatDateOnly(value) {
 
-    function formatNumber(value) {
-
-        const number = Number(value);
-
-        if (!Number.isFinite(number)) {
-            return "0";
+        if (!value) {
+            return "—";
         }
 
-        return number.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return "—";
+        }
+
+        return date.toLocaleDateString("en-NG", {
+            year: "numeric",
+            month: "short",
+            day: "2-digit"
         });
     }
 
 
-    /* =====================================================
-       NORMALIZE ARRAY
-    ===================================================== */
+    function getTodayStart() {
 
-    function normalizeArray(response, possibleKeys) {
+        const date = new Date();
+
+        return new Date(
+            date.getFullYear(),
+            date.getMonth(),
+            date.getDate()
+        );
+    }
+
+
+    function isHistorical(value) {
+
+        if (!value) {
+            return false;
+        }
+
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return false;
+        }
+
+        return date < getTodayStart();
+    }
+
+
+    function toDateTimeLocalValue(date) {
+
+        const d = date instanceof Date
+            ? date
+            : new Date(date);
+
+        if (Number.isNaN(d.getTime())) {
+            return "";
+        }
+
+
+        const pad = function (number) {
+            return String(number).padStart(2, "0");
+        };
+
+
+        return (
+            d.getFullYear() +
+            "-" +
+            pad(d.getMonth() + 1) +
+            "-" +
+            pad(d.getDate()) +
+            "T" +
+            pad(d.getHours()) +
+            ":" +
+            pad(d.getMinutes())
+        );
+    }
+
+
+    function getReadingDate(reading) {
+
+        return (
+            reading.captured_at ||
+            reading.created_at ||
+            null
+        );
+    }
+
+
+    function getName(item, fallback) {
+
+        if (!item) {
+            return fallback || "Unknown";
+        }
+
+        return (
+            item.name ||
+            item.station_name ||
+            item.pump_name ||
+            item.nozzle_name ||
+            item.shift_name ||
+            fallback ||
+            "Unknown"
+        );
+    }
+
+
+    function getResponseData(response, keys) {
+
+        if (!response) {
+            return [];
+        }
 
         if (Array.isArray(response)) {
             return response;
         }
 
-        if (!response || typeof response !== "object") {
-            return [];
-        }
+        if (response.data) {
 
-        for (const key of possibleKeys) {
-
-            if (Array.isArray(response[key])) {
-                return response[key];
+            if (Array.isArray(response.data)) {
+                return response.data;
             }
-        }
 
-        if (response.data && Array.isArray(response.data)) {
-            return response.data;
-        }
-
-        if (
-            response.data &&
-            typeof response.data === "object"
-        ) {
-
-            for (const key of possibleKeys) {
+            for (const key of keys || []) {
 
                 if (Array.isArray(response.data[key])) {
                     return response.data[key];
@@ -156,67 +294,49 @@
             }
         }
 
+        for (const key of keys || []) {
+
+            if (Array.isArray(response[key])) {
+                return response[key];
+            }
+        }
+
         return [];
     }
 
 
-    /* =====================================================
-       NORMALIZE STATION
-    ===================================================== */
+    /* =========================================================
+       NORMALIZERS
+    ========================================================= */
 
     function normalizeStation(item) {
 
         return {
-            id: item.id || item.station_id,
-            name:
-                item.name ||
-                item.station_name ||
-                item.station ||
-                "Unnamed Station",
-
-            address:
-                item.address ||
-                item.location ||
-                "",
-
-            city:
-                item.city ||
-                "",
-
-            state:
-                item.state ||
-                "",
-
-            status:
-                item.status ||
-                "active"
+            id: item.id,
+            name: item.name || item.station_name || "Unnamed Station",
+            address: item.address || "",
+            city: item.city || "",
+            state: item.state || "",
+            status: item.status || item.station_status || "active",
+            is_active: item.is_active !== false
         };
     }
 
 
-    /* =====================================================
-       NORMALIZE PUMP
-    ===================================================== */
-
     function normalizePump(item) {
 
         return {
-            id: item.id || item.pump_id,
-
-            station_id:
-                item.station_id ||
-                item.stationId,
-
+            id: item.id,
+            station_id: item.station_id,
             pump_number:
                 item.pump_number ||
                 item.number ||
                 item.pump_no ||
-                item.name ||
-                "Pump",
+                "—",
 
             brand:
                 item.brand ||
-                "",
+                "Unknown",
 
             model:
                 item.model ||
@@ -224,155 +344,139 @@
 
             status:
                 item.status ||
-                "active"
+                "active",
+
+            is_active:
+                item.is_active !== false
         };
     }
 
 
-    /* =====================================================
-       NORMALIZE NOZZLE
-    ===================================================== */
-
     function normalizeNozzle(item) {
 
         return {
-            id: item.id || item.nozzle_id,
-
-            pump_id:
-                item.pump_id ||
-                item.pumpId,
-
-            station_id:
-                item.station_id ||
-                item.stationId,
+            id: item.id,
+            pump_id: item.pump_id,
 
             nozzle_number:
                 item.nozzle_number ||
                 item.number ||
                 item.nozzle_no ||
-                item.name ||
-                "Nozzle",
+                "—",
 
             fuel_type:
                 item.fuel_type ||
                 item.product ||
-                item.fuel ||
+                item.product_type ||
                 item.type ||
                 "OTHER",
 
             price_per_litre:
-                item.price_per_litre ||
-                item.price ||
+                item.price_per_litre ??
+                item.price ??
                 0,
 
             status:
                 item.status ||
-                "active"
+                "active",
+
+            is_active:
+                item.is_active !== false
         };
     }
 
 
-    /* =====================================================
-       NORMALIZE SHIFT
-    ===================================================== */
-
     function normalizeShift(item) {
 
         return {
-
-            id:
-                item.id ||
-                item.shift_id,
+            id: item.id,
 
             station_id:
                 item.station_id ||
-                item.stationId,
+                item.station?.id ||
+                null,
 
             shift_name:
                 item.shift_name ||
                 item.name ||
                 item.shift ||
-                "Shift",
+                "Unnamed Shift",
 
             shift_date:
                 item.shift_date ||
                 item.date ||
-                "",
+                null,
 
             start_time:
                 item.start_time ||
-                "",
+                null,
 
             end_shift:
                 item.end_shift ||
                 item.end_time ||
-                "",
+                null,
 
             status:
                 String(item.status || "open").toLowerCase(),
 
             created_at:
                 item.created_at ||
-                ""
+                null
         };
     }
 
-
-    /* =====================================================
-       NORMALIZE READING
-    ===================================================== */
 
     function normalizeReading(item) {
 
         return {
 
-            id:
-                item.id ||
-                item.reading_id,
+            id: item.id,
 
             station_id:
                 item.station_id ||
-                item.stationId,
+                item.station?.id ||
+                null,
 
             pump_id:
                 item.pump_id ||
-                item.pumpId,
+                item.pump?.id ||
+                null,
 
             nozzle_id:
                 item.nozzle_id ||
-                item.nozzleId,
+                item.nozzle?.id ||
+                null,
 
             shift_id:
                 item.shift_id ||
-                item.shiftId,
+                item.shift?.id ||
+                null,
 
             recorded_by:
                 item.recorded_by ||
                 item.user_id ||
-                item.created_by,
+                item.created_by ||
+                null,
 
             reading_type:
-                item.reading_type ||
-                item.type ||
-                "periodic",
+                String(
+                    item.reading_type ||
+                    item.type ||
+                    ""
+                ).toLowerCase(),
 
             reading:
-                item.reading ??
-                item.meter_reading ??
-                item.meter_value ??
-                0,
+                Number(item.reading ?? item.meter_reading ?? 0),
 
             photo_url:
                 item.photo_url ||
                 item.photo ||
-                item.evidence_url ||
                 null,
 
             captured_at:
                 item.captured_at ||
-                item.recorded_at ||
                 item.reading_date ||
-                item.created_at ||
+                item.recorded_at ||
                 null,
 
             created_at:
@@ -382,123 +486,90 @@
     }
 
 
-    /* =====================================================
-       FIND STATION
-    ===================================================== */
-
-    function getStation(stationId) {
-
-        return MeterReadingsState.stations.find(
-            station => String(station.id) === String(stationId)
-        );
-    }
-
-
-    /* =====================================================
-       FIND PUMP
-    ===================================================== */
-
-    function getPump(pumpId) {
-
-        return MeterReadingsState.pumps.find(
-            pump => String(pump.id) === String(pumpId)
-        );
-    }
-
-
-    /* =====================================================
-       FIND NOZZLE
-    ===================================================== */
-
-    function getNozzle(nozzleId) {
-
-        return MeterReadingsState.nozzles.find(
-            nozzle => String(nozzle.id) === String(nozzleId)
-        );
-    }
-
-
-    /* =====================================================
-       FIND SHIFT
-    ===================================================== */
-
-    function getShift(shiftId) {
-
-        return MeterReadingsState.shifts.find(
-            shift => String(shift.id) === String(shiftId)
-        );
-    }
-
-
-    /* =====================================================
+    /* =========================================================
        INJECT CSS
-    ===================================================== */
+    ========================================================= */
 
     function injectStyles() {
 
-        if (document.getElementById("fuelgap-readings-styles")) {
+        if ($("fuelgap-readings-inline-style")) {
             return;
         }
 
+
         const style = document.createElement("style");
 
-        style.id = "fuelgap-readings-styles";
+        style.id = "fuelgap-readings-inline-style";
+
 
         style.textContent = `
 
-        /* =================================================
-           FUELGAP READINGS CSS
-        ================================================= */
+        /* =====================================================
+           FUELGAP METER READINGS
+        ===================================================== */
 
         :root {
-            --fg-yellow: #f4c400;
-            --fg-yellow-dark: #d9a900;
-            --fg-yellow-light: #fff8d6;
+
+            --fg-yellow: #f5c400;
+            --fg-yellow-dark: #d9aa00;
 
             --fg-black: #111111;
-            --fg-dark: #181818;
-            --fg-gray: #6f6f6f;
-            --fg-light-gray: #f5f5f5;
-            --fg-border: #e8e8e8;
-
             --fg-white: #ffffff;
 
+            --fg-bg: #f7f7f7;
+            --fg-border: #e8e8e8;
+
+            --fg-text: #1a1a1a;
+            --fg-muted: #777777;
+
             --fg-success: #16803c;
-            --fg-success-bg: #eaf8ef;
+            --fg-success-bg: #edf8f1;
 
             --fg-danger: #c62828;
-            --fg-danger-bg: #fff0f0;
+            --fg-danger-bg: #fff1f1;
 
-            --fg-warning: #9a6b00;
-            --fg-warning-bg: #fff8dc;
+            --fg-warning: #8a6800;
+            --fg-warning-bg: #fff9df;
 
             --fg-shadow:
-                0 12px 35px rgba(0, 0, 0, 0.07);
+                0 8px 30px rgba(0,0,0,0.06);
 
-            --fg-radius: 18px;
+            --fg-radius: 16px;
         }
 
 
-        /* =================================================
-           PAGE
-        ================================================= */
+        .fg-reading-page {
 
-        .fg-readings-page {
             width: 100%;
-            padding: 24px;
+            min-height: 100vh;
+
+            padding: 26px;
+
+            background: var(--fg-bg);
+
+            color: var(--fg-text);
+
             box-sizing: border-box;
         }
 
 
-        /* =================================================
-           HEADER
-        ================================================= */
+        .fg-reading-container {
 
-        .fg-readings-header {
+            max-width: 1500px;
+
+            margin: 0 auto;
+        }
+
+
+        /* HEADER */
+
+        .fg-reading-header {
 
             display: flex;
+
+            align-items: center;
+
             justify-content: space-between;
-            align-items: flex-end;
 
             gap: 20px;
 
@@ -506,48 +577,78 @@
         }
 
 
-        .fg-readings-eyebrow {
+        .fg-reading-header-left {
 
-            font-size: 12px;
-            font-weight: 800;
+            display: flex;
 
-            letter-spacing: 1.5px;
+            align-items: center;
 
-            color: var(--fg-yellow-dark);
-
-            text-transform: uppercase;
-
-            margin-bottom: 7px;
+            gap: 15px;
         }
 
 
-        .fg-readings-title {
+        .fg-reading-title-icon {
 
-            margin: 0;
+            width: 52px;
+            height: 52px;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            background: var(--fg-yellow);
 
             color: var(--fg-black);
 
-            font-size: 30px;
+            border-radius: 14px;
+
+            font-size: 24px;
 
             font-weight: 900;
 
-            letter-spacing: -0.8px;
+            box-shadow:
+                0 6px 18px rgba(245,196,0,0.25);
         }
 
 
-        .fg-readings-subtitle {
+        .fg-reading-kicker {
 
-            margin: 7px 0 0;
+            font-size: 11px;
 
-            color: var(--fg-gray);
+            letter-spacing: 1.5px;
+
+            font-weight: 800;
+
+            color: var(--fg-muted);
+
+            margin-bottom: 4px;
+        }
+
+
+        .fg-reading-title {
+
+            margin: 0;
+
+            font-size: 28px;
+
+            font-weight: 850;
+
+            color: var(--fg-black);
+        }
+
+
+        .fg-reading-subtitle {
+
+            margin: 5px 0 0;
+
+            color: var(--fg-muted);
 
             font-size: 14px;
-
-            line-height: 1.6;
         }
 
 
-        .fg-add-reading-btn {
+        .fg-primary-btn {
 
             border: 0;
 
@@ -555,11 +656,9 @@
 
             color: var(--fg-black);
 
-            min-height: 48px;
+            padding: 13px 19px;
 
-            padding: 0 20px;
-
-            border-radius: 12px;
+            border-radius: 11px;
 
             font-weight: 800;
 
@@ -573,24 +672,84 @@
 
             gap: 9px;
 
-            transition: 0.2s ease;
+            transition: .2s ease;
 
             box-shadow:
-                0 8px 18px rgba(244, 196, 0, 0.22);
+                0 5px 16px rgba(245,196,0,0.18);
         }
 
 
-        .fg-add-reading-btn:hover {
+        .fg-primary-btn:hover {
 
-            transform: translateY(-2px);
+            background: var(--fg-yellow-dark);
 
-            background: #ffd21a;
+            transform: translateY(-1px);
         }
 
 
-        /* =================================================
-           STATS
-        ================================================= */
+        .fg-primary-btn:disabled {
+
+            opacity: .55;
+
+            cursor: not-allowed;
+
+            transform: none;
+        }
+
+
+        .fg-secondary-btn {
+
+            border: 1px solid var(--fg-border);
+
+            background: var(--fg-white);
+
+            color: var(--fg-black);
+
+            padding: 12px 16px;
+
+            border-radius: 11px;
+
+            font-weight: 750;
+
+            cursor: pointer;
+
+            display: inline-flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            gap: 8px;
+        }
+
+
+        .fg-secondary-btn:hover {
+
+            border-color: var(--fg-yellow);
+
+            background: #fffdf2;
+        }
+
+
+        .fg-danger-btn {
+
+            border: 1px solid #f0cccc;
+
+            background: var(--fg-danger-bg);
+
+            color: var(--fg-danger);
+
+            padding: 10px 14px;
+
+            border-radius: 10px;
+
+            font-weight: 750;
+
+            cursor: pointer;
+        }
+
+
+        /* STATS */
 
         .fg-reading-stats {
 
@@ -609,8 +768,7 @@
 
             background: var(--fg-white);
 
-            border:
-                1px solid var(--fg-border);
+            border: 1px solid var(--fg-border);
 
             border-radius: var(--fg-radius);
 
@@ -624,104 +782,44 @@
         }
 
 
-        .fg-reading-stat::before {
+        .fg-reading-stat::after {
 
             content: "";
 
             position: absolute;
 
-            left: 0;
-            top: 0;
+            width: 70px;
+            height: 70px;
 
-            width: 4px;
-            height: 100%;
+            border-radius: 50%;
 
-            background: var(--fg-yellow);
+            background: rgba(245,196,0,.08);
+
+            right: -20px;
+            bottom: -25px;
         }
 
 
-        .fg-stat-icon {
-
-            width: 40px;
-            height: 40px;
-
-            border-radius: 11px;
-
-            background: var(--fg-yellow-light);
+        .fg-reading-stat-top {
 
             display: flex;
 
             align-items: center;
 
-            justify-content: center;
-
-            font-size: 19px;
-
-            margin-bottom: 14px;
+            justify-content: space-between;
         }
 
 
-        .fg-stat-label {
-
-            color: var(--fg-gray);
-
-            font-size: 12px;
-
-            font-weight: 700;
-
-            text-transform: uppercase;
-
-            letter-spacing: 0.6px;
-        }
-
-
-        .fg-stat-value {
-
-            color: var(--fg-black);
-
-            font-size: 27px;
-
-            font-weight: 900;
-
-            margin-top: 5px;
-        }
-
-
-        /* =================================================
-           EVIDENCE INFORMATION
-        ================================================= */
-
-        .fg-evidence-info {
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 14px;
-
-            padding: 16px 18px;
-
-            margin-bottom: 20px;
-
-            border-radius: 14px;
-
-            background: var(--fg-yellow-light);
-
-            border:
-                1px solid rgba(244, 196, 0, 0.35);
-        }
-
-
-        .fg-evidence-info-icon {
+        .fg-reading-stat-icon {
 
             width: 42px;
             height: 42px;
 
-            flex-shrink: 0;
-
             border-radius: 12px;
 
-            background: var(--fg-yellow);
+            background: #fff8d9;
+
+            color: var(--fg-black);
 
             display: flex;
 
@@ -729,122 +827,175 @@
 
             justify-content: center;
 
-            font-size: 19px;
+            font-size: 18px;
+
+            font-weight: 900;
         }
 
 
-        .fg-evidence-info strong {
+        .fg-reading-stat-label {
 
-            display: block;
+            margin-top: 15px;
+
+            color: var(--fg-muted);
+
+            font-size: 12px;
+
+            font-weight: 750;
+
+            text-transform: uppercase;
+
+            letter-spacing: .7px;
+        }
+
+
+        .fg-reading-stat-value {
+
+            margin-top: 4px;
+
+            font-size: 28px;
+
+            font-weight: 900;
 
             color: var(--fg-black);
-
-            font-size: 14px;
-
-            margin-bottom: 3px;
         }
 
 
-        .fg-evidence-info span {
-
-            color: #6e5a00;
-
-            font-size: 13px;
-
-            line-height: 1.5;
-        }
-
-
-        /* =================================================
-           CARD
-        ================================================= */
+        /* MAIN CARD */
 
         .fg-reading-card {
 
             background: var(--fg-white);
 
-            border:
-                1px solid var(--fg-border);
+            border: 1px solid var(--fg-border);
 
             border-radius: var(--fg-radius);
 
             box-shadow: var(--fg-shadow);
 
             overflow: hidden;
+
+            margin-bottom: 22px;
         }
 
 
-        /* =================================================
-           FILTER BAR
-        ================================================= */
+        .fg-reading-card-header {
 
-        .fg-reading-filter {
+            padding: 18px 20px;
+
+            border-bottom: 1px solid var(--fg-border);
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            gap: 15px;
+
+            flex-wrap: wrap;
+        }
+
+
+        .fg-reading-card-title {
+
+            font-size: 16px;
+
+            font-weight: 850;
+
+            color: var(--fg-black);
+        }
+
+
+        .fg-reading-card-description {
+
+            margin-top: 4px;
+
+            color: var(--fg-muted);
+
+            font-size: 12px;
+        }
+
+
+        /* FILTERS */
+
+        .fg-reading-filters {
 
             display: grid;
 
             grid-template-columns:
-                minmax(190px, 1fr)
-                minmax(180px, 1fr)
-                minmax(200px, 1.4fr);
+                1fr 1fr 1.5fr;
 
             gap: 12px;
 
-            padding: 18px;
+            padding: 16px 20px;
 
-            border-bottom:
-                1px solid var(--fg-border);
+            background: #fcfcfc;
 
-            background: #fff;
+            border-bottom: 1px solid var(--fg-border);
         }
 
 
-        .fg-filter-group {
+        .fg-reading-field {
 
-            position: relative;
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 7px;
         }
 
 
-        .fg-filter-group input,
-        .fg-filter-group select {
+        .fg-reading-field label {
+
+            font-size: 11px;
+
+            color: var(--fg-muted);
+
+            font-weight: 800;
+
+            text-transform: uppercase;
+
+            letter-spacing: .5px;
+        }
+
+
+        .fg-reading-field input,
+        .fg-reading-field select {
 
             width: 100%;
 
-            height: 44px;
+            min-height: 44px;
 
             box-sizing: border-box;
 
-            border:
-                1px solid #dddddd;
+            border: 1px solid #dddddd;
 
-            border-radius: 10px;
-
-            background: #ffffff;
-
-            padding: 0 13px;
+            background: var(--fg-white);
 
             color: var(--fg-black);
 
-            font-size: 13px;
+            border-radius: 10px;
+
+            padding: 10px 12px;
 
             outline: none;
 
-            transition: 0.2s ease;
+            font-size: 13px;
         }
 
 
-        .fg-filter-group input:focus,
-        .fg-filter-group select:focus {
+        .fg-reading-field input:focus,
+        .fg-reading-field select:focus {
 
-            border-color: var(--fg-yellow);
+            border-color: var(--fg-yellow-dark);
 
             box-shadow:
-                0 0 0 3px rgba(244, 196, 0, 0.12);
+                0 0 0 3px rgba(245,196,0,.12);
         }
 
 
-        /* =================================================
-           TABLE
-        ================================================= */
+        /* TABLE */
 
         .fg-reading-table-wrap {
 
@@ -860,28 +1011,29 @@
 
             border-collapse: collapse;
 
-            min-width: 850px;
+            min-width: 950px;
         }
 
 
         .fg-reading-table th {
 
+            background: #fafafa;
+
+            color: var(--fg-muted);
+
             text-align: left;
 
-            padding: 15px 18px;
+            padding: 13px 16px;
 
-            font-size: 11px;
+            font-size: 10px;
 
             text-transform: uppercase;
 
-            letter-spacing: 0.6px;
+            letter-spacing: .7px;
 
-            color: #777777;
+            font-weight: 850;
 
-            background: #fafafa;
-
-            border-bottom:
-                1px solid var(--fg-border);
+            border-bottom: 1px solid var(--fg-border);
 
             white-space: nowrap;
         }
@@ -889,12 +1041,9 @@
 
         .fg-reading-table td {
 
-            padding: 16px 18px;
+            padding: 15px 16px;
 
-            border-bottom:
-                1px solid #eeeeee;
-
-            color: var(--fg-black);
+            border-bottom: 1px solid #f0f0f0;
 
             font-size: 13px;
 
@@ -902,25 +1051,13 @@
         }
 
 
-        .fg-reading-table tr:last-child td {
-
-            border-bottom: 0;
-        }
-
-
-        .fg-reading-table tbody tr {
-
-            transition: 0.15s ease;
-        }
-
-
         .fg-reading-table tbody tr:hover {
 
-            background: #fffdf1;
+            background: #fffdf3;
         }
 
 
-        .fg-primary-text {
+        .fg-station-name {
 
             font-weight: 800;
 
@@ -930,9 +1067,7 @@
 
         .fg-secondary-text {
 
-            display: block;
-
-            color: #888888;
+            color: var(--fg-muted);
 
             font-size: 11px;
 
@@ -940,63 +1075,63 @@
         }
 
 
-        /* =================================================
-           BADGES
-        ================================================= */
+        .fg-reading-number {
 
-        .fg-reading-badge {
+            font-size: 15px;
+
+            font-weight: 900;
+        }
+
+
+        .fg-reading-type {
 
             display: inline-flex;
 
             align-items: center;
 
-            justify-content: center;
-
-            min-height: 27px;
-
-            padding: 0 9px;
+            gap: 5px;
 
             border-radius: 999px;
 
+            padding: 6px 10px;
+
             font-size: 10px;
 
-            font-weight: 900;
+            font-weight: 850;
 
             text-transform: uppercase;
-
-            letter-spacing: 0.3px;
         }
 
 
-        .fg-reading-badge.opening {
+        .fg-type-opening {
 
-            background: #fff5c7;
+            background: #fff8d9;
 
-            color: #7a5b00;
+            color: #725a00;
         }
 
 
-        .fg-reading-badge.periodic {
+        .fg-type-periodic {
 
             background: #f4f4f4;
 
-            color: #444444;
+            color: #444;
         }
 
 
-        .fg-reading-badge.closing {
+        .fg-type-closing {
 
             background: #eeeeee;
 
-            color: #222222;
+            color: #222;
         }
 
 
-        .fg-reading-badge.correction {
+        .fg-type-correction {
 
-            background: #fff0d0;
+            background: #fff1d0;
 
-            color: #805b00;
+            color: #765300;
         }
 
 
@@ -1014,51 +1149,56 @@
         }
 
 
-        .fg-evidence-status.has-evidence {
+        .fg-evidence-yes {
 
             color: var(--fg-success);
         }
 
 
-        .fg-evidence-status.no-evidence {
+        .fg-evidence-no {
 
-            color: #888888;
+            color: var(--fg-muted);
         }
 
 
-        .fg-evidence-dot {
+        .fg-history-badge {
 
-            width: 7px;
-            height: 7px;
+            display: inline-flex;
 
-            border-radius: 50%;
+            margin-top: 5px;
 
-            background: currentColor;
+            padding: 4px 7px;
+
+            border-radius: 5px;
+
+            background: var(--fg-warning-bg);
+
+            color: var(--fg-warning);
+
+            font-size: 9px;
+
+            font-weight: 850;
+
+            text-transform: uppercase;
         }
 
 
-        /* =================================================
-           EMPTY STATE
-        ================================================= */
-
-        .fg-reading-empty {
-
-            padding: 65px 25px;
+        .fg-empty-state {
 
             text-align: center;
+
+            padding: 55px 20px;
+
+            color: var(--fg-muted);
         }
 
 
-        .fg-reading-empty-icon {
+        .fg-empty-icon {
 
-            width: 65px;
-            height: 65px;
+            width: 58px;
+            height: 58px;
 
-            margin: 0 auto 15px;
-
-            border-radius: 18px;
-
-            background: var(--fg-yellow-light);
+            margin: 0 auto 12px;
 
             display: flex;
 
@@ -1066,37 +1206,98 @@
 
             justify-content: center;
 
-            font-size: 28px;
-        }
+            border-radius: 16px;
 
-
-        .fg-reading-empty h3 {
-
-            margin: 0;
-
-            font-size: 17px;
+            background: #fff8d9;
 
             color: var(--fg-black);
+
+            font-size: 25px;
+
+            font-weight: 900;
         }
 
 
-        .fg-reading-empty p {
+        .fg-empty-title {
 
-            margin: 7px auto 0;
+            color: var(--fg-black);
 
-            max-width: 440px;
+            font-weight: 850;
 
-            color: #888888;
-
-            font-size: 13px;
-
-            line-height: 1.6;
+            margin-bottom: 5px;
         }
 
 
-        /* =================================================
-           MODAL
-        ================================================= */
+        /* EVIDENCE ROLL */
+
+        .fg-evidence-grid {
+
+            display: grid;
+
+            grid-template-columns:
+                repeat(4, minmax(0, 1fr));
+
+            gap: 14px;
+
+            padding: 20px;
+        }
+
+
+        .fg-evidence-item {
+
+            border: 1px solid var(--fg-border);
+
+            border-radius: 14px;
+
+            overflow: hidden;
+
+            background: var(--fg-white);
+        }
+
+
+        .fg-evidence-image {
+
+            width: 100%;
+
+            height: 150px;
+
+            object-fit: cover;
+
+            display: block;
+
+            background: #eeeeee;
+        }
+
+
+        .fg-evidence-info {
+
+            padding: 12px;
+        }
+
+
+        .fg-evidence-info strong {
+
+            font-size: 12px;
+
+            display: block;
+
+            margin-bottom: 5px;
+        }
+
+
+        .fg-evidence-info span {
+
+            font-size: 10px;
+
+            color: var(--fg-muted);
+
+            display: block;
+
+            margin-top: 3px;
+        }
+
+
+        /* MODAL */
 
         .fg-reading-modal {
 
@@ -1104,9 +1305,9 @@
 
             inset: 0;
 
-            z-index: 99999;
+            background: rgba(0,0,0,.55);
 
-            display: none;
+            display: flex;
 
             align-items: center;
 
@@ -1114,255 +1315,175 @@
 
             padding: 20px;
 
-            background:
-                rgba(0, 0, 0, 0.65);
+            z-index: 99999;
 
-            box-sizing: border-box;
+            opacity: 0;
+
+            pointer-events: none;
+
+            transition: opacity .2s ease;
         }
 
 
         .fg-reading-modal.active {
 
-            display: flex;
+            opacity: 1;
+
+            pointer-events: auto;
         }
 
 
-        .fg-reading-modal-content {
+        .fg-reading-modal-box {
 
-            width: min(760px, 100%);
+            width: 100%;
+
+            max-width: 720px;
 
             max-height: 92vh;
 
             overflow-y: auto;
 
-            background: #ffffff;
+            background: var(--fg-white);
 
-            border-radius: 22px;
+            border-radius: 18px;
 
             box-shadow:
-                0 30px 80px rgba(0, 0, 0, 0.28);
+                0 30px 80px rgba(0,0,0,.25);
+
+            transform: translateY(15px);
+
+            transition: transform .2s ease;
+        }
+
+
+        .fg-reading-modal.active
+        .fg-reading-modal-box {
+
+            transform: translateY(0);
         }
 
 
         .fg-modal-header {
+
+            padding: 19px 21px;
+
+            border-bottom: 1px solid var(--fg-border);
 
             display: flex;
 
             align-items: center;
 
             justify-content: space-between;
-
-            gap: 15px;
-
-            padding: 21px 23px;
-
-            border-bottom:
-                1px solid var(--fg-border);
         }
 
 
-        .fg-modal-header h2 {
+        .fg-modal-title {
 
-            margin: 0;
-
-            font-size: 19px;
-
-            color: var(--fg-black);
+            font-size: 18px;
 
             font-weight: 900;
-        }
 
-
-        .fg-modal-header p {
-
-            margin: 4px 0 0;
-
-            color: #888888;
-
-            font-size: 12px;
+            color: var(--fg-black);
         }
 
 
         .fg-modal-close {
 
-            width: 38px;
-            height: 38px;
+            width: 35px;
+            height: 35px;
 
             border: 0;
 
-            border-radius: 10px;
+            background: #f4f4f4;
 
-            background: #f5f5f5;
-
-            color: #333333;
-
-            font-size: 20px;
+            border-radius: 9px;
 
             cursor: pointer;
-        }
 
+            font-size: 18px;
 
-        .fg-modal-close:hover {
-
-            background: var(--fg-yellow);
+            font-weight: 800;
         }
 
 
         .fg-modal-body {
 
-            padding: 23px;
+            padding: 20px;
         }
 
-
-        /* =================================================
-           FORM GRID
-        ================================================= */
 
         .fg-form-grid {
 
             display: grid;
 
             grid-template-columns:
-                repeat(2, minmax(0, 1fr));
+                1fr 1fr;
 
-            gap: 17px;
+            gap: 15px;
         }
 
 
-        .fg-form-group {
-
-            display: flex;
-
-            flex-direction: column;
-
-            gap: 7px;
-        }
-
-
-        .fg-form-group.full {
+        .fg-full-width {
 
             grid-column: 1 / -1;
         }
 
 
-        .fg-form-label {
+        .fg-form-help {
 
-            font-size: 12px;
-
-            color: #333333;
-
-            font-weight: 800;
-        }
-
-
-        .fg-required {
-
-            color: #d99f00;
-        }
-
-
-        .fg-form-control {
-
-            width: 100%;
-
-            height: 46px;
-
-            box-sizing: border-box;
-
-            border:
-                1px solid #dddddd;
-
-            border-radius: 11px;
-
-            background: #ffffff;
-
-            padding: 0 13px;
-
-            outline: none;
-
-            color: #111111;
-
-            font-size: 13px;
-
-            transition: 0.2s ease;
-        }
-
-
-        .fg-form-control:focus {
-
-            border-color: var(--fg-yellow);
-
-            box-shadow:
-                0 0 0 3px rgba(244, 196, 0, 0.12);
-        }
-
-
-        .fg-form-control:disabled {
-
-            background: #f6f6f6;
-
-            color: #999999;
-
-            cursor: not-allowed;
-        }
-
-
-        /* =================================================
-           HISTORICAL INFO
-        ================================================= */
-
-        .fg-history-note {
-
-            margin-top: 5px;
-
-            padding: 11px 13px;
-
-            background: #fafafa;
-
-            border-radius: 10px;
-
-            border-left:
-                3px solid var(--fg-yellow);
-
-            color: #777777;
+            color: var(--fg-muted);
 
             font-size: 11px;
 
-            line-height: 1.55;
+            line-height: 1.5;
         }
 
 
-        /* =================================================
-           EVIDENCE SECTION
-        ================================================= */
+        /* DATE NOTICE */
 
-        .fg-evidence-section {
+        .fg-history-notice {
 
-            margin-top: 22px;
+            display: none;
 
-            border:
-                1px solid var(--fg-border);
+            margin-top: 10px;
 
-            border-radius: 16px;
+            padding: 10px 12px;
 
-            overflow: hidden;
+            border-radius: 9px;
 
-            background: #ffffff;
+            background: var(--fg-warning-bg);
+
+            border: 1px solid #f1df9a;
+
+            color: var(--fg-warning);
+
+            font-size: 11px;
+
+            font-weight: 700;
+        }
+
+
+        .fg-history-notice.show {
+
+            display: block;
+        }
+
+
+        /* CAMERA */
+
+        .fg-evidence-box {
+
+            border: 1px solid var(--fg-border);
+
+            border-radius: 14px;
+
+            padding: 15px;
+
+            background: #fcfcfc;
         }
 
 
         .fg-evidence-header {
-
-            padding: 17px 18px;
-
-            background: #fafafa;
-
-            border-bottom:
-                1px solid var(--fg-border);
-        }
-
-
-        .fg-evidence-header-row {
 
             display: flex;
 
@@ -1370,37 +1491,35 @@
 
             justify-content: space-between;
 
-            gap: 10px;
+            gap: 12px;
+
+            margin-bottom: 12px;
         }
 
 
         .fg-evidence-title {
 
-            font-size: 14px;
+            font-weight: 850;
 
-            font-weight: 900;
+            font-size: 13px;
 
             color: var(--fg-black);
         }
 
 
-        .fg-optional-badge {
+        .fg-evidence-optional {
 
-            display: inline-flex;
+            background: #fff8d9;
 
-            align-items: center;
+            color: #765d00;
 
-            padding: 5px 9px;
+            padding: 5px 8px;
 
             border-radius: 999px;
 
-            background: #eeeeee;
+            font-size: 9px;
 
-            color: #666666;
-
-            font-size: 10px;
-
-            font-weight: 800;
+            font-weight: 850;
 
             text-transform: uppercase;
         }
@@ -1408,120 +1527,33 @@
 
         .fg-evidence-description {
 
-            margin: 6px 0 0;
+            font-size: 11px;
 
-            color: #888888;
-
-            font-size: 12px;
+            color: var(--fg-muted);
 
             line-height: 1.5;
+
+            margin-bottom: 13px;
         }
 
 
-        .fg-evidence-body {
+        .fg-camera-preview {
 
-            padding: 18px;
-        }
+            width: 100%;
 
+            max-height: 290px;
 
-        .fg-evidence-actions {
+            object-fit: cover;
 
-            display: flex;
+            border-radius: 11px;
 
-            flex-wrap: wrap;
-
-            gap: 9px;
-
-            margin-bottom: 15px;
-        }
-
-
-        .fg-evidence-btn {
-
-            min-height: 42px;
-
-            padding: 0 14px;
-
-            border-radius: 10px;
-
-            border:
-                1px solid #dddddd;
-
-            background: #ffffff;
-
-            color: #222222;
-
-            font-size: 12px;
-
-            font-weight: 800;
-
-            cursor: pointer;
-
-            display: inline-flex;
-
-            align-items: center;
-
-            justify-content: center;
-
-            gap: 7px;
-
-            transition: 0.2s ease;
-        }
-
-
-        .fg-evidence-btn:hover {
-
-            border-color: var(--fg-yellow);
-
-            background: #fffdf0;
-        }
-
-
-        .fg-evidence-btn.primary {
-
-            background: var(--fg-yellow);
-
-            border-color: var(--fg-yellow);
-
-            color: #111111;
-        }
-
-
-        .fg-evidence-btn.primary:hover {
-
-            background: #ffd21a;
-        }
-
-
-        .fg-evidence-btn.danger {
-
-            color: #a62626;
-
-            border-color: #f0d0d0;
-
-            background: #fff7f7;
-        }
-
-
-        .fg-camera-box {
+            background: #111;
 
             display: none;
-
-            position: relative;
-
-            background: #111111;
-
-            border-radius: 14px;
-
-            overflow: hidden;
-
-            margin-bottom: 14px;
-
-            aspect-ratio: 16 / 9;
         }
 
 
-        .fg-camera-box.active {
+        .fg-camera-preview.show {
 
             display: block;
         }
@@ -1531,71 +1563,21 @@
 
             width: 100%;
 
-            height: 100%;
-
-            display: block;
+            max-height: 290px;
 
             object-fit: cover;
-        }
 
+            border-radius: 11px;
 
-        .fg-camera-status {
-
-            position: absolute;
-
-            left: 12px;
-
-            top: 12px;
-
-            padding: 7px 10px;
-
-            background:
-                rgba(0, 0, 0, 0.65);
-
-            color: #ffffff;
-
-            border-radius: 8px;
-
-            font-size: 10px;
-
-            font-weight: 800;
-        }
-
-
-        .fg-photo-preview-box {
+            background: #111;
 
             display: none;
-
-            margin-bottom: 14px;
-
-            border-radius: 14px;
-
-            overflow: hidden;
-
-            background: #f5f5f5;
-
-            border:
-                1px solid var(--fg-border);
         }
 
 
-        .fg-photo-preview-box.active {
+        .fg-camera-video.show {
 
             display: block;
-        }
-
-
-        .fg-photo-preview {
-
-            display: block;
-
-            width: 100%;
-
-            max-height: 310px;
-
-            object-fit: contain;
-
-            background: #111111;
         }
 
 
@@ -1605,193 +1587,98 @@
 
             align-items: center;
 
-            gap: 9px;
+            gap: 8px;
 
-            padding: 11px 13px;
+            margin-top: 10px;
 
-            border-radius: 10px;
+            padding: 10px 12px;
 
-            background: #f7f7f7;
+            border-radius: 9px;
 
-            color: #777777;
+            background: #f5f5f5;
+
+            color: var(--fg-muted);
 
             font-size: 11px;
 
-            line-height: 1.45;
+            font-weight: 650;
         }
 
 
-        .fg-evidence-status-box.attached {
+        .fg-evidence-actions {
 
-            background: var(--fg-success-bg);
+            display: flex;
 
-            color: var(--fg-success);
+            flex-wrap: wrap;
+
+            gap: 8px;
+
+            margin-top: 12px;
         }
 
 
-        .fg-evidence-status-box.optional {
+        .fg-evidence-actions button {
 
-            background: #fafafa;
+            border: 1px solid var(--fg-border);
 
-            color: #777777;
+            background: var(--fg-white);
+
+            color: var(--fg-black);
+
+            padding: 9px 12px;
+
+            border-radius: 9px;
+
+            cursor: pointer;
+
+            font-size: 11px;
+
+            font-weight: 800;
         }
 
 
-        .fg-evidence-status-icon {
+        .fg-evidence-actions button:hover {
 
-            font-size: 15px;
+            border-color: var(--fg-yellow-dark);
 
-            flex-shrink: 0;
+            background: #fffdf2;
         }
 
 
-        /* =================================================
-           MODAL FOOTER
-        ================================================= */
+        .fg-evidence-actions .camera-main-btn {
+
+            background: var(--fg-yellow);
+
+            border-color: var(--fg-yellow);
+
+        }
+
+
+        .fg-hidden-file {
+
+            display: none !important;
+        }
+
+
+        /* MODAL FOOTER */
 
         .fg-modal-footer {
+
+            padding: 16px 20px;
+
+            border-top: 1px solid var(--fg-border);
 
             display: flex;
 
             justify-content: flex-end;
 
-            gap: 10px;
-
-            padding: 18px 23px;
-
-            border-top:
-                1px solid var(--fg-border);
+            gap: 9px;
         }
 
 
-        .fg-modal-btn {
+        /* LOADING */
 
-            min-height: 45px;
-
-            padding: 0 18px;
-
-            border-radius: 11px;
-
-            font-size: 12px;
-
-            font-weight: 900;
-
-            cursor: pointer;
-
-            border: 0;
-        }
-
-
-        .fg-modal-btn.cancel {
-
-            background: #f2f2f2;
-
-            color: #333333;
-        }
-
-
-        .fg-modal-btn.save {
-
-            background: var(--fg-yellow);
-
-            color: #111111;
-
-            min-width: 155px;
-        }
-
-
-        .fg-modal-btn.save:hover {
-
-            background: #ffd21a;
-        }
-
-
-        .fg-modal-btn:disabled {
-
-            opacity: 0.55;
-
-            cursor: not-allowed;
-
-            transform: none;
-        }
-
-
-        /* =================================================
-           TOAST
-        ================================================= */
-
-        .fg-reading-toast {
-
-            position: fixed;
-
-            right: 22px;
-
-            bottom: 22px;
-
-            z-index: 100000;
-
-            min-width: 280px;
-
-            max-width: 390px;
-
-            padding: 14px 16px;
-
-            border-radius: 13px;
-
-            background: #171717;
-
-            color: #ffffff;
-
-            box-shadow:
-                0 15px 40px rgba(0,0,0,0.2);
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 10px;
-
-            font-size: 12px;
-
-            font-weight: 700;
-
-            opacity: 0;
-
-            transform: translateY(15px);
-
-            pointer-events: none;
-
-            transition: 0.25s ease;
-        }
-
-
-        .fg-reading-toast.show {
-
-            opacity: 1;
-
-            transform: translateY(0);
-        }
-
-
-        .fg-reading-toast.success {
-
-            border-left:
-                4px solid var(--fg-yellow);
-        }
-
-
-        .fg-reading-toast.error {
-
-            border-left:
-                4px solid #e33b3b;
-        }
-
-
-        /* =================================================
-           LOADING
-        ================================================= */
-
-        .fg-loading {
+        .fg-reading-loading {
 
             display: flex;
 
@@ -1799,31 +1686,28 @@
 
             justify-content: center;
 
-            gap: 10px;
+            min-height: 300px;
 
-            padding: 50px;
+            flex-direction: column;
 
-            color: #777777;
+            gap: 12px;
 
-            font-size: 13px;
+            color: var(--fg-muted);
         }
 
 
         .fg-spinner {
 
-            width: 19px;
-            height: 19px;
+            width: 32px;
+            height: 32px;
 
-            border:
-                2px solid #eeeeee;
+            border: 3px solid #eeeeee;
 
-            border-top-color:
-                var(--fg-yellow);
+            border-top-color: var(--fg-yellow);
 
             border-radius: 50%;
 
-            animation:
-                fgSpin 0.7s linear infinite;
+            animation: fgSpin .8s linear infinite;
         }
 
 
@@ -1832,14 +1716,143 @@
             to {
                 transform: rotate(360deg);
             }
+
         }
 
 
-        /* =================================================
-           RESPONSIVE
-        ================================================= */
+        /* TOAST */
 
-        @media (max-width: 1000px) {
+        #fuelgapReadingToastContainer {
+
+            position: fixed;
+
+            top: 20px;
+
+            right: 20px;
+
+            z-index: 100000;
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 10px;
+        }
+
+
+        .fg-reading-toast {
+
+            min-width: 270px;
+
+            max-width: 380px;
+
+            background: var(--fg-white);
+
+            border: 1px solid var(--fg-border);
+
+            border-left: 4px solid var(--fg-yellow);
+
+            box-shadow: 0 15px 40px rgba(0,0,0,.13);
+
+            border-radius: 10px;
+
+            padding: 13px 15px;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 10px;
+
+            animation: fgToastIn .25s ease;
+        }
+
+
+        .fg-toast-icon {
+
+            width: 27px;
+            height: 27px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            border-radius: 50%;
+
+            background: #fff8d9;
+
+            font-weight: 900;
+        }
+
+
+        .fg-toast-message {
+
+            font-size: 12px;
+
+            font-weight: 700;
+
+            line-height: 1.4;
+        }
+
+
+        .fg-toast-success {
+
+            border-left-color: var(--fg-success);
+        }
+
+
+        .fg-toast-success .fg-toast-icon {
+
+            background: var(--fg-success-bg);
+
+            color: var(--fg-success);
+        }
+
+
+        .fg-toast-error {
+
+            border-left-color: var(--fg-danger);
+        }
+
+
+        .fg-toast-error .fg-toast-icon {
+
+            background: var(--fg-danger-bg);
+
+            color: var(--fg-danger);
+        }
+
+
+        .fg-toast-hide {
+
+            opacity: 0;
+
+            transform: translateX(30px);
+
+            transition: .3s ease;
+        }
+
+
+        @keyframes fgToastIn {
+
+            from {
+                opacity: 0;
+                transform: translateX(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+
+        }
+
+
+        /* RESPONSIVE */
+
+        @media (max-width: 1100px) {
 
             .fg-reading-stats {
 
@@ -1847,431 +1860,417 @@
                     repeat(2, minmax(0, 1fr));
             }
 
-            .fg-reading-filter {
+
+            .fg-evidence-grid {
 
                 grid-template-columns:
-                    1fr 1fr;
+                    repeat(2, minmax(0, 1fr));
             }
 
-            .fg-filter-group:last-child {
-
-                grid-column: 1 / -1;
-            }
         }
 
 
-        @media (max-width: 700px) {
+        @media (max-width: 800px) {
 
-            .fg-readings-page {
+            .fg-reading-page {
 
-                padding: 15px;
+                padding: 16px;
             }
 
-            .fg-readings-header {
+
+            .fg-reading-header {
+
+                align-items: flex-start;
 
                 flex-direction: column;
-
-                align-items: stretch;
             }
 
-            .fg-readings-title {
 
-                font-size: 24px;
-            }
-
-            .fg-add-reading-btn {
-
-                width: 100%;
-            }
-
-            .fg-reading-stats {
-
-                grid-template-columns: 1fr 1fr;
-
-                gap: 10px;
-            }
-
-            .fg-reading-stat {
-
-                padding: 15px;
-            }
-
-            .fg-stat-value {
-
-                font-size: 22px;
-            }
-
-            .fg-reading-filter {
+            .fg-reading-filters {
 
                 grid-template-columns: 1fr;
-
-                padding: 13px;
             }
 
-            .fg-filter-group:last-child {
-
-                grid-column: auto;
-            }
 
             .fg-form-grid {
 
                 grid-template-columns: 1fr;
             }
 
-            .fg-form-group.full {
+
+            .fg-full-width {
 
                 grid-column: auto;
             }
 
-            .fg-modal-body {
-
-                padding: 17px;
-            }
-
-            .fg-modal-header {
-
-                padding: 17px;
-            }
-
-            .fg-modal-footer {
-
-                padding: 15px 17px;
-
-                flex-direction: column-reverse;
-            }
-
-            .fg-modal-btn {
-
-                width: 100%;
-            }
-
-            .fg-evidence-actions {
-
-                flex-direction: column;
-            }
-
-            .fg-evidence-btn {
-
-                width: 100%;
-            }
-
-            .fg-evidence-info {
-
-                align-items: flex-start;
-            }
-
-            .fg-reading-modal {
-
-                padding: 8px;
-            }
-
-            .fg-reading-modal-content {
-
-                max-height: 96vh;
-
-                border-radius: 17px;
-            }
         }
 
 
-        @media (max-width: 460px) {
+        @media (max-width: 560px) {
 
             .fg-reading-stats {
 
                 grid-template-columns: 1fr;
             }
 
-            .fg-reading-stat {
 
-                display: flex;
+            .fg-evidence-grid {
 
-                align-items: center;
-
-                gap: 13px;
+                grid-template-columns: 1fr;
             }
 
-            .fg-stat-icon {
 
-                margin: 0;
+            .fg-reading-title {
+
+                font-size: 23px;
             }
 
-            .fg-stat-value {
 
-                margin-top: 2px;
+            .fg-modal-footer {
+
+                flex-direction: column-reverse;
             }
+
+
+            .fg-modal-footer button {
+
+                width: 100%;
+            }
+
         }
 
         `;
+
 
         document.head.appendChild(style);
     }
 
 
-    /* =====================================================
-       TOAST
-    ===================================================== */
+    /* =========================================================
+       FIND PAGE CONTAINER
+    ========================================================= */
 
-    function showToast(message, type) {
+    function getPageContainer() {
 
-        let toast = getElement("fgReadingToast");
-
-        if (!toast) {
-
-            toast = document.createElement("div");
-
-            toast.id = "fgReadingToast";
-
-            toast.className =
-                "fg-reading-toast";
-
-            document.body.appendChild(toast);
-        }
-
-        toast.className =
-            "fg-reading-toast " +
-            (type || "success");
-
-        toast.innerHTML = `
-
-            <span>
-                ${type === "error" ? "⚠" : "✓"}
-            </span>
-
-            <span>
-                ${escapeHtml(message)}
-            </span>
-
-        `;
-
-        requestAnimationFrame(() => {
-
-            toast.classList.add("show");
-
-        });
-
-        clearTimeout(
-            toast._timer
+        return (
+            $("pageContent") ||
+            $("app") ||
+            document.querySelector(".page-content") ||
+            document.querySelector("main") ||
+            document.body
         );
-
-        toast._timer = setTimeout(() => {
-
-            toast.classList.remove("show");
-
-        }, 3500);
     }
 
 
-    /* =====================================================
-       GET DEFAULT DATETIME LOCAL
-    ===================================================== */
-
-    function getLocalDateTimeValue() {
-
-        const now = new Date();
-
-        const offset =
-            now.getTimezoneOffset();
-
-        const localDate =
-            new Date(
-                now.getTime() -
-                offset * 60000
-            );
-
-        return localDate
-            .toISOString()
-            .slice(0, 16);
-    }
-
-
-    /* =====================================================
-       RENDER PAGE
-    ===================================================== */
+    /* =========================================================
+       RENDER PAGE SHELL
+    ========================================================= */
 
     function renderPage() {
 
-        const container =
-            getElement("pageContent");
+        const container = getPageContainer();
 
         if (!container) {
-            return;
+            console.error("FuelGap: Page container not found.");
+            return false;
         }
+
 
         container.innerHTML = `
 
-            <div class="fg-readings-page">
+            <div class="fg-reading-page">
 
-                <!-- HEADER -->
+                <div class="fg-reading-container">
 
-                <div class="fg-readings-header">
+                    <div class="fg-reading-header">
 
-                    <div>
+                        <div class="fg-reading-header-left">
 
-                        <div class="fg-readings-eyebrow">
-                            FORECOURT MONITORING
+                            <div class="fg-reading-title-icon">
+                                ⛽
+                            </div>
+
+                            <div>
+
+                                <div class="fg-reading-kicker">
+                                    FORECOURT MONITORING
+                                </div>
+
+                                <h1 class="fg-reading-title">
+                                    Meter Readings
+                                </h1>
+
+                                <p class="fg-reading-subtitle">
+                                    Capture and monitor pump meter readings across your fuel stations.
+                                </p>
+
+                            </div>
+
                         </div>
 
-                        <h1 class="fg-readings-title">
-                            Meter Readings
-                        </h1>
 
-                        <p class="fg-readings-subtitle">
-                            Record pump meter readings,
-                            monitor forecourt activity,
-                            and keep historical records.
-                        </p>
-
-                    </div>
-
-                    <button
-                        type="button"
-                        class="fg-add-reading-btn"
-                        id="openMeterReadingModal"
-                    >
-                        <span>＋</span>
-                        <span>Add Meter Reading</span>
-                    </button>
-
-                </div>
-
-
-                <!-- STATS -->
-
-                <div
-                    class="fg-reading-stats"
-                    id="readingStats"
-                >
-
-                    ${renderStatSkeleton(
-                        "📋",
-                        "Total Readings"
-                    )}
-
-                    ${renderStatSkeleton(
-                        "📅",
-                        "Today's Readings"
-                    )}
-
-                    ${renderStatSkeleton(
-                        "◷",
-                        "Opening Readings"
-                    )}
-
-                    ${renderStatSkeleton(
-                        "📷",
-                        "Evidence Captured"
-                    )}
-
-                </div>
-
-
-                <!-- OPTIONAL EVIDENCE NOTICE -->
-
-                <div class="fg-evidence-info">
-
-                    <div class="fg-evidence-info-icon">
-                        📷
-                    </div>
-
-                    <div>
-
-                        <strong>
-                            Evidence is optional
-                        </strong>
-
-                        <span>
-                            You can submit a meter reading
-                            without a photo. When evidence is
-                            available, you can take a live camera
-                            photo or upload an existing image.
-                        </span>
+                        <button
+                            type="button"
+                            class="fg-primary-btn"
+                            id="openMeterReadingModal"
+                        >
+                            <span>＋</span>
+                            Add Meter Reading
+                        </button>
 
                     </div>
 
-                </div>
 
+                    <!-- STATS -->
 
-                <!-- MAIN CARD -->
+                    <div class="fg-reading-stats">
 
-                <div class="fg-reading-card">
+                        <div class="fg-reading-stat">
 
-                    <!-- FILTERS -->
+                            <div class="fg-reading-stat-top">
 
-                    <div class="fg-reading-filter">
+                                <div class="fg-reading-stat-icon">
+                                    #
+                                </div>
 
-                        <div class="fg-filter-group">
+                            </div>
 
-                            <select
-                                id="readingStationFilter"
+                            <div class="fg-reading-stat-label">
+                                Total Readings
+                            </div>
+
+                            <div
+                                class="fg-reading-stat-value"
+                                id="statTotalReadings"
                             >
-
-                                <option value="">
-                                    All Stations
-                                </option>
-
-                            </select>
+                                0
+                            </div>
 
                         </div>
 
 
-                        <div class="fg-filter-group">
+                        <div class="fg-reading-stat">
 
-                            <select
-                                id="readingTypeFilter"
+                            <div class="fg-reading-stat-top">
+
+                                <div class="fg-reading-stat-icon">
+                                    ◷
+                                </div>
+
+                            </div>
+
+                            <div class="fg-reading-stat-label">
+                                Today's Readings
+                            </div>
+
+                            <div
+                                class="fg-reading-stat-value"
+                                id="statTodayReadings"
                             >
-
-                                <option value="">
-                                    All Reading Types
-                                </option>
-
-                                <option value="opening">
-                                    Opening
-                                </option>
-
-                                <option value="periodic">
-                                    Periodic
-                                </option>
-
-                                <option value="closing">
-                                    Closing
-                                </option>
-
-                                <option value="correction">
-                                    Correction
-                                </option>
-
-                            </select>
+                                0
+                            </div>
 
                         </div>
 
 
-                        <div class="fg-filter-group">
+                        <div class="fg-reading-stat">
 
-                            <input
-                                type="search"
-                                id="readingSearch"
-                                placeholder="Search station, pump, nozzle..."
+                            <div class="fg-reading-stat-top">
+
+                                <div class="fg-reading-stat-icon">
+                                    O
+                                </div>
+
+                            </div>
+
+                            <div class="fg-reading-stat-label">
+                                Opening Readings
+                            </div>
+
+                            <div
+                                class="fg-reading-stat-value"
+                                id="statOpeningReadings"
                             >
+                                0
+                            </div>
+
+                        </div>
+
+
+                        <div class="fg-reading-stat">
+
+                            <div class="fg-reading-stat-top">
+
+                                <div class="fg-reading-stat-icon">
+                                    ✓
+                                </div>
+
+                            </div>
+
+                            <div class="fg-reading-stat-label">
+                                Evidence Captured
+                            </div>
+
+                            <div
+                                class="fg-reading-stat-value"
+                                id="statEvidenceReadings"
+                            >
+                                0
+                            </div>
 
                         </div>
 
                     </div>
 
 
-                    <!-- TABLE -->
+                    <!-- READINGS -->
 
-                    <div
-                        class="fg-reading-table-wrap"
-                        id="readingsTableContainer"
-                    >
+                    <div class="fg-reading-card">
 
-                        <div class="fg-loading">
+                        <div class="fg-reading-card-header">
 
-                            <div class="fg-spinner"></div>
+                            <div>
 
-                            <span>
-                                Loading meter readings...
-                            </span>
+                                <div class="fg-reading-card-title">
+                                    Meter Reading Records
+                                </div>
+
+                                <div class="fg-reading-card-description">
+                                    Review current and historical forecourt readings.
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="fg-reading-filters">
+
+                            <div class="fg-reading-field">
+
+                                <label>
+                                    Station
+                                </label>
+
+                                <select id="readingFilterStation">
+
+                                    <option value="">
+                                        All Stations
+                                    </option>
+
+                                </select>
+
+                            </div>
+
+
+                            <div class="fg-reading-field">
+
+                                <label>
+                                    Reading Type
+                                </label>
+
+                                <select id="readingFilterType">
+
+                                    <option value="">
+                                        All Types
+                                    </option>
+
+                                    <option value="opening">
+                                        Opening
+                                    </option>
+
+                                    <option value="periodic">
+                                        Periodic
+                                    </option>
+
+                                    <option value="closing">
+                                        Closing
+                                    </option>
+
+                                    <option value="correction">
+                                        Correction
+                                    </option>
+
+                                </select>
+
+                            </div>
+
+
+                            <div class="fg-reading-field">
+
+                                <label>
+                                    Search
+                                </label>
+
+                                <input
+                                    type="search"
+                                    id="readingSearch"
+                                    placeholder="Search station, pump, nozzle or reading..."
+                                >
+
+                            </div>
+
+                        </div>
+
+
+                        <div
+                            class="fg-reading-table-wrap"
+                            id="readingsTableContainer"
+                        >
+
+                            <div class="fg-reading-loading">
+
+                                <div class="fg-spinner"></div>
+
+                                <div>
+                                    Loading meter readings...
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- EVIDENCE ROLL -->
+
+                    <div class="fg-reading-card">
+
+                        <div class="fg-reading-card-header">
+
+                            <div>
+
+                                <div class="fg-reading-card-title">
+                                    Evidence Roll
+                                </div>
+
+                                <div class="fg-reading-card-description">
+                                    Recent readings that include captured evidence.
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <div id="evidenceRollContainer">
+
+                            <div class="fg-empty-state">
+
+                                <div class="fg-empty-icon">
+                                    ◉
+                                </div>
+
+                                <div class="fg-empty-title">
+                                    No evidence available
+                                </div>
+
+                                <div>
+                                    Camera evidence is optional for meter readings.
+                                </div>
+
+                            </div>
 
                         </div>
 
@@ -2289,20 +2288,12 @@
                 id="meterReadingModal"
             >
 
-                <div class="fg-reading-modal-content">
+                <div class="fg-reading-modal-box">
 
                     <div class="fg-modal-header">
 
-                        <div>
-
-                            <h2>
-                                Add Meter Reading
-                            </h2>
-
-                            <p>
-                                Record a pump meter reading.
-                            </p>
-
+                        <div class="fg-modal-title">
+                            Add Meter Reading
                         </div>
 
                         <button
@@ -2316,33 +2307,22 @@
                     </div>
 
 
-                    <div class="fg-modal-body">
+                    <form id="meterReadingForm">
 
-                        <form
-                            id="meterReadingForm"
-                            autocomplete="off"
-                        >
+                        <div class="fg-modal-body">
 
                             <div class="fg-form-grid">
 
-
                                 <!-- STATION -->
 
-                                <div class="fg-form-group">
+                                <div class="fg-reading-field">
 
-                                    <label
-                                        class="fg-form-label"
-                                        for="meterStation"
-                                    >
-                                        Station
-                                        <span class="fg-required">
-                                            *
-                                        </span>
+                                    <label for="meterStation">
+                                        Station *
                                     </label>
 
                                     <select
                                         id="meterStation"
-                                        class="fg-form-control"
                                         required
                                     >
 
@@ -2357,21 +2337,14 @@
 
                                 <!-- PUMP -->
 
-                                <div class="fg-form-group">
+                                <div class="fg-reading-field">
 
-                                    <label
-                                        class="fg-form-label"
-                                        for="meterPump"
-                                    >
-                                        Pump
-                                        <span class="fg-required">
-                                            *
-                                        </span>
+                                    <label for="meterPump">
+                                        Pump *
                                     </label>
 
                                     <select
                                         id="meterPump"
-                                        class="fg-form-control"
                                         required
                                         disabled
                                     >
@@ -2387,21 +2360,14 @@
 
                                 <!-- NOZZLE -->
 
-                                <div class="fg-form-group">
+                                <div class="fg-reading-field">
 
-                                    <label
-                                        class="fg-form-label"
-                                        for="meterNozzle"
-                                    >
-                                        Nozzle
-                                        <span class="fg-required">
-                                            *
-                                        </span>
+                                    <label for="meterNozzle">
+                                        Nozzle *
                                     </label>
 
                                     <select
                                         id="meterNozzle"
-                                        class="fg-form-control"
                                         required
                                         disabled
                                     >
@@ -2415,55 +2381,22 @@
                                 </div>
 
 
-                                <!-- SHIFT -->
+                                <!-- TYPE -->
 
-                                <div class="fg-form-group">
+                                <div class="fg-reading-field">
 
-                                    <label
-                                        class="fg-form-label"
-                                        for="meterShift"
-                                    >
-                                        Shift
-                                        <span class="fg-required">
-                                            *
-                                        </span>
-                                    </label>
-
-                                    <select
-                                        id="meterShift"
-                                        class="fg-form-control"
-                                        required
-                                        disabled
-                                    >
-
-                                        <option value="">
-                                            Select station first
-                                        </option>
-
-                                    </select>
-
-                                </div>
-
-
-                                <!-- READING TYPE -->
-
-                                <div class="fg-form-group">
-
-                                    <label
-                                        class="fg-form-label"
-                                        for="meterReadingType"
-                                    >
-                                        Reading Type
-                                        <span class="fg-required">
-                                            *
-                                        </span>
+                                    <label for="meterReadingType">
+                                        Reading Type *
                                     </label>
 
                                     <select
                                         id="meterReadingType"
-                                        class="fg-form-control"
                                         required
                                     >
+
+                                        <option value="">
+                                            Select reading type
+                                        </option>
 
                                         <option value="opening">
                                             Opening
@@ -2486,1110 +2419,884 @@
                                 </div>
 
 
+                                <!-- DATE -->
+
+                                <div class="fg-reading-field full-width">
+
+                                    <label for="meterReadingDate">
+                                        Reading Date & Time *
+                                    </label>
+
+                                    <input
+                                        type="datetime-local"
+                                        id="meterReadingDate"
+                                        required
+                                    >
+
+                                    <div
+                                        class="fg-history-notice"
+                                        id="historyNotice"
+                                    >
+                                        Historical reading selected. This reading will be saved using the selected date and time.
+                                    </div>
+
+                                </div>
+
+
+                                <!-- SHIFT -->
+
+                                <div class="fg-reading-field full-width">
+
+                                    <label for="meterShift">
+                                        Shift
+                                    </label>
+
+                                    <select id="meterShift">
+
+                                        <option value="">
+                                            Select shift
+                                        </option>
+
+                                    </select>
+
+                                    <div class="fg-form-help">
+                                        Current normal readings normally use an open shift. Historical readings can use the applicable closed shift when supported by the backend.
+                                    </div>
+
+                                </div>
+
+
                                 <!-- READING -->
 
-                                <div class="fg-form-group">
+                                <div class="fg-reading-field full-width">
 
-                                    <label
-                                        class="fg-form-label"
-                                        for="meterReading"
-                                    >
-                                        Meter Reading
-                                        <span class="fg-required">
-                                            *
-                                        </span>
+                                    <label for="meterReading">
+                                        Meter Reading *
                                     </label>
 
                                     <input
                                         type="number"
                                         id="meterReading"
-                                        class="fg-form-control"
                                         min="0"
                                         step="0.01"
                                         placeholder="Enter meter reading"
                                         required
                                     >
 
-                                </div>
-
-
-                                <!-- DATE -->
-
-                                <div class="fg-form-group full">
-
-                                    <label
-                                        class="fg-form-label"
-                                        for="meterReadingDate"
-                                    >
-                                        Reading Date & Time
-                                        <span class="fg-required">
-                                            *
-                                        </span>
-                                    </label>
-
-                                    <input
-                                        type="datetime-local"
-                                        id="meterReadingDate"
-                                        class="fg-form-control"
-                                        required
-                                    >
-
-                                    <div class="fg-history-note">
-
-                                        <strong>
-                                            Historical records:
-                                        </strong>
-
-                                        If this is an old meter
-                                        reading, select the original
-                                        date and time. This allows
-                                        previous records to be entered
-                                        for historical gap checking.
-
+                                    <div class="fg-form-help">
+                                        Enter the exact cumulative meter value shown on the pump.
                                     </div>
 
                                 </div>
 
 
-                            </div>
+                                <!-- EVIDENCE -->
 
+                                <div class="fg-evidence-box fg-full-width">
 
-                            <!-- EVIDENCE -->
-
-                            <div class="fg-evidence-section">
-
-                                <div class="fg-evidence-header">
-
-                                    <div class="fg-evidence-header-row">
+                                    <div class="fg-evidence-header">
 
                                         <div class="fg-evidence-title">
-                                            Meter Evidence
+                                            Evidence
                                         </div>
 
-                                        <span
-                                            class="fg-optional-badge"
-                                        >
+                                        <div class="fg-evidence-optional">
                                             Optional
-                                        </span>
-
-                                    </div>
-
-                                    <p class="fg-evidence-description">
-
-                                        Evidence is not required.
-                                        You can save this reading
-                                        without a photo. If you want
-                                        evidence, use the camera or
-                                        upload an existing image.
-
-                                    </p>
-
-                                </div>
-
-
-                                <div class="fg-evidence-body">
-
-
-                                    <!-- CAMERA -->
-
-                                    <div
-                                        class="fg-camera-box"
-                                        id="meterCameraBox"
-                                    >
-
-                                        <video
-                                            id="meterCameraVideo"
-                                            class="fg-camera-video"
-                                            autoplay
-                                            playsinline
-                                            muted
-                                        ></video>
-
-                                        <div
-                                            class="fg-camera-status"
-                                            id="meterCameraStatus"
-                                        >
-                                            Camera active
                                         </div>
 
                                     </div>
 
 
-                                    <!-- PREVIEW -->
-
-                                    <div
-                                        class="fg-photo-preview-box"
-                                        id="meterPhotoPreviewBox"
-                                    >
-
-                                        <img
-                                            id="meterPhotoPreview"
-                                            class="fg-photo-preview"
-                                            alt="Meter evidence preview"
-                                        >
-
+                                    <div class="fg-evidence-description">
+                                        You can submit this reading without evidence. If evidence is available, take a live photo or upload an existing image.
                                     </div>
 
 
-                                    <!-- ACTIONS -->
+                                    <video
+                                        id="meterCameraVideo"
+                                        class="fg-camera-video"
+                                        autoplay
+                                        playsinline
+                                    ></video>
+
+
+                                    <img
+                                        id="meterPhotoPreview"
+                                        class="fg-camera-preview"
+                                        alt="Meter reading evidence preview"
+                                    >
+
+
+                                    <div
+                                        class="fg-evidence-status-box"
+                                        id="meterEvidenceStatus"
+                                    >
+                                        <span>○</span>
+                                        <span>
+                                            No evidence attached — you can still save this reading.
+                                        </span>
+                                    </div>
+
 
                                     <div class="fg-evidence-actions">
 
-
                                         <button
                                             type="button"
-                                            class="fg-evidence-btn primary"
+                                            class="camera-main-btn"
                                             id="startMeterCamera"
                                         >
-                                            📷
-                                            Start Camera
+                                            ◉ Start Camera
                                         </button>
 
 
                                         <button
                                             type="button"
-                                            class="fg-evidence-btn"
                                             id="captureMeterPhoto"
                                             disabled
                                         >
-                                            ◎
-                                            Capture
+                                            ◎ Capture
                                         </button>
 
 
                                         <button
                                             type="button"
-                                            class="fg-evidence-btn"
                                             id="retakeMeterPhoto"
-                                            style="display:none;"
                                         >
-                                            ↻
-                                            Retake
+                                            ↻ Retake
                                         </button>
 
 
                                         <button
                                             type="button"
-                                            class="fg-evidence-btn"
                                             id="uploadMeterPhoto"
                                         >
-                                            ⬆
-                                            Upload Image
+                                            ↑ Upload Image
                                         </button>
 
 
                                         <button
                                             type="button"
-                                            class="fg-evidence-btn danger"
                                             id="removeMeterPhoto"
-                                            style="display:none;"
                                         >
-                                            ×
-                                            Remove Evidence
+                                            × Remove Evidence
                                         </button>
-
 
                                     </div>
 
-
-                                    <!-- FILE INPUT -->
 
                                     <input
                                         type="file"
                                         id="meterEvidenceFile"
+                                        class="fg-hidden-file"
                                         accept="image/*"
-                                        style="display:none;"
                                     >
-
-
-                                    <!-- STATUS -->
-
-                                    <div
-                                        class="fg-evidence-status-box optional"
-                                        id="meterEvidenceStatus"
-                                    >
-
-                                        <span
-                                            class="fg-evidence-status-icon"
-                                        >
-                                            ○
-                                        </span>
-
-                                        <span>
-                                            No evidence attached.
-                                            You can still save this
-                                            meter reading.
-                                        </span>
-
-                                    </div>
-
 
                                 </div>
 
                             </div>
 
-                        </form>
-
-                    </div>
+                        </div>
 
 
-                    <!-- FOOTER -->
+                        <div class="fg-modal-footer">
 
-                    <div class="fg-modal-footer">
-
-                        <button
-                            type="button"
-                            class="fg-modal-btn cancel"
-                            id="cancelMeterReading"
-                        >
-                            Cancel
-                        </button>
-
-                        <button
-                            type="button"
-                            class="fg-modal-btn save"
-                            id="saveMeterReading"
-                        >
-                            Save Meter Reading
-                        </button>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        `;
-
-        populateStationFilters();
-
-        bindPageEvents();
-
-        loadAllData();
-    }
+                            <button
+                                type="button"
+                                class="fg-secondary-btn"
+                                id="cancelMeterReading"
+                            >
+                                Cancel
+                            </button>
 
 
-    /* =====================================================
-       STAT SKELETON
-    ===================================================== */
+                            <button
+                                type="submit"
+                                class="fg-primary-btn"
+                                id="saveMeterReading"
+                            >
+                                ✓ Save Reading
+                            </button>
 
-    function renderStatSkeleton(icon, label) {
+                        </div>
 
-        return `
-
-            <div class="fg-reading-stat">
-
-                <div class="fg-stat-icon">
-                    ${icon}
-                </div>
-
-                <div>
-
-                    <div class="fg-stat-label">
-                        ${label}
-                    </div>
-
-                    <div class="fg-stat-value">
-                        0
-                    </div>
+                    </form>
 
                 </div>
 
             </div>
 
         `;
+
+
+        return true;
     }
 
 
-    /* =====================================================
-       POPULATE STATION FILTERS
-    ===================================================== */
-
-    function populateStationFilters() {
-
-        const filter =
-            getElement("readingStationFilter");
-
-        const formStation =
-            getElement("meterStation");
-
-        if (!filter) {
-            return;
-        }
-
-        const options =
-            MeterReadingsState.stations
-                .map(station => `
-
-                    <option value="${escapeHtml(station.id)}">
-                        ${escapeHtml(station.name)}
-                    </option>
-
-                `)
-                .join("");
-
-        filter.innerHTML = `
-
-            <option value="">
-                All Stations
-            </option>
-
-            ${options}
-
-        `;
-
-        if (formStation) {
-
-            formStation.innerHTML = `
-
-                <option value="">
-                    Select station
-                </option>
-
-                ${options}
-
-            `;
-        }
-    }
-
-
-    /* =====================================================
-       BIND PAGE EVENTS
-    ===================================================== */
-
-    function bindPageEvents() {
-
-        const openButton =
-            getElement("openMeterReadingModal");
-
-        const closeButton =
-            getElement("closeMeterReadingModal");
-
-        const cancelButton =
-            getElement("cancelMeterReading");
-
-        const form =
-            getElement("meterReadingForm");
-
-        const station =
-            getElement("meterStation");
-
-        const pump =
-            getElement("meterPump");
-
-        const readingType =
-            getElement("meterReadingType");
-
-        const startCamera =
-            getElement("startMeterCamera");
-
-        const capture =
-            getElement("captureMeterPhoto");
-
-        const retake =
-            getElement("retakeMeterPhoto");
-
-        const upload =
-            getElement("uploadMeterPhoto");
-
-        const remove =
-            getElement("removeMeterPhoto");
-
-        const file =
-            getElement("meterEvidenceFile");
-
-        const save =
-            getElement("saveMeterReading");
-
-
-        if (openButton) {
-
-            openButton.addEventListener(
-                "click",
-                openMeterReadingModal
-            );
-        }
-
-
-        if (closeButton) {
-
-            closeButton.addEventListener(
-                "click",
-                closeMeterReadingModal
-            );
-        }
-
-
-        if (cancelButton) {
-
-            cancelButton.addEventListener(
-                "click",
-                closeMeterReadingModal
-            );
-        }
-
-
-        if (form) {
-
-            form.addEventListener(
-                "submit",
-                function (event) {
-
-                    event.preventDefault();
-
-                    submitMeterReading();
-
-                }
-            );
-        }
-
-
-        if (station) {
-
-            station.addEventListener(
-                "change",
-                handleStationChange
-            );
-        }
-
-
-        if (pump) {
-
-            pump.addEventListener(
-                "change",
-                handlePumpChange
-            );
-        }
-
-
-        if (readingType) {
-
-            readingType.addEventListener(
-                "change",
-                updateShiftOptions
-            );
-        }
-
-
-        if (startCamera) {
-
-            startCamera.addEventListener(
-                "click",
-                startCameraCapture
-            );
-        }
-
-
-        if (capture) {
-
-            capture.addEventListener(
-                "click",
-                capturePhoto
-            );
-        }
-
-
-        if (retake) {
-
-            retake.addEventListener(
-                "click",
-                retakePhoto
-            );
-        }
-
-
-        if (upload) {
-
-            upload.addEventListener(
-                "click",
-                function () {
-
-                    if (file) {
-                        file.click();
-                    }
-
-                }
-            );
-        }
-
-
-        if (remove) {
-
-            remove.addEventListener(
-                "click",
-                removeEvidence
-            );
-        }
-
-
-        if (file) {
-
-            file.addEventListener(
-                "change",
-                handleFileUpload
-            );
-        }
-
-
-        if (save) {
-
-            save.addEventListener(
-                "click",
-                function () {
-
-                    submitMeterReading();
-
-                }
-            );
-        }
-
-
-        const stationFilter =
-            getElement("readingStationFilter");
-
-        const typeFilter =
-            getElement("readingTypeFilter");
-
-        const search =
-            getElement("readingSearch");
-
-
-        if (stationFilter) {
-
-            stationFilter.addEventListener(
-                "change",
-                renderReadingsTable
-            );
-        }
-
-
-        if (typeFilter) {
-
-            typeFilter.addEventListener(
-                "change",
-                renderReadingsTable
-            );
-        }
-
-
-        if (search) {
-
-            search.addEventListener(
-                "input",
-                renderReadingsTable
-            );
-        }
-
-
-        const modal =
-            getElement("meterReadingModal");
-
-        if (modal) {
-
-            modal.addEventListener(
-                "click",
-                function (event) {
-
-                    if (
-                        event.target === modal
-                    ) {
-
-                        closeMeterReadingModal();
-
-                    }
-
-                }
-            );
-        }
-
-
-        document.addEventListener(
-            "keydown",
-            handleEscapeKey
-        );
-    }
-
-
-    /* =====================================================
-       ESCAPE KEY
-    ===================================================== */
-
-    function handleEscapeKey(event) {
-
-        if (event.key !== "Escape") {
-            return;
-        }
-
-        const modal =
-            getElement("meterReadingModal");
-
-        if (
-            modal &&
-            modal.classList.contains("active")
-        ) {
-
-            closeMeterReadingModal();
-
-        }
-    }
-
-
-    /* =====================================================
-       LOAD ALL DATA
-    ===================================================== */
-
-    async function loadAllData() {
-
-        MeterReadingsState.isLoading = true;
-
-        try {
-
-            await Promise.all([
-                loadStations(),
-                loadPumps(),
-                loadNozzles(),
-                loadShifts(),
-                loadReadings()
-            ]);
-
-            populateStationFilters();
-
-            renderStats();
-
-            renderReadingsTable();
-
-        } catch (error) {
-
-            console.error(
-                "FUELGAP READINGS LOAD ERROR:",
-                error
-            );
-
-            showToast(
-                "Unable to load meter readings.",
-                "error"
-            );
-
-            renderReadingsTable();
-
-        } finally {
-
-            MeterReadingsState.isLoading = false;
-        }
-    }
-
-
-    /* =====================================================
+    /* =========================================================
        LOAD STATIONS
-    ===================================================== */
+    ========================================================= */
 
     async function loadStations() {
 
         try {
 
-            const response =
-                await FuelGapAPI.getStations();
+            if (
+                !window.FuelGapAPI ||
+                typeof FuelGapAPI.getStations !== "function"
+            ) {
+                throw new Error("FuelGapAPI.getStations is not available.");
+            }
 
-            const data =
-                normalizeArray(
-                    response,
-                    [
-                        "stations",
-                        "data"
-                    ]
-                );
 
-            MeterReadingsState.stations =
-                data.map(normalizeStation);
+            const response = await FuelGapAPI.getStations();
+
+
+            const data = getResponseData(
+                response,
+                ["stations", "data"]
+            );
+
+
+            State.stations = data
+                .map(normalizeStation)
+                .filter(function (station) {
+
+                    return station.id;
+                });
+
+
+            populateStationLists();
+
 
         } catch (error) {
 
             console.error(
-                "FUELGAP STATIONS ERROR:",
+                "FuelGap meter readings - station load error:",
                 error
             );
 
-            MeterReadingsState.stations = [];
+            showToast(
+                "Unable to load stations.",
+                "error"
+            );
         }
     }
 
 
-    /* =====================================================
+    /* =========================================================
        LOAD PUMPS
-    ===================================================== */
+    ========================================================= */
 
     async function loadPumps() {
 
         try {
 
             const response =
-                await FuelGapAPI.request(
-                    "/pumps"
-                );
+                await FuelGapAPI.request("/pumps");
 
-            const data =
-                normalizeArray(
-                    response,
-                    [
-                        "pumps",
-                        "data"
-                    ]
-                );
 
-            MeterReadingsState.pumps =
-                data.map(normalizePump);
+            const data = getResponseData(
+                response,
+                ["pumps", "data"]
+            );
+
+
+            State.pumps = data
+                .map(normalizePump)
+                .filter(function (pump) {
+
+                    return pump.id;
+                });
+
 
         } catch (error) {
 
             console.error(
-                "FUELGAP PUMPS ERROR:",
+                "FuelGap meter readings - pump load error:",
                 error
             );
 
-            MeterReadingsState.pumps = [];
+            State.pumps = [];
+
+            showToast(
+                "Unable to load pumps.",
+                "error"
+            );
         }
     }
 
 
-    /* =====================================================
+    /* =========================================================
        LOAD NOZZLES
-    ===================================================== */
+    ========================================================= */
 
     async function loadNozzles() {
 
         try {
 
             const response =
-                await FuelGapAPI.request(
-                    "/nozzles"
-                );
+                await FuelGapAPI.request("/nozzles");
 
-            const data =
-                normalizeArray(
-                    response,
-                    [
-                        "nozzles",
-                        "data"
-                    ]
-                );
 
-            MeterReadingsState.nozzles =
-                data.map(normalizeNozzle);
+            const data = getResponseData(
+                response,
+                ["nozzles", "data"]
+            );
+
+
+            State.nozzles = data
+                .map(normalizeNozzle)
+                .filter(function (nozzle) {
+
+                    return nozzle.id;
+                });
+
 
         } catch (error) {
 
             console.error(
-                "FUELGAP NOZZLES ERROR:",
+                "FuelGap meter readings - nozzle load error:",
                 error
             );
 
-            MeterReadingsState.nozzles = [];
+            State.nozzles = [];
+
+            showToast(
+                "Unable to load nozzles.",
+                "error"
+            );
         }
     }
 
 
-    /* =====================================================
+    /* =========================================================
        LOAD SHIFTS
-    ===================================================== */
+    ========================================================= */
 
     async function loadShifts() {
 
         try {
 
             const response =
-                await FuelGapAPI.request(
-                    "/shifts"
-                );
+                await FuelGapAPI.request("/shifts");
 
-            const data =
-                normalizeArray(
-                    response,
-                    [
-                        "shifts",
-                        "data"
-                    ]
-                );
 
-            MeterReadingsState.shifts =
-                data.map(normalizeShift);
+            const data = getResponseData(
+                response,
+                ["shifts", "data"]
+            );
+
+
+            State.shifts = data
+                .map(normalizeShift)
+                .filter(function (shift) {
+
+                    return shift.id;
+                });
+
 
         } catch (error) {
 
             console.error(
-                "FUELGAP SHIFTS ERROR:",
+                "FuelGap meter readings - shift load error:",
                 error
             );
 
-            MeterReadingsState.shifts = [];
+            State.shifts = [];
+
+            showToast(
+                "Unable to load shifts.",
+                "error"
+            );
         }
     }
 
 
-    /* =====================================================
+    /* =========================================================
        LOAD READINGS
-    ===================================================== */
+    ========================================================= */
 
     async function loadReadings() {
+
+        const table =
+            $("readingsTableContainer");
+
+
+        if (table) {
+
+            table.innerHTML = `
+
+                <div class="fg-reading-loading">
+
+                    <div class="fg-spinner"></div>
+
+                    <div>
+                        Loading meter readings...
+                    </div>
+
+                </div>
+
+            `;
+        }
+
 
         try {
 
             const response =
-                await FuelGapAPI.request(
-                    "/meter-readings"
-                );
+                await FuelGapAPI.request("/meter-readings");
 
-            const data =
-                normalizeArray(
-                    response,
-                    [
-                        "readings",
-                        "meter_readings",
-                        "meterReadings",
-                        "data"
-                    ]
-                );
 
-            MeterReadingsState.readings =
-                data.map(normalizeReading);
+            const data = getResponseData(
+                response,
+                ["readings", "meter_readings", "data"]
+            );
+
+
+            State.readings = data
+                .map(normalizeReading)
+                .filter(function (reading) {
+
+                    return reading.id;
+                });
+
+
+            updateStats();
+
+            renderReadings();
+
+            renderEvidenceRoll();
+
 
         } catch (error) {
 
             console.error(
-                "FUELGAP METER READINGS ERROR:",
+                "FuelGap meter readings - reading load error:",
                 error
             );
 
-            MeterReadingsState.readings = [];
+
+            State.readings = [];
+
+            updateStats();
+
+            if (table) {
+
+                table.innerHTML = `
+
+                    <div class="fg-empty-state">
+
+                        <div class="fg-empty-icon">
+                            !
+                        </div>
+
+                        <div class="fg-empty-title">
+                            Unable to load readings
+                        </div>
+
+                        <div>
+                            Check your backend connection and try again.
+                        </div>
+
+                    </div>
+
+                `;
+            }
+
+
+            showToast(
+                "Unable to load meter readings.",
+                "error"
+            );
         }
     }
 
 
-    /* =====================================================
-       HANDLE STATION CHANGE
-    ===================================================== */
+    /* =========================================================
+       POPULATE STATION FILTERS
+    ========================================================= */
 
-    function handleStationChange() {
+    function populateStationLists() {
 
-        const stationId =
-            getElement("meterStation").value;
+        const stationFilter =
+            $("readingFilterStation");
 
-        const pump =
-            getElement("meterPump");
-
-        const nozzle =
-            getElement("meterNozzle");
-
-        const shift =
-            getElement("meterShift");
+        const stationSelect =
+            $("meterStation");
 
 
-        pump.innerHTML = `
+        if (stationFilter) {
+
+            stationFilter.innerHTML = `
+
+                <option value="">
+                    All Stations
+                </option>
+
+            `;
+
+
+            State.stations.forEach(function (station) {
+
+                stationFilter.insertAdjacentHTML(
+                    "beforeend",
+                    `
+                    <option value="${escapeHTML(station.id)}">
+                        ${escapeHTML(station.name)}
+                    </option>
+                    `
+                );
+
+            });
+        }
+
+
+        if (stationSelect) {
+
+            stationSelect.innerHTML = `
+
+                <option value="">
+                    Select station
+                </option>
+
+            `;
+
+
+            State.stations.forEach(function (station) {
+
+                stationSelect.insertAdjacentHTML(
+                    "beforeend",
+                    `
+                    <option value="${escapeHTML(station.id)}">
+                        ${escapeHTML(station.name)}
+                    </option>
+                    `
+                );
+
+            });
+        }
+    }
+
+
+    /* =========================================================
+       POPULATE PUMPS
+    ========================================================= */
+
+    function populatePumps(stationId) {
+
+        const select =
+            $("meterPump");
+
+
+        if (!select) {
+            return;
+        }
+
+
+        select.innerHTML = `
+
             <option value="">
                 Select pump
             </option>
-        `;
 
-        nozzle.innerHTML = `
-            <option value="">
-                Select pump first
-            </option>
-        `;
-
-        shift.innerHTML = `
-            <option value="">
-                Select shift
-            </option>
         `;
 
 
-        pump.disabled = true;
-        nozzle.disabled = true;
-        shift.disabled = true;
+        select.disabled = true;
 
 
         if (!stationId) {
+
+            select.innerHTML = `
+
+                <option value="">
+                    Select station first
+                </option>
+
+            `;
+
             return;
         }
 
 
         const pumps =
-            MeterReadingsState.pumps.filter(
-                item =>
-                    String(item.station_id) ===
+            State.pumps.filter(function (pump) {
+
+                return (
+                    String(pump.station_id) ===
                     String(stationId)
-            );
+                );
+
+            });
 
 
-        if (pumps.length) {
+        if (!pumps.length) {
 
-            pump.innerHTML = `
+            select.innerHTML = `
 
                 <option value="">
-                    Select pump
+                    No pumps found
                 </option>
-
-                ${pumps.map(item => `
-
-                    <option value="${escapeHtml(item.id)}">
-
-                        Pump ${escapeHtml(item.pump_number)}
-
-                        ${
-                            item.brand
-                                ? ` — ${escapeHtml(item.brand)}`
-                                : ""
-                        }
-
-                    </option>
-
-                `).join("")}
 
             `;
 
-            pump.disabled = false;
-
+            return;
         }
 
 
-        updateShiftOptions();
+        pumps.forEach(function (pump) {
+
+            select.insertAdjacentHTML(
+                "beforeend",
+                `
+                <option value="${escapeHTML(pump.id)}">
+
+                    Pump #${escapeHTML(pump.pump_number)}
+
+                    ${pump.brand
+                        ? " — " + escapeHTML(pump.brand)
+                        : ""
+                    }
+
+                    ${pump.model
+                        ? " " + escapeHTML(pump.model)
+                        : ""
+                    }
+
+                </option>
+                `
+            );
+
+        });
+
+
+        select.disabled = false;
     }
 
 
-    /* =====================================================
-       HANDLE PUMP CHANGE
-    ===================================================== */
+    /* =========================================================
+       POPULATE NOZZLES
+    ========================================================= */
 
-    function handlePumpChange() {
+    function populateNozzles(pumpId) {
 
-        const pumpId =
-            getElement("meterPump").value;
+        const select =
+            $("meterNozzle");
 
-        const nozzle =
-            getElement("meterNozzle");
 
-        nozzle.innerHTML = `
+        if (!select) {
+            return;
+        }
+
+
+        select.innerHTML = `
+
             <option value="">
                 Select nozzle
             </option>
+
         `;
 
-        nozzle.disabled = true;
+
+        select.disabled = true;
 
 
         if (!pumpId) {
+
+            select.innerHTML = `
+
+                <option value="">
+                    Select pump first
+                </option>
+
+            `;
+
             return;
         }
 
 
         const nozzles =
-            MeterReadingsState.nozzles.filter(
-                item =>
-                    String(item.pump_id) ===
+            State.nozzles.filter(function (nozzle) {
+
+                return (
+                    String(nozzle.pump_id) ===
                     String(pumpId)
-            );
+                );
+
+            });
 
 
         if (!nozzles.length) {
 
-            nozzle.innerHTML = `
+            select.innerHTML = `
+
                 <option value="">
-                    No nozzles configured
+                    No nozzles found
                 </option>
+
             `;
 
             return;
         }
 
 
-        nozzle.innerHTML = `
+        nozzles.forEach(function (nozzle) {
 
-            <option value="">
-                Select nozzle
-            </option>
+            select.insertAdjacentHTML(
+                "beforeend",
+                `
+                <option value="${escapeHTML(nozzle.id)}">
 
-            ${nozzles.map(item => `
+                    Nozzle #${escapeHTML(nozzle.nozzle_number)}
 
-                <option value="${escapeHtml(item.id)}">
+                    — ${escapeHTML(nozzle.fuel_type)}
 
-                    Nozzle
-                    ${escapeHtml(item.nozzle_number)}
-
-                    —
-                    ${escapeHtml(item.fuel_type)}
+                    ${
+                        Number(nozzle.price_per_litre) > 0
+                            ? " — $" + formatNumber(nozzle.price_per_litre)
+                            : ""
+                    }
 
                 </option>
+                `
+            );
 
-            `).join("")}
+        });
 
-        `;
 
-        nozzle.disabled = false;
+        select.disabled = false;
     }
 
 
-    /* =====================================================
-       UPDATE SHIFT OPTIONS
-    ===================================================== */
+    /* =========================================================
+       POPULATE SHIFTS
+    ========================================================= */
 
-    function updateShiftOptions() {
+    function populateShifts() {
+
+        const select =
+            $("meterShift");
+
+        if (!select) {
+            return;
+        }
+
 
         const stationId =
-            getElement("meterStation")?.value;
-
-        const readingType =
-            getElement("meterReadingType")?.value;
-
-        const shift =
-            getElement("meterShift");
+            $("meterStation")
+                ? $("meterStation").value
+                : "";
 
 
-        if (!shift) {
-            return;
-        }
+        const type =
+            $("meterReadingType")
+                ? $("meterReadingType").value
+                : "";
 
 
-        shift.innerHTML = `
-            <option value="">
-                Select shift
-            </option>
-        `;
-
-        shift.disabled = true;
+        const dateInput =
+            $("meterReadingDate")
+                ? $("meterReadingDate").value
+                : "";
 
 
-        if (!stationId) {
-            return;
-        }
-
-
-        let shifts =
-            MeterReadingsState.shifts.filter(
-                item =>
-                    String(item.station_id) ===
-                    String(stationId)
+        const historical =
+            isHistorical(
+                dateInput
+                    ? new Date(dateInput)
+                    : new Date()
             );
 
 
-        /*
-         * Correction readings can be linked to
-         * closed or open shifts.
-         *
-         * Other readings prioritize open shifts.
-         */
+        select.innerHTML = `
 
-        if (
-            readingType &&
-            readingType !== "correction"
-        ) {
+            <option value="">
+                Select shift
+            </option>
+
+        `;
+
+
+        let shifts =
+            State.shifts.slice();
+
+
+        if (stationId) {
+
+            shifts =
+                shifts.filter(function (shift) {
+
+                    return (
+                        String(shift.station_id) ===
+                        String(stationId)
+                    );
+
+                });
+        }
+
+
+        /*
+           Match shift date when possible.
+        */
+
+        if (dateInput) {
+
+            const selectedDate =
+                new Date(dateInput);
+
+
+            if (!Number.isNaN(selectedDate.getTime())) {
+
+                const selectedDay =
+                    selectedDate
+                        .toISOString()
+                        .slice(0, 10);
+
+
+                const datedShifts =
+                    shifts.filter(function (shift) {
+
+                        if (!shift.shift_date) {
+                            return false;
+                        }
+
+                        return String(
+                            shift.shift_date
+                        ).slice(0, 10) === selectedDay;
+
+                    });
+
+
+                if (datedShifts.length) {
+
+                    shifts = datedShifts;
+                }
+            }
+        }
+
+
+        /*
+           Current normal readings:
+           Prefer open shifts.
+
+           Historical:
+           Closed shifts are allowed.
+
+           Correction:
+           Open and closed shifts are allowed.
+        */
+
+        if (!historical && type !== "correction") {
 
             const openShifts =
-                shifts.filter(
-                    item =>
-                        item.status === "open" ||
-                        item.status === "active"
-                );
+                shifts.filter(function (shift) {
+
+                    return shift.status === "open";
+
+                });
+
 
             if (openShifts.length) {
+
                 shifts = openShifts;
             }
         }
@@ -3597,10 +3304,10 @@
 
         if (!shifts.length) {
 
-            shift.innerHTML = `
+            select.innerHTML = `
 
                 <option value="">
-                    No compatible shifts found
+                    No matching shifts found
                 </option>
 
             `;
@@ -3609,1061 +3316,221 @@
         }
 
 
-        shift.innerHTML = `
+        shifts.sort(function (a, b) {
 
-            <option value="">
-                Select shift
-            </option>
+            const aOpen =
+                a.status === "open" ? 0 : 1;
 
-            ${shifts.map(item => `
+            const bOpen =
+                b.status === "open" ? 0 : 1;
 
-                <option value="${escapeHtml(item.id)}">
+            return aOpen - bOpen;
+        });
 
-                    ${escapeHtml(item.shift_name)}
 
-                    ${
-                        item.shift_date
-                            ? ` — ${escapeHtml(item.shift_date)}`
-                            : ""
-                    }
-
-                    ${
-                        item.status
-                            ? ` (${escapeHtml(item.status)})`
-                            : ""
-                    }
-
-                </option>
-
-            `).join("")}
-
-        `;
-
-        shift.disabled = false;
-    }
-
-
-    /* =====================================================
-       OPEN MODAL
-    ===================================================== */
-
-    function openMeterReadingModal() {
-
-        const modal =
-            getElement("meterReadingModal");
-
-        if (!modal) {
-            return;
-        }
-
-
-        resetMeterReadingForm();
-
-
-        modal.classList.add("active");
-
-        document.body.style.overflow =
-            "hidden";
-    }
-
-
-    /* =====================================================
-       CLOSE MODAL
-    ===================================================== */
-
-    function closeMeterReadingModal() {
-
-        stopCamera();
-
-        const modal =
-            getElement("meterReadingModal");
-
-        if (modal) {
-
-            modal.classList.remove(
-                "active"
-            );
-        }
-
-        document.body.style.overflow =
-            "";
-
-
-        resetMeterReadingForm();
-    }
-
-
-    /* =====================================================
-       RESET FORM
-    ===================================================== */
-
-    function resetMeterReadingForm() {
-
-        const form =
-            getElement("meterReadingForm");
-
-        if (form) {
-            form.reset();
-        }
-
-
-        const pump =
-            getElement("meterPump");
-
-        const nozzle =
-            getElement("meterNozzle");
-
-        const shift =
-            getElement("meterShift");
-
-        if (pump) {
-
-            pump.innerHTML = `
-                <option value="">
-                    Select station first
-                </option>
-            `;
-
-            pump.disabled = true;
-        }
-
-
-        if (nozzle) {
-
-            nozzle.innerHTML = `
-                <option value="">
-                    Select pump first
-                </option>
-            `;
-
-            nozzle.disabled = true;
-        }
-
-
-        if (shift) {
-
-            shift.innerHTML = `
-                <option value="">
-                    Select station first
-                </option>
-            `;
-
-            shift.disabled = true;
-        }
-
-
-        const date =
-            getElement("meterReadingDate");
-
-        if (date) {
-
-            date.value =
-                getLocalDateTimeValue();
-        }
-
-
-        MeterReadingsState.currentPhoto =
-            null;
-
-        MeterReadingsState.selectedEvidenceType =
-            null;
-
-
-        resetEvidenceUI();
-    }
-
-
-    /* =====================================================
-       RESET EVIDENCE UI
-    ===================================================== */
-
-    function resetEvidenceUI() {
-
-        stopCamera();
-
-
-        const cameraBox =
-            getElement("meterCameraBox");
-
-        const previewBox =
-            getElement("meterPhotoPreviewBox");
-
-        const preview =
-            getElement("meterPhotoPreview");
-
-        const capture =
-            getElement("captureMeterPhoto");
-
-        const retake =
-            getElement("retakeMeterPhoto");
-
-        const remove =
-            getElement("removeMeterPhoto");
-
-        const status =
-            getElement("meterEvidenceStatus");
-
-        const file =
-            getElement("meterEvidenceFile");
-
-
-        if (cameraBox) {
-
-            cameraBox.classList.remove(
-                "active"
-            );
-        }
-
-
-        if (previewBox) {
-
-            previewBox.classList.remove(
-                "active"
-            );
-        }
-
-
-        if (preview) {
-
-            preview.removeAttribute(
-                "src"
-            );
-        }
-
-
-        if (capture) {
-
-            capture.disabled = true;
-        }
-
-
-        if (retake) {
-
-            retake.style.display =
-                "none";
-        }
-
-
-        if (remove) {
-
-            remove.style.display =
-                "none";
-        }
-
-
-        if (file) {
-
-            file.value = "";
-        }
-
-
-        if (status) {
-
-            status.className =
-                "fg-evidence-status-box optional";
-
-            status.innerHTML = `
-
-                <span
-                    class="fg-evidence-status-icon"
-                >
-                    ○
-                </span>
-
-                <span>
-                    No evidence attached.
-                    You can still save this
-                    meter reading.
-                </span>
-
-            `;
-        }
-    }
-
-
-    /* =====================================================
-       START CAMERA
-    ===================================================== */
-
-    async function startCameraCapture() {
-
-        if (
-            !navigator.mediaDevices ||
-            !navigator.mediaDevices.getUserMedia
-        ) {
-
-            showToast(
-                "Camera access is not supported by this browser.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        try {
-
-            stopCamera();
-
-
-            const video =
-                getElement("meterCameraVideo");
-
-            const cameraBox =
-                getElement("meterCameraBox");
-
-            const capture =
-                getElement("captureMeterPhoto");
+        shifts.forEach(function (shift) {
 
             const status =
-                getElement("meterCameraStatus");
+                shift.status === "open"
+                    ? "OPEN"
+                    : "CLOSED";
 
 
-            MeterReadingsState.cameraStream =
-                await navigator.mediaDevices.getUserMedia({
-
-                    video: {
-                        facingMode: {
-                            ideal: "environment"
-                        },
-
-                        width: {
-                            ideal: 1280
-                        },
-
-                        height: {
-                            ideal: 720
-                        }
-                    },
-
-                    audio: false
-
-                });
+            const dateText =
+                shift.shift_date
+                    ? " — " + formatDateOnly(shift.shift_date)
+                    : "";
 
 
-            video.srcObject =
-                MeterReadingsState.cameraStream;
+            select.insertAdjacentHTML(
+                "beforeend",
+                `
+                <option value="${escapeHTML(shift.id)}">
 
+                    ${escapeHTML(shift.shift_name)}
 
-            cameraBox.classList.add(
-                "active"
+                    — ${status}
+
+                    ${dateText}
+
+                </option>
+                `
             );
 
+        });
+    }
 
-            capture.disabled = false;
+
+    /* =========================================================
+       UPDATE HISTORY NOTICE
+    ========================================================= */
+
+    function updateHistoryNotice() {
+
+        const input =
+            $("meterReadingDate");
+
+        const notice =
+            $("historyNotice");
 
 
-            if (status) {
+        if (!input || !notice) {
+            return;
+        }
 
-                status.textContent =
-                    "Camera active";
+
+        if (!input.value) {
+
+            notice.classList.remove("show");
+
+            return;
+        }
+
+
+        if (isHistorical(new Date(input.value))) {
+
+            notice.classList.add("show");
+
+        } else {
+
+            notice.classList.remove("show");
+        }
+
+
+        populateShifts();
+    }
+
+
+    /* =========================================================
+       FILTER READINGS
+    ========================================================= */
+
+    function getFilteredReadings() {
+
+        const station =
+            State.filters.station;
+
+
+        const type =
+            State.filters.type;
+
+
+        const search =
+            State.filters.search
+                .trim()
+                .toLowerCase();
+
+
+        return State.readings.filter(function (reading) {
+
+            if (
+                station &&
+                String(reading.station_id) !==
+                String(station)
+            ) {
+
+                return false;
             }
-
-
-            showToast(
-                "Camera started. Position the meter and capture the reading.",
-                "success"
-            );
-
-        } catch (error) {
-
-            console.error(
-                "FUELGAP CAMERA ERROR:",
-                error
-            );
-
-            showToast(
-                "Unable to access the camera. Check your browser permission.",
-                "error"
-            );
-        }
-    }
-
-
-    /* =====================================================
-       CAPTURE PHOTO
-    ===================================================== */
-
-    function capturePhoto() {
-
-        const video =
-            getElement("meterCameraVideo");
-
-        if (
-            !video ||
-            !video.srcObject
-        ) {
-
-            showToast(
-                "Please start the camera first.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        if (
-            video.readyState <
-            HTMLMediaElement.HAVE_CURRENT_DATA
-        ) {
-
-            showToast(
-                "Camera is not ready yet.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        const canvas =
-            document.createElement("canvas");
-
-
-        const width =
-            video.videoWidth ||
-            1280;
-
-        const height =
-            video.videoHeight ||
-            720;
-
-
-        canvas.width =
-            width;
-
-        canvas.height =
-            height;
-
-
-        const context =
-            canvas.getContext("2d");
-
-
-        context.drawImage(
-            video,
-            0,
-            0,
-            width,
-            height
-        );
-
-
-        MeterReadingsState.currentPhoto =
-            canvas.toDataURL(
-                "image/jpeg",
-                0.82
-            );
-
-
-        MeterReadingsState.selectedEvidenceType =
-            "camera";
-
-
-        stopCamera();
-
-
-        showEvidencePreview(
-            MeterReadingsState.currentPhoto,
-            "Live camera evidence captured."
-        );
-
-
-        const retake =
-            getElement("retakeMeterPhoto");
-
-        if (retake) {
-
-            retake.style.display =
-                "inline-flex";
-        }
-
-
-        showToast(
-            "Evidence photo captured.",
-            "success"
-        );
-    }
-
-
-    /* =====================================================
-       RETAKE PHOTO
-    ===================================================== */
-
-    function retakePhoto() {
-
-        MeterReadingsState.currentPhoto =
-            null;
-
-        MeterReadingsState.selectedEvidenceType =
-            null;
-
-
-        const previewBox =
-            getElement("meterPhotoPreviewBox");
-
-        const remove =
-            getElement("removeMeterPhoto");
-
-        const retake =
-            getElement("retakeMeterPhoto");
-
-
-        if (previewBox) {
-
-            previewBox.classList.remove(
-                "active"
-            );
-        }
-
-
-        if (remove) {
-
-            remove.style.display =
-                "none";
-        }
-
-
-        if (retake) {
-
-            retake.style.display =
-                "none";
-        }
-
-
-        startCameraCapture();
-    }
-
-
-    /* =====================================================
-       HANDLE FILE UPLOAD
-    ===================================================== */
-
-    function handleFileUpload(event) {
-
-        const file =
-            event.target.files &&
-            event.target.files[0];
-
-
-        if (!file) {
-            return;
-        }
-
-
-        if (
-            !file.type ||
-            !file.type.startsWith("image/")
-        ) {
-
-            showToast(
-                "Please select an image file.",
-                "error"
-            );
-
-            event.target.value = "";
-
-            return;
-        }
-
-
-        /*
-         * Keep uploads reasonably sized.
-         *
-         * 8MB maximum before conversion.
-         */
-
-        if (file.size > 8 * 1024 * 1024) {
-
-            showToast(
-                "Image is too large. Please choose an image below 8MB.",
-                "error"
-            );
-
-            event.target.value = "";
-
-            return;
-        }
-
-
-        const reader =
-            new FileReader();
-
-
-        reader.onload = function (loadEvent) {
-
-            const result =
-                loadEvent.target.result;
-
-
-            MeterReadingsState.currentPhoto =
-                result;
-
-            MeterReadingsState.selectedEvidenceType =
-                "upload";
-
-
-            stopCamera();
-
-
-            showEvidencePreview(
-                result,
-                "Uploaded evidence image ready."
-            );
-
-
-            showToast(
-                "Evidence image uploaded.",
-                "success"
-            );
-        };
-
-
-        reader.onerror = function () {
-
-            showToast(
-                "Unable to read the selected image.",
-                "error"
-            );
-
-        };
-
-
-        reader.readAsDataURL(file);
-    }
-
-
-    /* =====================================================
-       SHOW EVIDENCE PREVIEW
-    ===================================================== */
-
-    function showEvidencePreview(
-        imageData,
-        message
-    ) {
-
-        const previewBox =
-            getElement("meterPhotoPreviewBox");
-
-        const preview =
-            getElement("meterPhotoPreview");
-
-        const status =
-            getElement("meterEvidenceStatus");
-
-        const remove =
-            getElement("removeMeterPhoto");
-
-        const cameraBox =
-            getElement("meterCameraBox");
-
-
-        if (cameraBox) {
-
-            cameraBox.classList.remove(
-                "active"
-            );
-        }
-
-
-        if (preview) {
-
-            preview.src =
-                imageData;
-        }
-
-
-        if (previewBox) {
-
-            previewBox.classList.add(
-                "active"
-            );
-        }
-
-
-        if (remove) {
-
-            remove.style.display =
-                "inline-flex";
-        }
-
-
-        if (status) {
-
-            status.className =
-                "fg-evidence-status-box attached";
-
-            status.innerHTML = `
-
-                <span
-                    class="fg-evidence-status-icon"
-                >
-                    ✓
-                </span>
-
-                <span>
-                    ${escapeHtml(message)}
-                </span>
-
-            `;
-        }
-    }
-
-
-    /* =====================================================
-       REMOVE EVIDENCE
-    ===================================================== */
-
-    function removeEvidence() {
-
-        MeterReadingsState.currentPhoto =
-            null;
-
-        MeterReadingsState.selectedEvidenceType =
-            null;
-
-
-        resetEvidenceUI();
-
-
-        showToast(
-            "Evidence removed. You can still save the reading.",
-            "success"
-        );
-    }
-
-
-    /* =====================================================
-       STOP CAMERA
-    ===================================================== */
-
-    function stopCamera() {
-
-        if (
-            MeterReadingsState.cameraStream
-        ) {
-
-            MeterReadingsState
-                .cameraStream
-                .getTracks()
-                .forEach(
-                    track => track.stop()
-                );
-
-            MeterReadingsState.cameraStream =
-                null;
-        }
-
-
-        const video =
-            getElement("meterCameraVideo");
-
-        if (video) {
-
-            video.srcObject =
-                null;
-        }
-
-
-        const capture =
-            getElement("captureMeterPhoto");
-
-        if (capture) {
-
-            capture.disabled =
-                true;
-        }
-    }
-
-
-    /* =====================================================
-       SUBMIT METER READING
-    ===================================================== */
-
-    async function submitMeterReading() {
-
-        if (
-            MeterReadingsState.isSubmitting
-        ) {
-            return;
-        }
-
-
-        const stationId =
-            getElement("meterStation")?.value;
-
-        const pumpId =
-            getElement("meterPump")?.value;
-
-        const nozzleId =
-            getElement("meterNozzle")?.value;
-
-        const shiftId =
-            getElement("meterShift")?.value;
-
-        const readingType =
-            getElement("meterReadingType")?.value;
-
-        const readingValue =
-            getElement("meterReading")?.value;
-
-        const readingDate =
-            getElement("meterReadingDate")?.value;
-
-
-        /* =================================================
-           VALIDATION
-        ================================================= */
-
-        if (!stationId) {
-
-            showToast(
-                "Please select a station.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        if (!pumpId) {
-
-            showToast(
-                "Please select a pump.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        if (!nozzleId) {
-
-            showToast(
-                "Please select a nozzle.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        if (!shiftId) {
-
-            showToast(
-                "Please select a shift.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        if (!readingType) {
-
-            showToast(
-                "Please select a reading type.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        const numericReading =
-            Number(readingValue);
-
-
-        if (
-            readingValue === "" ||
-            !Number.isFinite(numericReading) ||
-            numericReading < 0
-        ) {
-
-            showToast(
-                "Please enter a valid meter reading.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        if (!readingDate) {
-
-            showToast(
-                "Please select the reading date and time.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        /* =================================================
-           IMPORTANT:
-           PHOTO IS OPTIONAL.
-        ================================================= */
-
-        MeterReadingsState.isSubmitting =
-            true;
-
-
-        const saveButton =
-            getElement("saveMeterReading");
-
-
-        if (saveButton) {
-
-            saveButton.disabled =
-                true;
-
-            saveButton.textContent =
-                "Saving...";
-        }
-
-
-        /*
-         * IMPORTANT BACKEND PAYLOAD
-         *
-         * photo_url is explicitly sent as null when
-         * there is no evidence.
-         *
-         * captured_at is included for historical
-         * reading support.
-         */
-
-        const payload = {
-
-            station_id:
-                stationId,
-
-            pump_id:
-                pumpId,
-
-            nozzle_id:
-                nozzleId,
-
-            shift_id:
-                shiftId,
-
-            reading_type:
-                readingType,
-
-            reading:
-                numericReading,
-
-            photo_url:
-                MeterReadingsState.currentPhoto ||
-                null,
-
-            captured_at:
-                new Date(
-                    readingDate
-                ).toISOString()
-
-        };
-
-
-        console.log(
-            "FUELGAP METER READING PAYLOAD:",
-            payload
-        );
-
-
-        try {
-
-            await FuelGapAPI.request(
-                "/meter-readings",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    credentials:
-                        "include",
-
-                    body:
-                        JSON.stringify(payload)
-                }
-            );
-
-
-            showToast(
-                MeterReadingsState.currentPhoto
-                    ? "Meter reading and evidence saved successfully."
-                    : "Meter reading saved successfully without evidence.",
-                "success"
-            );
-
-
-            closeMeterReadingModal();
-
-
-            await loadReadings();
-
-
-            renderStats();
-
-            renderReadingsTable();
-
-        } catch (error) {
-
-            console.error(
-                "FUELGAP METER READING SAVE ERROR:",
-                error
-            );
-
-
-            let message =
-                "Unable to save meter reading.";
 
 
             if (
-                error &&
-                error.message
+                type &&
+                reading.reading_type !== type
             ) {
 
-                message =
-                    error.message;
+                return false;
             }
 
 
-            showToast(
-                message,
-                "error"
-            );
+            if (search) {
 
-        } finally {
+                const stationObj =
+                    State.stations.find(function (item) {
 
-            MeterReadingsState.isSubmitting =
-                false;
+                        return String(item.id) ===
+                            String(reading.station_id);
+
+                    });
 
 
-            if (saveButton) {
+                const pumpObj =
+                    State.pumps.find(function (item) {
 
-                saveButton.disabled =
-                    false;
+                        return String(item.id) ===
+                            String(reading.pump_id);
 
-                saveButton.textContent =
-                    "Save Meter Reading";
+                    });
+
+
+                const nozzleObj =
+                    State.nozzles.find(function (item) {
+
+                        return String(item.id) ===
+                            String(reading.nozzle_id);
+
+                    });
+
+
+                const shiftObj =
+                    State.shifts.find(function (item) {
+
+                        return String(item.id) ===
+                            String(reading.shift_id);
+
+                    });
+
+
+                const haystack = [
+
+                    stationObj?.name || "",
+
+                    pumpObj?.pump_number || "",
+
+                    pumpObj?.brand || "",
+
+                    pumpObj?.model || "",
+
+                    nozzleObj?.nozzle_number || "",
+
+                    nozzleObj?.fuel_type || "",
+
+                    shiftObj?.shift_name || "",
+
+                    reading.reading_type || "",
+
+                    reading.reading || "",
+
+                    formatDateTime(
+                        getReadingDate(reading)
+                    )
+
+                ]
+                    .join(" ")
+                    .toLowerCase();
+
+
+                if (!haystack.includes(search)) {
+
+                    return false;
+                }
             }
-        }
+
+
+            return true;
+
+        });
     }
 
 
-    /* =====================================================
-       RENDER STATS
-    ===================================================== */
+    /* =========================================================
+       RENDER READINGS TABLE
+    ========================================================= */
 
-    function renderStats() {
+    function renderReadings() {
 
         const container =
-            getElement("readingStats");
+            $("readingsTableContainer");
+
 
         if (!container) {
             return;
@@ -4671,296 +3538,26 @@
 
 
         const readings =
-            MeterReadingsState.readings;
-
-
-        const today =
-            new Date();
-
-
-        const todayString =
-            today.toDateString();
-
-
-        const todayCount =
-            readings.filter(
-                item => {
-
-                    if (!item.captured_at) {
-                        return false;
-                    }
-
-                    const date =
-                        new Date(
-                            item.captured_at
-                        );
-
-                    return (
-                        !Number.isNaN(
-                            date.getTime()
-                        ) &&
-                        date.toDateString() ===
-                            todayString
-                    );
-                }
-            ).length;
-
-
-        const openingCount =
-            readings.filter(
-                item =>
-                    String(
-                        item.reading_type
-                    ).toLowerCase() ===
-                    "opening"
-            ).length;
-
-
-        const evidenceCount =
-            readings.filter(
-                item =>
-                    Boolean(
-                        item.photo_url
-                    )
-            ).length;
-
-
-        container.innerHTML = `
-
-            ${renderStat(
-                "📋",
-                "Total Readings",
-                readings.length
-            )}
-
-            ${renderStat(
-                "📅",
-                "Today's Readings",
-                todayCount
-            )}
-
-            ${renderStat(
-                "◷",
-                "Opening Readings",
-                openingCount
-            )}
-
-            ${renderStat(
-                "📷",
-                "Evidence Captured",
-                evidenceCount
-            )}
-
-        `;
-    }
-
-
-    /* =====================================================
-       RENDER STAT
-    ===================================================== */
-
-    function renderStat(
-        icon,
-        label,
-        value
-    ) {
-
-        return `
-
-            <div class="fg-reading-stat">
-
-                <div class="fg-stat-icon">
-                    ${icon}
-                </div>
-
-                <div>
-
-                    <div class="fg-stat-label">
-                        ${escapeHtml(label)}
-                    </div>
-
-                    <div class="fg-stat-value">
-                        ${formatNumber(value)}
-                    </div>
-
-                </div>
-
-            </div>
-
-        `;
-    }
-
-
-    /* =====================================================
-       RENDER TABLE
-    ===================================================== */
-
-    function renderReadingsTable() {
-
-        const container =
-            getElement(
-                "readingsTableContainer"
-            );
-
-        if (!container) {
-            return;
-        }
-
-
-        const stationFilter =
-            getElement(
-                "readingStationFilter"
-            )?.value || "";
-
-
-        const typeFilter =
-            getElement(
-                "readingTypeFilter"
-            )?.value || "";
-
-
-        const search =
-            (
-                getElement(
-                    "readingSearch"
-                )?.value || ""
-            )
-            .trim()
-            .toLowerCase();
-
-
-        let readings =
-            [...MeterReadingsState.readings];
-
-
-        if (stationFilter) {
-
-            readings =
-                readings.filter(
-                    item =>
-                        String(
-                            item.station_id
-                        ) ===
-                        String(stationFilter)
-                );
-        }
-
-
-        if (typeFilter) {
-
-            readings =
-                readings.filter(
-                    item =>
-                        String(
-                            item.reading_type
-                        ).toLowerCase() ===
-                        String(typeFilter).toLowerCase()
-                );
-        }
-
-
-        if (search) {
-
-            readings =
-                readings.filter(
-                    item => {
-
-                        const station =
-                            getStation(
-                                item.station_id
-                            );
-
-                        const pump =
-                            getPump(
-                                item.pump_id
-                            );
-
-                        const nozzle =
-                            getNozzle(
-                                item.nozzle_id
-                            );
-
-                        const shift =
-                            getShift(
-                                item.shift_id
-                            );
-
-
-                        const text = [
-
-                            station?.name,
-
-                            pump?.pump_number,
-
-                            pump?.brand,
-
-                            nozzle?.nozzle_number,
-
-                            nozzle?.fuel_type,
-
-                            shift?.shift_name,
-
-                            item.reading_type,
-
-                            item.reading
-
-                        ]
-                        .filter(Boolean)
-                        .join(" ")
-                        .toLowerCase();
-
-
-                        return text.includes(
-                            search
-                        );
-                    }
-                );
-        }
-
-
-        readings.sort(
-            (a, b) => {
-
-                const aDate =
-                    new Date(
-                        a.captured_at ||
-                        a.created_at ||
-                        0
-                    ).getTime();
-
-                const bDate =
-                    new Date(
-                        b.captured_at ||
-                        b.created_at ||
-                        0
-                    ).getTime();
-
-                return bDate - aDate;
-            }
-        );
+            getFilteredReadings();
 
 
         if (!readings.length) {
 
             container.innerHTML = `
 
-                <div class="fg-reading-empty">
+                <div class="fg-empty-state">
 
-                    <div class="fg-reading-empty-icon">
-                        📊
+                    <div class="fg-empty-icon">
+                        ◫
                     </div>
 
-                    <h3>
+                    <div class="fg-empty-title">
                         No meter readings found
-                    </h3>
+                    </div>
 
-                    <p>
-                        ${
-                            MeterReadingsState.readings.length
-                                ? "Try changing your filters or search."
-                                : "Add your first meter reading to begin monitoring the forecourt."
-                        }
-                    </p>
+                    <div>
+                        Add a reading or change your filters.
+                    </div>
 
                 </div>
 
@@ -4968,6 +3565,32 @@
 
             return;
         }
+
+
+        const rows =
+            readings
+                .slice()
+                .sort(function (a, b) {
+
+                    const dateA =
+                        new Date(
+                            getReadingDate(a) || 0
+                        ).getTime();
+
+                    const dateB =
+                        new Date(
+                            getReadingDate(b) || 0
+                        ).getTime();
+
+                    return dateB - dateA;
+
+                })
+                .map(function (reading) {
+
+                    return renderReadingRow(reading);
+
+                })
+                .join("");
 
 
         container.innerHTML = `
@@ -5016,9 +3639,7 @@
 
                 <tbody>
 
-                    ${readings.map(
-                        renderReadingRow
-                    ).join("")}
+                    ${rows}
 
                 </tbody>
 
@@ -5028,44 +3649,67 @@
     }
 
 
-    /* =====================================================
+    /* =========================================================
        RENDER READING ROW
-    ===================================================== */
+    ========================================================= */
 
-    function renderReadingRow(item) {
+    function renderReadingRow(reading) {
 
         const station =
-            getStation(
-                item.station_id
-            );
+            State.stations.find(function (item) {
+
+                return String(item.id) ===
+                    String(reading.station_id);
+
+            });
+
 
         const pump =
-            getPump(
-                item.pump_id
-            );
+            State.pumps.find(function (item) {
+
+                return String(item.id) ===
+                    String(reading.pump_id);
+
+            });
+
 
         const nozzle =
-            getNozzle(
-                item.nozzle_id
-            );
+            State.nozzles.find(function (item) {
+
+                return String(item.id) ===
+                    String(reading.nozzle_id);
+
+            });
+
 
         const shift =
-            getShift(
-                item.shift_id
-            );
+            State.shifts.find(function (item) {
+
+                return String(item.id) ===
+                    String(reading.shift_id);
+
+            });
+
+
+        const date =
+            getReadingDate(reading);
+
+
+        const historical =
+            isHistorical(date);
 
 
         const type =
-            String(
-                item.reading_type ||
-                "periodic"
-            ).toLowerCase();
+            reading.reading_type ||
+            "unknown";
+
+
+        const typeClass =
+            "fg-type-" + type;
 
 
         const evidence =
-            Boolean(
-                item.photo_url
-            );
+            Boolean(reading.photo_url);
 
 
         return `
@@ -5074,22 +3718,22 @@
 
                 <td>
 
-                    <span class="fg-primary-text">
+                    <div class="fg-station-name">
 
-                        ${escapeHtml(
+                        ${escapeHTML(
                             station?.name ||
                             "Unknown Station"
                         )}
 
-                    </span>
+                    </div>
 
                     ${
                         station?.city
                             ? `
-                                <span class="fg-secondary-text">
-                                    ${escapeHtml(station.city)}
-                                </span>
-                              `
+                                <div class="fg-secondary-text">
+                                    ${escapeHTML(station.city)}
+                                </div>
+                            `
                             : ""
                     }
 
@@ -5098,23 +3742,19 @@
 
                 <td>
 
-                    <span class="fg-primary-text">
-
-                        ${
-                            pump
-                                ? `Pump ${escapeHtml(pump.pump_number)}`
-                                : "Unknown Pump"
-                        }
-
-                    </span>
+                    <strong>
+                        Pump #${escapeHTML(
+                            pump?.pump_number || "—"
+                        )}
+                    </strong>
 
                     ${
                         pump?.brand
                             ? `
-                                <span class="fg-secondary-text">
-                                    ${escapeHtml(pump.brand)}
-                                </span>
-                              `
+                                <div class="fg-secondary-text">
+                                    ${escapeHTML(pump.brand)}
+                                </div>
+                            `
                             : ""
                     }
 
@@ -5123,23 +3763,21 @@
 
                 <td>
 
-                    <span class="fg-primary-text">
-
-                        ${
-                            nozzle
-                                ? `Nozzle ${escapeHtml(nozzle.nozzle_number)}`
-                                : "Unknown"
-                        }
-
-                    </span>
+                    <strong>
+                        Nozzle #${escapeHTML(
+                            nozzle?.nozzle_number || "—"
+                        )}
+                    </strong>
 
                     ${
                         nozzle?.fuel_type
                             ? `
-                                <span class="fg-secondary-text">
-                                    ${escapeHtml(nozzle.fuel_type)}
-                                </span>
-                              `
+                                <div class="fg-secondary-text">
+                                    ${escapeHTML(
+                                        nozzle.fuel_type
+                                    )}
+                                </div>
+                            `
                             : ""
                     }
 
@@ -5150,10 +3788,26 @@
 
                     ${
                         shift
-                            ? escapeHtml(
-                                shift.shift_name
-                            )
-                            : "—"
+                            ? `
+                                <strong>
+                                    ${escapeHTML(
+                                        shift.shift_name
+                                    )}
+                                </strong>
+
+                                <div class="fg-secondary-text">
+                                    ${escapeHTML(
+                                        String(
+                                            shift.status
+                                        ).toUpperCase()
+                                    )}
+                                </div>
+                            `
+                            : `
+                                <span class="fg-secondary-text">
+                                    No shift
+                                </span>
+                            `
                     }
 
                 </td>
@@ -5162,12 +3816,11 @@
                 <td>
 
                     <span
-                        class="
-                            fg-reading-badge
-                            ${escapeHtml(type)}
-                        "
+                        class="fg-reading-type ${typeClass}"
                     >
-                        ${escapeHtml(type)}
+
+                        ${escapeHTML(type)}
+
                     </span>
 
                 </td>
@@ -5175,12 +3828,10 @@
 
                 <td>
 
-                    <span class="fg-primary-text">
-
+                    <span class="fg-reading-number">
                         ${formatNumber(
-                            item.reading
+                            reading.reading
                         )}
-
                     </span>
 
                 </td>
@@ -5190,44 +3841,16 @@
 
                     ${
                         evidence
-
                             ? `
-
-                                <span
-                                    class="
-                                        fg-evidence-status
-                                        has-evidence
-                                    "
-                                >
-
-                                    <span
-                                        class="fg-evidence-dot"
-                                    ></span>
-
-                                    Captured
-
+                                <span class="fg-evidence-status fg-evidence-yes">
+                                    ✓ Captured
                                 </span>
-
-                              `
-
+                            `
                             : `
-
-                                <span
-                                    class="
-                                        fg-evidence-status
-                                        no-evidence
-                                    "
-                                >
-
-                                    <span
-                                        class="fg-evidence-dot"
-                                    ></span>
-
-                                    Not provided
-
+                                <span class="fg-evidence-status fg-evidence-no">
+                                    ○ Not provided
                                 </span>
-
-                              `
+                            `
                     }
 
                 </td>
@@ -5235,14 +3858,21 @@
 
                 <td>
 
-                    <span class="fg-primary-text">
-
-                        ${formatDate(
-                            item.captured_at ||
-                            item.created_at
+                    <div>
+                        ${escapeHTML(
+                            formatDateTime(date)
                         )}
+                    </div>
 
-                    </span>
+                    ${
+                        historical
+                            ? `
+                                <div class="fg-history-badge">
+                                    Historical
+                                </div>
+                            `
+                            : ""
+                    }
 
                 </td>
 
@@ -5252,34 +3882,1830 @@
     }
 
 
-    /* =====================================================
-       INITIALIZE
-    ===================================================== */
+    /* =========================================================
+       UPDATE STATS
+    ========================================================= */
 
-    function initializeMeterReadings() {
+    function updateStats() {
 
-        injectStyles();
+        const total =
+            State.readings.length;
+
+
+        const todayStart =
+            getTodayStart();
+
+
+        const todayCount =
+            State.readings.filter(function (reading) {
+
+                const date =
+                    new Date(
+                        getReadingDate(reading) || 0
+                    );
+
+
+                return (
+                    !Number.isNaN(date.getTime()) &&
+                    date >= todayStart
+                );
+
+            }).length;
+
+
+        const opening =
+            State.readings.filter(function (reading) {
+
+                return reading.reading_type === "opening";
+
+            }).length;
+
+
+        const evidence =
+            State.readings.filter(function (reading) {
+
+                return Boolean(reading.photo_url);
+
+            }).length;
+
+
+        if ($("statTotalReadings")) {
+
+            $("statTotalReadings").textContent =
+                formatNumber(total);
+        }
+
+
+        if ($("statTodayReadings")) {
+
+            $("statTodayReadings").textContent =
+                formatNumber(todayCount);
+        }
+
+
+        if ($("statOpeningReadings")) {
+
+            $("statOpeningReadings").textContent =
+                formatNumber(opening);
+        }
+
+
+        if ($("statEvidenceReadings")) {
+
+            $("statEvidenceReadings").textContent =
+                formatNumber(evidence);
+        }
+    }
+
+
+    /* =========================================================
+       EVIDENCE ROLL
+    ========================================================= */
+
+    function renderEvidenceRoll() {
+
+        const container =
+            $("evidenceRollContainer");
+
+
+        if (!container) {
+            return;
+        }
+
+
+        const evidenceReadings =
+            State.readings
+                .filter(function (reading) {
+
+                    return Boolean(reading.photo_url);
+
+                })
+                .sort(function (a, b) {
+
+                    return new Date(
+                        getReadingDate(b) || 0
+                    ) -
+                    new Date(
+                        getReadingDate(a) || 0
+                    );
+
+                })
+                .slice(0, 8);
+
+
+        if (!evidenceReadings.length) {
+
+            container.innerHTML = `
+
+                <div class="fg-empty-state">
+
+                    <div class="fg-empty-icon">
+                        ◉
+                    </div>
+
+                    <div class="fg-empty-title">
+                        No evidence available
+                    </div>
+
+                    <div>
+                        Camera evidence is optional for meter readings.
+                    </div>
+
+                </div>
+
+            `;
+
+            return;
+        }
+
+
+        const items =
+            evidenceReadings
+                .map(function (reading) {
+
+                    const station =
+                        State.stations.find(function (item) {
+
+                            return String(item.id) ===
+                                String(reading.station_id);
+
+                        });
+
+
+                    const pump =
+                        State.pumps.find(function (item) {
+
+                            return String(item.id) ===
+                                String(reading.pump_id);
+
+                        });
+
+
+                    const nozzle =
+                        State.nozzles.find(function (item) {
+
+                            return String(item.id) ===
+                                String(reading.nozzle_id);
+
+                        });
+
+
+                    return `
+
+                        <div class="fg-evidence-item">
+
+                            <img
+                                class="fg-evidence-image"
+                                src="${escapeHTML(
+                                    reading.photo_url
+                                )}"
+                                alt="Meter reading evidence"
+                                loading="lazy"
+                                onerror="this.style.display='none';"
+                            >
+
+
+                            <div class="fg-evidence-info">
+
+                                <strong>
+                                    ${escapeHTML(
+                                        station?.name ||
+                                        "Unknown Station"
+                                    )}
+                                </strong>
+
+                                <span>
+                                    Pump #${escapeHTML(
+                                        pump?.pump_number ||
+                                        "—"
+                                    )}
+                                    ·
+                                    Nozzle #${escapeHTML(
+                                        nozzle?.nozzle_number ||
+                                        "—"
+                                    )}
+                                </span>
+
+                                <span>
+                                    ${escapeHTML(
+                                        formatDateTime(
+                                            getReadingDate(
+                                                reading
+                                            )
+                                        )
+                                    )}
+                                </span>
+
+                            </div>
+
+                        </div>
+
+                    `;
+
+                })
+                .join("");
+
+
+        container.innerHTML = `
+
+            <div class="fg-evidence-grid">
+
+                ${items}
+
+            </div>
+
+        `;
+    }
+
+
+    /* =========================================================
+       MODAL
+    ========================================================= */
+
+    function openModal() {
+
+        const modal =
+            $("meterReadingModal");
+
+
+        if (!modal) {
+            return;
+        }
+
+
+        modal.classList.add("active");
+
+
+        setDefaultReadingDate();
+
+
+        setTimeout(function () {
+
+            const station =
+                $("meterStation");
+
+            if (station) {
+                station.focus();
+            }
+
+        }, 100);
+    }
+
+
+    function closeModal() {
+
+        stopCamera();
+
+        resetEvidence();
+
+
+        const modal =
+            $("meterReadingModal");
+
+
+        if (modal) {
+
+            modal.classList.remove("active");
+        }
+
+
+        const form =
+            $("meterReadingForm");
+
+
+        if (form) {
+
+            form.reset();
+        }
+
+
+        resetFormSelects();
+
+        setDefaultReadingDate();
+
+        updateHistoryNotice();
+
+        populateShifts();
+    }
+
+
+    function resetFormSelects() {
+
+        const pump =
+            $("meterPump");
+
+        const nozzle =
+            $("meterNozzle");
+
+
+        if (pump) {
+
+            pump.innerHTML = `
+
+                <option value="">
+                    Select station first
+                </option>
+
+            `;
+
+            pump.disabled = true;
+        }
+
+
+        if (nozzle) {
+
+            nozzle.innerHTML = `
+
+                <option value="">
+                    Select pump first
+                </option>
+
+            `;
+
+            nozzle.disabled = true;
+        }
+
+
+        const shift =
+            $("meterShift");
+
+
+        if (shift) {
+
+            shift.innerHTML = `
+
+                <option value="">
+                    Select shift
+                </option>
+
+            `;
+        }
+    }
+
+
+    function setDefaultReadingDate() {
+
+        const input =
+            $("meterReadingDate");
+
+
+        if (!input) {
+            return;
+        }
+
+
+        if (!input.value) {
+
+            input.value =
+                toDateTimeLocalValue(
+                    new Date()
+                );
+        }
+    }
+
+
+    /* =========================================================
+       CAMERA
+    ========================================================= */
+
+    async function startCamera() {
 
         if (
-            typeof FuelGapAPI ===
-            "undefined"
+            !navigator.mediaDevices ||
+            !navigator.mediaDevices.getUserMedia
         ) {
 
-            console.error(
-                "FuelGapAPI is not available."
+            showToast(
+                "Camera access is not supported by this browser.",
+                "error"
             );
 
             return;
         }
 
 
-        renderPage();
+        try {
+
+            stopCamera();
+
+
+            const stream =
+                await navigator.mediaDevices.getUserMedia({
+
+                    video: {
+
+                        facingMode: {
+                            ideal: "environment"
+                        },
+
+                        width: {
+                            ideal: 1280
+                        },
+
+                        height: {
+                            ideal: 720
+                        }
+
+                    },
+
+                    audio: false
+
+                });
+
+
+            State.cameraStream = stream;
+
+
+            const video =
+                $("meterCameraVideo");
+
+
+            if (!video) {
+                return;
+            }
+
+
+            video.srcObject = stream;
+
+            video.classList.add("show");
+
+
+            const capture =
+                $("captureMeterPhoto");
+
+
+            if (capture) {
+                capture.disabled = false;
+            }
+
+
+            updateEvidenceStatus(
+                "Camera active — position the meter clearly, then capture.",
+                "camera"
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "FuelGap camera error:",
+                error
+            );
+
+
+            showToast(
+                "Unable to access the camera. Please allow camera permission or upload an image instead.",
+                "error"
+            );
+        }
     }
 
 
-    /* =====================================================
-       WAIT FOR DOM
-    ===================================================== */
+    /* =========================================================
+       CAPTURE PHOTO
+    ========================================================= */
+
+    function capturePhoto() {
+
+        const video =
+            $("meterCameraVideo");
+
+
+        if (
+            !video ||
+            !State.cameraStream
+        ) {
+
+            showToast(
+                "Start the camera first.",
+                "error"
+            );
+
+            return;
+        }
+
+
+        if (
+            !video.videoWidth ||
+            !video.videoHeight
+        ) {
+
+            showToast(
+                "Camera is not ready yet.",
+                "error"
+            );
+
+            return;
+        }
+
+
+        const canvas =
+            document.createElement("canvas");
+
+
+        const maxDimension =
+            1280;
+
+
+        let width =
+            video.videoWidth;
+
+
+        let height =
+            video.videoHeight;
+
+
+        if (width > maxDimension) {
+
+            const ratio =
+                maxDimension / width;
+
+            width =
+                Math.round(width * ratio);
+
+            height =
+                Math.round(height * ratio);
+        }
+
+
+        if (height > maxDimension) {
+
+            const ratio =
+                maxDimension / height;
+
+            width =
+                Math.round(width * ratio);
+
+            height =
+                Math.round(height * ratio);
+        }
+
+
+        canvas.width = width;
+
+        canvas.height = height;
+
+
+        const context =
+            canvas.getContext("2d");
+
+
+        context.drawImage(
+            video,
+            0,
+            0,
+            width,
+            height
+        );
+
+
+        State.currentPhoto =
+            canvas.toDataURL(
+                "image/jpeg",
+                0.76
+            );
+
+
+        showPhotoPreview(
+            State.currentPhoto
+        );
+
+
+        stopCamera();
+
+
+        updateEvidenceStatus(
+            "Live camera evidence attached.",
+            "success"
+        );
+
+
+        showToast(
+            "Evidence captured successfully.",
+            "success"
+        );
+    }
+
+
+    /* =========================================================
+       FILE UPLOAD
+    ========================================================= */
+
+    function chooseEvidenceFile() {
+
+        const input =
+            $("meterEvidenceFile");
+
+
+        if (input) {
+            input.click();
+        }
+    }
+
+
+    function handleEvidenceFile(event) {
+
+        const file =
+            event.target.files &&
+            event.target.files[0];
+
+
+        if (!file) {
+            return;
+        }
+
+
+        if (!file.type.startsWith("image/")) {
+
+            showToast(
+                "Please select an image file.",
+                "error"
+            );
+
+            event.target.value = "";
+
+            return;
+        }
+
+
+        compressImage(
+            file,
+            function (dataUrl) {
+
+                State.currentPhoto =
+                    dataUrl;
+
+
+                showPhotoPreview(
+                    dataUrl
+                );
+
+
+                stopCamera();
+
+
+                updateEvidenceStatus(
+                    "Uploaded image attached as evidence.",
+                    "success"
+                );
+
+
+                showToast(
+                    "Evidence image attached.",
+                    "success"
+                );
+
+            }
+        );
+
+
+        event.target.value = "";
+    }
+
+
+    /* =========================================================
+       COMPRESS IMAGE
+    ========================================================= */
+
+    function compressImage(file, callback) {
+
+        const reader =
+            new FileReader();
+
+
+        reader.onload = function () {
+
+            const image =
+                new Image();
+
+
+            image.onload = function () {
+
+                const maxDimension =
+                    1280;
+
+
+                let width =
+                    image.width;
+
+
+                let height =
+                    image.height;
+
+
+                if (width > maxDimension) {
+
+                    const ratio =
+                        maxDimension / width;
+
+                    width =
+                        Math.round(width * ratio);
+
+                    height =
+                        Math.round(height * ratio);
+                }
+
+
+                if (height > maxDimension) {
+
+                    const ratio =
+                        maxDimension / height;
+
+                    width =
+                        Math.round(width * ratio);
+
+                    height =
+                        Math.round(height * ratio);
+                }
+
+
+                const canvas =
+                    document.createElement("canvas");
+
+
+                canvas.width =
+                    width;
+
+                canvas.height =
+                    height;
+
+
+                const context =
+                    canvas.getContext("2d");
+
+
+                context.drawImage(
+                    image,
+                    0,
+                    0,
+                    width,
+                    height
+                );
+
+
+                const dataUrl =
+                    canvas.toDataURL(
+                        "image/jpeg",
+                        0.76
+                    );
+
+
+                callback(dataUrl);
+            };
+
+
+            image.onerror = function () {
+
+                showToast(
+                    "Unable to process this image.",
+                    "error"
+                );
+            };
+
+
+            image.src =
+                reader.result;
+        };
+
+
+        reader.onerror = function () {
+
+            showToast(
+                "Unable to read the selected image.",
+                "error"
+            );
+        };
+
+
+        reader.readAsDataURL(file);
+    }
+
+
+    /* =========================================================
+       SHOW PHOTO
+    ========================================================= */
+
+    function showPhotoPreview(dataUrl) {
+
+        const preview =
+            $("meterPhotoPreview");
+
+
+        if (!preview) {
+            return;
+        }
+
+
+        preview.src =
+            dataUrl;
+
+
+        preview.classList.add("show");
+    }
+
+
+    /* =========================================================
+       RESET EVIDENCE
+    ========================================================= */
+
+    function resetEvidence() {
+
+        State.currentPhoto =
+            null;
+
+
+        const preview =
+            $("meterPhotoPreview");
+
+
+        if (preview) {
+
+            preview.src = "";
+
+            preview.classList.remove("show");
+        }
+
+
+        const file =
+            $("meterEvidenceFile");
+
+
+        if (file) {
+            file.value = "";
+        }
+
+
+        updateEvidenceStatus(
+            "No evidence attached — you can still save this reading.",
+            "none"
+        );
+    }
+
+
+    function removeEvidence() {
+
+        resetEvidence();
+
+        showToast(
+            "Evidence removed. You can still save this reading.",
+            "info"
+        );
+    }
+
+
+    function retakePhoto() {
+
+        resetEvidence();
+
+        startCamera();
+    }
+
+
+    /* =========================================================
+       CAMERA STOP
+    ========================================================= */
+
+    function stopCamera() {
+
+        if (State.cameraStream) {
+
+            State.cameraStream
+                .getTracks()
+                .forEach(function (track) {
+
+                    track.stop();
+
+                });
+
+            State.cameraStream =
+                null;
+        }
+
+
+        const video =
+            $("meterCameraVideo");
+
+
+        if (video) {
+
+            video.srcObject =
+                null;
+
+            video.classList.remove("show");
+        }
+
+
+        const capture =
+            $("captureMeterPhoto");
+
+
+        if (capture) {
+
+            capture.disabled =
+                true;
+        }
+    }
+
+
+    /* =========================================================
+       EVIDENCE STATUS
+    ========================================================= */
+
+    function updateEvidenceStatus(
+        message,
+        type
+    ) {
+
+        const status =
+            $("meterEvidenceStatus");
+
+
+        if (!status) {
+            return;
+        }
+
+
+        let icon = "○";
+
+
+        if (type === "success") {
+            icon = "✓";
+        }
+
+        if (type === "camera") {
+            icon = "◉";
+        }
+
+
+        status.innerHTML = `
+
+            <span>
+                ${icon}
+            </span>
+
+            <span>
+                ${escapeHTML(message)}
+            </span>
+
+        `;
+    }
+
+
+    /* =========================================================
+       FORM VALIDATION
+    ========================================================= */
+
+    function validateForm() {
+
+        const stationId =
+            $("meterStation")?.value;
+
+
+        const pumpId =
+            $("meterPump")?.value;
+
+
+        const nozzleId =
+            $("meterNozzle")?.value;
+
+
+        const readingType =
+            $("meterReadingType")?.value;
+
+
+        const readingDate =
+            $("meterReadingDate")?.value;
+
+
+        const readingValue =
+            $("meterReading")?.value;
+
+
+        if (!stationId) {
+
+            showToast(
+                "Please select a station.",
+                "error"
+            );
+
+            return false;
+        }
+
+
+        if (!pumpId) {
+
+            showToast(
+                "Please select a pump.",
+                "error"
+            );
+
+            return false;
+        }
+
+
+        if (!nozzleId) {
+
+            showToast(
+                "Please select a nozzle.",
+                "error"
+            );
+
+            return false;
+        }
+
+
+        if (!readingType) {
+
+            showToast(
+                "Please select the reading type.",
+                "error"
+            );
+
+            return false;
+        }
+
+
+        if (!readingDate) {
+
+            showToast(
+                "Please select the reading date and time.",
+                "error"
+            );
+
+            return false;
+        }
+
+
+        const parsedDate =
+            new Date(readingDate);
+
+
+        if (
+            Number.isNaN(
+                parsedDate.getTime()
+            )
+        ) {
+
+            showToast(
+                "The reading date and time is invalid.",
+                "error"
+            );
+
+            return false;
+        }
+
+
+        const numericReading =
+            Number(readingValue);
+
+
+        if (
+            !Number.isFinite(
+                numericReading
+            ) ||
+            numericReading < 0
+        ) {
+
+            showToast(
+                "Please enter a valid meter reading.",
+                "error"
+            );
+
+            return false;
+        }
+
+
+        return true;
+    }
+
+
+    /* =========================================================
+       SUBMIT READING
+    ========================================================= */
+
+    async function submitReading(event) {
+
+        event.preventDefault();
+
+
+        if (State.isSubmitting) {
+            return;
+        }
+
+
+        if (!validateForm()) {
+            return;
+        }
+
+
+        const stationId =
+            $("meterStation").value;
+
+
+        const pumpId =
+            $("meterPump").value;
+
+
+        const nozzleId =
+            $("meterNozzle").value;
+
+
+        const shiftId =
+            $("meterShift").value ||
+            null;
+
+
+        const readingType =
+            $("meterReadingType").value;
+
+
+        const readingValue =
+            Number(
+                $("meterReading").value
+            );
+
+
+        const dateValue =
+            $("meterReadingDate").value;
+
+
+        const capturedAt =
+            new Date(
+                dateValue
+            );
+
+
+        if (
+            Number.isNaN(
+                capturedAt.getTime()
+            )
+        ) {
+
+            showToast(
+                "Invalid reading date and time.",
+                "error"
+            );
+
+            return;
+        }
+
+
+        /*
+           IMPORTANT:
+           Evidence is optional.
+
+           photo_url will be null when
+           the user does not provide evidence.
+        */
+
+        const payload = {
+
+            station_id:
+                stationId,
+
+            pump_id:
+                pumpId,
+
+            nozzle_id:
+                nozzleId,
+
+            shift_id:
+                shiftId,
+
+            reading_type:
+                readingType,
+
+            reading:
+                readingValue,
+
+            photo_url:
+                State.currentPhoto ||
+                null,
+
+            captured_at:
+                capturedAt.toISOString()
+
+        };
+
+
+        State.isSubmitting =
+            true;
+
+
+        const saveButton =
+            $("saveMeterReading");
+
+
+        if (saveButton) {
+
+            saveButton.disabled =
+                true;
+
+            saveButton.innerHTML = `
+                <span>Saving...</span>
+            `;
+        }
+
+
+        try {
+
+            console.log(
+                "FUELGAP METER READING PAYLOAD:",
+                {
+                    ...payload,
+                    photo_url:
+                        payload.photo_url
+                            ? "[IMAGE ATTACHED]"
+                            : null
+                }
+            );
+
+
+            const response =
+                await FuelGapAPI.request(
+                    "/meter-readings",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify(
+                                payload
+                            )
+                    }
+                );
+
+
+            console.log(
+                "FUELGAP METER READING RESPONSE:",
+                response
+            );
+
+
+            showToast(
+                State.currentPhoto
+                    ? "Meter reading saved with evidence."
+                    : "Meter reading saved successfully without evidence.",
+                "success"
+            );
+
+
+            closeModal();
+
+
+            await loadReadings();
+
+
+        } catch (error) {
+
+            console.error(
+                "FUELGAP METER READING SAVE ERROR:",
+                error
+            );
+
+
+            let message =
+                "Unable to save meter reading.";
+
+
+            if (error?.message) {
+                message = error.message;
+            }
+
+
+            showToast(
+                message,
+                "error"
+            );
+
+
+        } finally {
+
+            State.isSubmitting =
+                false;
+
+
+            if (saveButton) {
+
+                saveButton.disabled =
+                    false;
+
+                saveButton.innerHTML = `
+                    <span>✓</span>
+                    Save Reading
+                `;
+            }
+        }
+    }
+
+
+    /* =========================================================
+       EVENT BINDINGS
+    ========================================================= */
+
+    function bindEvents() {
+
+        const openButton =
+            $("openMeterReadingModal");
+
+
+        const closeButton =
+            $("closeMeterReadingModal");
+
+
+        const cancelButton =
+            $("cancelMeterReading");
+
+
+        const form =
+            $("meterReadingForm");
+
+
+        if (openButton) {
+
+            openButton.addEventListener(
+                "click",
+                openModal
+            );
+        }
+
+
+        if (closeButton) {
+
+            closeButton.addEventListener(
+                "click",
+                closeModal
+            );
+        }
+
+
+        if (cancelButton) {
+
+            cancelButton.addEventListener(
+                "click",
+                closeModal
+            );
+        }
+
+
+        if (form) {
+
+            form.addEventListener(
+                "submit",
+                submitReading
+            );
+        }
+
+
+        /* STATION */
+
+        const station =
+            $("meterStation");
+
+
+        if (station) {
+
+            station.addEventListener(
+                "change",
+                function () {
+
+                    populatePumps(
+                        station.value
+                    );
+
+                    populateNozzles("");
+
+                    populateShifts();
+                }
+            );
+        }
+
+
+        /* PUMP */
+
+        const pump =
+            $("meterPump");
+
+
+        if (pump) {
+
+            pump.addEventListener(
+                "change",
+                function () {
+
+                    populateNozzles(
+                        pump.value
+                    );
+                }
+            );
+        }
+
+
+        /* TYPE */
+
+        const type =
+            $("meterReadingType");
+
+
+        if (type) {
+
+            type.addEventListener(
+                "change",
+                function () {
+
+                    populateShifts();
+                }
+            );
+        }
+
+
+        /* DATE */
+
+        const date =
+            $("meterReadingDate");
+
+
+        if (date) {
+
+            date.addEventListener(
+                "change",
+                updateHistoryNotice
+            );
+
+            date.addEventListener(
+                "input",
+                updateHistoryNotice
+            );
+        }
+
+
+        /* FILTER STATION */
+
+        const filterStation =
+            $("readingFilterStation");
+
+
+        if (filterStation) {
+
+            filterStation.addEventListener(
+                "change",
+                function () {
+
+                    State.filters.station =
+                        filterStation.value;
+
+                    renderReadings();
+                }
+            );
+        }
+
+
+        /* FILTER TYPE */
+
+        const filterType =
+            $("readingFilterType");
+
+
+        if (filterType) {
+
+            filterType.addEventListener(
+                "change",
+                function () {
+
+                    State.filters.type =
+                        filterType.value;
+
+                    renderReadings();
+                }
+            );
+        }
+
+
+        /* SEARCH */
+
+        const search =
+            $("readingSearch");
+
+
+        if (search) {
+
+            search.addEventListener(
+                "input",
+                function () {
+
+                    State.filters.search =
+                        search.value;
+
+                    renderReadings();
+                }
+            );
+        }
+
+
+        /* CAMERA */
+
+        const startCameraButton =
+            $("startMeterCamera");
+
+
+        if (startCameraButton) {
+
+            startCameraButton.addEventListener(
+                "click",
+                startCamera
+            );
+        }
+
+
+        const captureButton =
+            $("captureMeterPhoto");
+
+
+        if (captureButton) {
+
+            captureButton.addEventListener(
+                "click",
+                capturePhoto
+            );
+        }
+
+
+        const retakeButton =
+            $("retakeMeterPhoto");
+
+
+        if (retakeButton) {
+
+            retakeButton.addEventListener(
+                "click",
+                retakePhoto
+            );
+        }
+
+
+        const uploadButton =
+            $("uploadMeterPhoto");
+
+
+        if (uploadButton) {
+
+            uploadButton.addEventListener(
+                "click",
+                chooseEvidenceFile
+            );
+        }
+
+
+        const fileInput =
+            $("meterEvidenceFile");
+
+
+        if (fileInput) {
+
+            fileInput.addEventListener(
+                "change",
+                handleEvidenceFile
+            );
+        }
+
+
+        const removeButton =
+            $("removeMeterPhoto");
+
+
+        if (removeButton) {
+
+            removeButton.addEventListener(
+                "click",
+                removeEvidence
+            );
+        }
+
+
+        /* MODAL BACKDROP */
+
+        const modal =
+            $("meterReadingModal");
+
+
+        if (modal) {
+
+            modal.addEventListener(
+                "click",
+                function (event) {
+
+                    if (
+                        event.target ===
+                        modal
+                    ) {
+
+                        closeModal();
+                    }
+                }
+            );
+        }
+
+
+        /* ESCAPE */
+
+        document.addEventListener(
+            "keydown",
+            function (event) {
+
+                if (
+                    event.key === "Escape" &&
+                    modal &&
+                    modal.classList.contains("active")
+                ) {
+
+                    closeModal();
+                }
+
+            }
+        );
+    }
+
+
+    /* =========================================================
+       INITIALIZE
+    ========================================================= */
+
+    async function init() {
+
+        if (State.isLoading) {
+            return;
+        }
+
+
+        State.isLoading =
+            true;
+
+
+        try {
+
+            injectStyles();
+
+
+            const rendered =
+                renderPage();
+
+
+            if (!rendered) {
+
+                console.error(
+                    "FuelGap: Unable to render Meter Readings page."
+                );
+
+                return;
+            }
+
+
+            bindEvents();
+
+
+            State.currentUser =
+                window.FuelGapUtils &&
+                typeof FuelGapUtils.getCurrentUser ===
+                "function"
+
+                    ? FuelGapUtils.getCurrentUser()
+
+                    : null;
+
+
+            console.log(
+                "FUELGAP METER READINGS USER:",
+                State.currentUser
+            );
+
+
+            setDefaultReadingDate();
+
+
+            /*
+               Load backend data.
+
+               These are intentionally done separately so that
+               one failed endpoint does not stop the entire page.
+            */
+
+            await loadStations();
+
+            await loadPumps();
+
+            await loadNozzles();
+
+            await loadShifts();
+
+            await loadReadings();
+
+
+            updateHistoryNotice();
+
+
+            console.log(
+                "FuelGap Meter Readings initialized successfully."
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "FUELGAP METER READINGS INITIALIZATION ERROR:",
+                error
+            );
+
+
+            showToast(
+                "Meter Readings page could not finish loading.",
+                "error"
+            );
+
+
+        } finally {
+
+            State.isLoading =
+                false;
+        }
+    }
+
+
+    /* =========================================================
+       IMPORTANT INITIALIZATION FIX
+       ---------------------------------------------------------
+       Works whether this JS loads before or after DOMContentLoaded.
+    ========================================================= */
+
+    function boot() {
+
+        /*
+           app.js normally creates #pageContent dynamically.
+           Give app.js a short opportunity to create it.
+        */
+
+        let attempts = 0;
+
+        const maxAttempts = 60;
+
+
+        function tryInit() {
+
+            const container =
+                getPageContainer();
+
+
+            /*
+               Do not render directly into body while app.js
+               is still building the application shell.
+            */
+
+            if (
+                !container ||
+                (
+                    !$("pageContent") &&
+                    !$("app")
+                )
+            ) {
+
+                attempts++;
+
+
+                if (attempts < maxAttempts) {
+
+                    setTimeout(
+                        tryInit,
+                        100
+                    );
+
+                    return;
+                }
+
+
+                console.error(
+                    "FuelGap: Could not find application page container."
+                );
+
+                return;
+            }
+
+
+            init();
+        }
+
+
+        tryInit();
+    }
+
+
+    /*
+       Critical blank-page fix:
+       If the script loads after DOMContentLoaded,
+       the normal DOMContentLoaded listener would never fire.
+    */
 
     if (
         document.readyState ===
@@ -5288,33 +5714,13 @@
 
         document.addEventListener(
             "DOMContentLoaded",
-            initializeMeterReadings
+            boot
         );
 
     } else {
 
-        initializeMeterReadings();
-
+        boot();
     }
-
-
-    /* =====================================================
-       CLEANUP
-    ===================================================== */
-
-    window.addEventListener(
-        "beforeunload",
-        function () {
-
-            stopCamera();
-
-        }
-    );
-
-
-    console.log(
-        "FuelGap readings.js loaded successfully - Optional Evidence Version."
-    );
 
 
 })();
