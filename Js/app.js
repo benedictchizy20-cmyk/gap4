@@ -24,6 +24,7 @@ const FuelGapAppState = {
     gapsScriptLoading: false,
 
     isSuperAdmin: false
+
 };
 
 
@@ -50,6 +51,7 @@ function getApplicationBasePath() {
                 "./",
                 appScript.src
             ).href;
+
         }
 
     } catch (error) {
@@ -58,6 +60,7 @@ function getApplicationBasePath() {
             "Could not determine app.js path:",
             error
         );
+
     }
 
 
@@ -65,6 +68,7 @@ function getApplicationBasePath() {
         "./js/",
         window.location.href
     ).href;
+
 }
 
 
@@ -82,6 +86,7 @@ function getUserRole(user) {
     )
         .toLowerCase()
         .trim();
+
 }
 
 
@@ -92,6 +97,7 @@ function getUserRole(user) {
 function isSuperAdmin(user) {
 
     return getUserRole(user) === "super_admin";
+
 }
 
 
@@ -118,6 +124,7 @@ document.addEventListener(
                     "../login.html";
 
                 return;
+
             }
 
 
@@ -149,6 +156,7 @@ document.addEventListener(
                     "../login.html";
 
                 return;
+
             }
 
 
@@ -171,12 +179,14 @@ document.addEventListener(
                 FuelGapAppState.currentUser
             );
 
+
             console.log(
                 "FUELGAP USER ROLE:",
                 getUserRole(
                     FuelGapAppState.currentUser
                 )
             );
+
 
             console.log(
                 "FUELGAP SUPER ADMIN:",
@@ -192,6 +202,7 @@ document.addEventListener(
                 FuelGapAppState.currentUser
             );
 
+
         } catch (error) {
 
             console.error(
@@ -201,7 +212,9 @@ document.addEventListener(
 
             window.location.href =
                 "../login.html";
+
         }
+
     }
 );
 
@@ -225,11 +238,13 @@ function renderApplication(user) {
         );
 
         return;
+
     }
 
 
     const userName =
         getUserDisplayName(user);
+
 
     const superAdmin =
         isSuperAdmin(user);
@@ -318,7 +333,9 @@ function renderApplication(user) {
                 class="sidebar"
                 id="sidebar"
             >
+
                 ${renderSidebar(user)}
+
             </aside>
 
 
@@ -347,6 +364,27 @@ function renderApplication(user) {
     setActiveSidebarLink(
         getCurrentPageName()
     );
+
+
+    /* =====================================================
+       APPLICATION SHELL READY EVENT
+       
+       IMPORTANT:
+       readings.js waits for this event before trying
+       to render the Meter Readings page.
+    ===================================================== */
+
+    document.dispatchEvent(
+        new CustomEvent(
+            "fuelgap:app-ready"
+        )
+    );
+
+
+    console.log(
+        "FuelGap application shell is ready."
+    );
+
 }
 
 
@@ -359,6 +397,7 @@ function getUserDisplayName(user) {
     if (!user) {
 
         return "User";
+
     }
 
 
@@ -377,7 +416,9 @@ function getUserDisplayName(user) {
         user.email ||
 
         "User"
+
     );
+
 }
 
 
@@ -439,6 +480,7 @@ function getPlatformNavigation() {
         }
 
     ];
+
 }
 
 
@@ -542,6 +584,7 @@ function getOrganizationNavigation() {
         }
 
     ];
+
 }
 
 
@@ -575,14 +618,6 @@ function renderSidebar(user) {
         navigation;
 
 
-    /*
-     * Platform users are controlled by the
-     * backend requireSuperAdmin middleware.
-     *
-     * We do not use organization permissions
-     * to hide the platform navigation.
-     */
-
     if (!superAdmin) {
 
         visibleItems =
@@ -597,6 +632,7 @@ function renderSidebar(user) {
                         ) {
 
                             return true;
+
                         }
 
 
@@ -614,10 +650,12 @@ function renderSidebar(user) {
                         );
 
                         return false;
+
                     }
 
                 }
             );
+
     }
 
 
@@ -660,6 +698,7 @@ function renderSidebar(user) {
                 </a>
 
             `;
+
         }
     );
 
@@ -679,10 +718,12 @@ function renderSidebar(user) {
             </div>
 
         `;
+
     }
 
 
     return html;
+
 }
 
 
@@ -729,6 +770,7 @@ function setupAppEvents() {
 
             }
         );
+
     }
 
 
@@ -755,9 +797,9 @@ function setupAppEvents() {
                             link.dataset.page;
 
 
-                        /* =========================================
+                        /* =================================
                            GAPS
-                        ========================================= */
+                        ================================= */
 
                         if (
                             page === "gaps"
@@ -766,12 +808,9 @@ function setupAppEvents() {
                             event.preventDefault();
 
                             await openGapsPage();
+
                         }
 
-
-                        /* =========================================
-                           CLOSE MOBILE MENU
-                        ========================================= */
 
                         sidebar.classList.remove(
                             "open"
@@ -782,6 +821,7 @@ function setupAppEvents() {
 
             }
         );
+
     }
 
 
@@ -807,6 +847,7 @@ function setupAppEvents() {
 
             }
         );
+
     }
 
 
@@ -825,6 +866,7 @@ function setupAppEvents() {
                     logoutButton.disabled =
                         true;
 
+
                     logoutButton.textContent =
                         "Logging out...";
 
@@ -842,11 +884,14 @@ function setupAppEvents() {
 
                     window.location.href =
                         "../login.html";
+
                 }
 
             }
         );
+
     }
+
 }
 
 
@@ -865,6 +910,7 @@ async function loadGapsScript() {
             true;
 
         return true;
+
     }
 
 
@@ -888,13 +934,17 @@ async function loadGapsScript() {
                                     checkInterval
                                 );
 
+
                                 FuelGapAppState.gapsScriptLoaded =
                                     true;
+
 
                                 FuelGapAppState.gapsScriptLoading =
                                     false;
 
+
                                 resolve(true);
+
                             }
 
                         },
@@ -909,6 +959,7 @@ async function loadGapsScript() {
                             checkInterval
                         );
 
+
                         if (
                             typeof window.initializeGapsPage !==
                             "function"
@@ -917,7 +968,9 @@ async function loadGapsScript() {
                             FuelGapAppState.gapsScriptLoading =
                                 false;
 
+
                             resolve(false);
+
                         }
 
                     },
@@ -926,6 +979,7 @@ async function loadGapsScript() {
 
             }
         );
+
     }
 
 
@@ -964,6 +1018,7 @@ async function loadGapsScript() {
                 if (oldScript) {
 
                     oldScript.remove();
+
                 }
 
 
@@ -976,11 +1031,14 @@ async function loadGapsScript() {
                 script.src =
                     gapsScriptURL.href;
 
+
                 script.async =
                     false;
 
+
                 script.defer =
                     false;
+
 
                 script.dataset.fuelgapGapsScript =
                     "true";
@@ -1000,20 +1058,25 @@ async function loadGapsScript() {
                                     FuelGapAppState.gapsScriptLoaded =
                                         true;
 
+
                                     FuelGapAppState.gapsScriptLoading =
                                         false;
+
 
                                     resolve(true);
 
                                     return;
+
                                 }
 
 
                                 FuelGapAppState.gapsScriptLoaded =
                                     false;
 
+
                                 FuelGapAppState.gapsScriptLoading =
                                     false;
+
 
                                 reject(
                                     new Error(
@@ -1034,8 +1097,10 @@ async function loadGapsScript() {
                         FuelGapAppState.gapsScriptLoaded =
                             false;
 
+
                         FuelGapAppState.gapsScriptLoading =
                             false;
+
 
                         reject(
                             new Error(
@@ -1050,16 +1115,19 @@ async function loadGapsScript() {
                     script
                 );
 
+
             } catch (error) {
 
                 FuelGapAppState.gapsScriptLoading =
                     false;
 
                 reject(error);
+
             }
 
         }
     );
+
 }
 
 
@@ -1076,11 +1144,13 @@ async function openGapsPage() {
         ) {
 
             return;
+
         }
 
 
         FuelGapAppState.isNavigating =
             true;
+
 
         FuelGapAppState.currentPage =
             "gaps";
@@ -1097,6 +1167,7 @@ async function openGapsPage() {
             throw new Error(
                 "#pageContent was not found."
             );
+
         }
 
 
@@ -1131,10 +1202,12 @@ async function openGapsPage() {
             throw new Error(
                 "initializeGapsPage() is not available."
             );
+
         }
 
 
         await window.initializeGapsPage();
+
 
     } catch (error) {
 
@@ -1171,6 +1244,7 @@ async function openGapsPage() {
                         )}
                     </p>
 
+
                     <div
                         style="
                             margin-top:20px;
@@ -1203,13 +1277,16 @@ async function openGapsPage() {
                 </section>
 
             `;
+
         }
 
     } finally {
 
         FuelGapAppState.isNavigating =
             false;
+
     }
+
 }
 
 
@@ -1230,6 +1307,7 @@ function setActiveSidebarLink(
     if (!sidebar) {
 
         return;
+
     }
 
 
@@ -1250,6 +1328,7 @@ function setActiveSidebarLink(
 
         }
     );
+
 }
 
 
@@ -1272,6 +1351,7 @@ function getCurrentPageName() {
     ) {
 
         return "dashboard";
+
     }
 
 
@@ -1281,6 +1361,7 @@ function getCurrentPageName() {
     ) {
 
         return "organizations";
+
     }
 
 
@@ -1290,6 +1371,7 @@ function getCurrentPageName() {
     ) {
 
         return "activity";
+
     }
 
 
@@ -1299,6 +1381,7 @@ function getCurrentPageName() {
     ) {
 
         return "users";
+
     }
 
 
@@ -1308,6 +1391,7 @@ function getCurrentPageName() {
     ) {
 
         return "alerts";
+
     }
 
 
@@ -1317,6 +1401,7 @@ function getCurrentPageName() {
     ) {
 
         return "reports";
+
     }
 
 
@@ -1325,6 +1410,7 @@ function getCurrentPageName() {
     ) {
 
         return "stations";
+
     }
 
 
@@ -1333,6 +1419,7 @@ function getCurrentPageName() {
     ) {
 
         return "pumps";
+
     }
 
 
@@ -1341,6 +1428,7 @@ function getCurrentPageName() {
     ) {
 
         return "readings";
+
     }
 
 
@@ -1349,6 +1437,7 @@ function getCurrentPageName() {
     ) {
 
         return "shifts";
+
     }
 
 
@@ -1357,6 +1446,7 @@ function getCurrentPageName() {
     ) {
 
         return "sales";
+
     }
 
 
@@ -1365,6 +1455,7 @@ function getCurrentPageName() {
     ) {
 
         return "payments";
+
     }
 
 
@@ -1373,6 +1464,7 @@ function getCurrentPageName() {
     ) {
 
         return "gaps";
+
     }
 
 
@@ -1381,6 +1473,7 @@ function getCurrentPageName() {
     ) {
 
         return "staff";
+
     }
 
 
@@ -1389,10 +1482,12 @@ function getCurrentPageName() {
     ) {
 
         return "audit";
+
     }
 
 
     return "dashboard";
+
 }
 
 
@@ -1430,6 +1525,7 @@ function escapeHTML(value) {
             /'/g,
             "&#039;"
         );
+
 }
 
 
@@ -1440,23 +1536,30 @@ function escapeHTML(value) {
 window.FuelGapAppState =
     FuelGapAppState;
 
+
 window.openGapsPage =
     openGapsPage;
+
 
 window.loadGapsScript =
     loadGapsScript;
 
+
 window.setActiveSidebarLink =
     setActiveSidebarLink;
+
 
 window.getCurrentPageName =
     getCurrentPageName;
 
+
 window.escapeHTML =
     escapeHTML;
 
+
 window.isSuperAdmin =
     isSuperAdmin;
+
 
 window.getUserRole =
     getUserRole;

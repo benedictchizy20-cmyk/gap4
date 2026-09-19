@@ -1,6 +1,14 @@
 /* =========================================================
-   FUELGAP - METER READINGS V3
+   FUELGAP - METER READINGS V4
    =========================================================
+   APPLICATION SHELL:
+   - Uses app.js navbar
+   - Uses app.js sidebar
+   - Uses app.js authentication
+   - Uses app.js #pageContent
+   - HttpOnly cookie authentication
+   - No localStorage authentication
+
    BACKEND:
    GET    /api/meter-readings
    POST   /api/meter-readings
@@ -20,23 +28,26 @@
    - Delete
    - Responsive UI
    - White + Yellow FuelGap design
-   - No localStorage authentication
-   - Cookie authentication
-   ========================================================= */
+========================================================= */
 
 (function () {
 
     "use strict";
 
-    console.log("FuelGap readings.js V3 loaded successfully.");
+    console.log(
+        "FuelGap readings.js V4 loaded successfully."
+    );
+
 
     /* =====================================================
        CONFIGURATION
     ===================================================== */
 
     const API_BASE_URL =
-        (window.FuelGapAPI &&
-            window.FuelGapAPI.BASE_URL)
+        (
+            window.FuelGapAPI &&
+            window.FuelGapAPI.BASE_URL
+        )
             ? window.FuelGapAPI.BASE_URL
             : "https://gap-backend-ywt2.onrender.com/api";
 
@@ -71,7 +82,7 @@
 
         stationId: "",
 
-        selectedReading: null
+        initialized: false
 
     };
 
@@ -97,15 +108,38 @@
             value === null ||
             value === undefined
         ) {
+
             return "";
+
         }
 
         return String(value)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+
+            .replace(
+                /&/g,
+                "&amp;"
+            )
+
+            .replace(
+                /</g,
+                "&lt;"
+            )
+
+            .replace(
+                />/g,
+                "&gt;"
+            )
+
+            .replace(
+                /"/g,
+                "&quot;"
+            )
+
+            .replace(
+                /'/g,
+                "&#039;"
+            );
+
     }
 
 
@@ -122,6 +156,7 @@
             endpoint.startsWith("http")
                 ? endpoint
                 : `${API_BASE_URL}${endpoint}`;
+
 
         const requestOptions = {
 
@@ -150,6 +185,7 @@
 
         let result = null;
 
+
         try {
 
             result =
@@ -168,6 +204,7 @@
                 result?.message ||
                 result?.error ||
                 `Server returned HTTP ${response.status}`;
+
 
             throw new Error(message);
 
@@ -188,7 +225,24 @@
         try {
 
             /*
-             * Prefer the application's existing helper.
+             * First use the application state.
+             */
+
+            if (
+                window.FuelGapAppState &&
+                window.FuelGapAppState.currentUser
+            ) {
+
+                state.currentUser =
+                    window.FuelGapAppState.currentUser;
+
+                return state.currentUser;
+
+            }
+
+
+            /*
+             * Otherwise use FuelGapUtils.
              */
 
             if (
@@ -200,16 +254,18 @@
                 const user =
                     await window.FuelGapUtils.getCurrentUser();
 
+
                 state.currentUser =
                     user || null;
 
-                return user;
+
+                return state.currentUser;
 
             }
 
 
             /*
-             * Otherwise request the backend.
+             * Final fallback.
              */
 
             const result =
@@ -219,8 +275,9 @@
 
 
             state.currentUser =
-                result?.data ||
+                result?.data?.user ||
                 result?.user ||
+                result?.data ||
                 null;
 
 
@@ -232,6 +289,7 @@
                 "FuelGap meter readings user error:",
                 error
             );
+
 
             return null;
 
@@ -248,6 +306,7 @@
 
         state.loading = true;
 
+
         showLoading();
 
 
@@ -260,9 +319,7 @@
 
 
             state.readings =
-                Array.isArray(result?.data)
-                    ? result.data
-                    : [];
+                normalizeArray(result);
 
 
             console.log(
@@ -273,7 +330,6 @@
 
             renderReadings();
 
-
         } catch (error) {
 
             console.error(
@@ -281,11 +337,6 @@
                 error
             );
 
-
-            /*
-             * IMPORTANT:
-             * Do NOT destroy the entire page.
-             */
 
             showTableError(
                 error.message ||
@@ -303,14 +354,9 @@
 
     /* =====================================================
        LOAD SUPPORTING DATA
-       ===================================================== */
+    ===================================================== */
 
     async function loadSupportingData() {
-
-        /*
-         * These endpoints are attempted independently.
-         * If one fails, Meter Readings still works.
-         */
 
         await Promise.allSettled([
 
@@ -509,7 +555,9 @@
     function renderPage() {
 
         const container =
-            getElement("pageContent");
+            getElement(
+                "pageContent"
+            );
 
 
         if (!container) {
@@ -518,324 +566,226 @@
                 "FuelGap: #pageContent was not found."
             );
 
-            return;
+            return false;
 
         }
 
 
         container.innerHTML = `
 
-            <style>
-
-                ${PAGE_CSS}
-
-            </style>
-
-
             <div class="fg-readings-page">
 
-                <aside class="fg-reading-sidebar">
+                <header class="fg-reading-header">
 
-                    <div class="fg-brand">
+                    <div>
 
-                        <div class="fg-brand-mark">
-                            F
+                        <div class="fg-page-kicker">
+                            FORECOURT MONITORING
                         </div>
 
-                        <div>
-                            <strong>Fuel<span>Gap</span></strong>
-                            <small>FORECOURT SYSTEM</small>
-                        </div>
-
-                    </div>
-
-
-                    <div class="fg-sidebar-section">
-                        MAIN
-                    </div>
-
-
-                    <nav class="fg-reading-nav">
-
-                        <a href="dashboard.html">
-                            <span>⌂</span>
-                            Dashboard
-                        </a>
-
-                        <a href="organizations.html">
-                            <span>▣</span>
-                            Organizations
-                        </a>
-
-                        <a href="stations.html">
-                            <span>▤</span>
-                            Stations
-                        </a>
-
-                        <a href="pumps.html">
-                            <span>⛽</span>
-                            Pumps & Nozzles
-                        </a>
-
-                        <a href="staff.html">
-                            <span>♙</span>
-                            Staff
-                        </a>
-
-                        <a href="shifts.html">
-                            <span>◷</span>
-                            Shifts
-                        </a>
-
-                        <a
-                            href="meter-readings.html"
-                            class="active"
-                        >
-                            <span>▥</span>
+                        <h1>
                             Meter Readings
-                        </a>
+                        </h1>
 
-                        <a href="sales.html">
-                            <span>₦</span>
-                            Sales
-                        </a>
+                        <p>
+                            Capture and monitor pump meter readings
+                            across your fuel stations.
+                        </p>
 
-                        <a href="payments.html">
-                            <span>▤</span>
-                            Payments
-                        </a>
-
-                        <a href="gaps.html">
-                            <span>△</span>
-                            Gaps
-                        </a>
-
-                        <a href="reports.html">
-                            <span>▥</span>
-                            Reports
-                        </a>
-
-                        <a href="alerts.html">
-                            <span>!</span>
-                            Alerts
-                        </a>
-
-                    </nav>
+                    </div>
 
 
-                    <div class="fg-sidebar-bottom">
+                    <div class="fg-header-actions">
 
-                        <div class="fg-system-status">
+                        <button
+                            type="button"
+                            class="fg-btn fg-btn-secondary"
+                            id="fgRefreshBtn"
+                        >
+                            ↻ Refresh
+                        </button>
 
-                            <span class="status-dot"></span>
 
-                            <div>
-                                <strong>System Online</strong>
-                                <small>FuelGap API</small>
-                            </div>
+                        <button
+                            type="button"
+                            class="fg-btn fg-btn-primary"
+                            id="fgNewReadingBtn"
+                        >
+                            + New Reading
+                        </button>
+
+                    </div>
+
+                </header>
+
+
+                <section class="fg-stat-grid">
+
+                    <div class="fg-stat-card">
+
+                        <div class="fg-stat-icon">
+                            ▥
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Total Readings
+                            </span>
+
+                            <strong id="fgTotalReadings">
+                                0
+                            </strong>
 
                         </div>
 
                     </div>
 
-                </aside>
 
+                    <div class="fg-stat-card">
 
-                <main class="fg-reading-main">
-
-
-                    <header class="fg-reading-header">
+                        <div class="fg-stat-icon">
+                            ◷
+                        </div>
 
                         <div>
 
-                            <div class="fg-page-kicker">
-                                FORECOURT MONITORING
-                            </div>
+                            <span>
+                                Opening
+                            </span>
 
-                            <h1>
-                                Meter Readings
-                            </h1>
+                            <strong id="fgOpeningReadings">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="fg-stat-card">
+
+                        <div class="fg-stat-icon">
+                            ◉
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Periodic
+                            </span>
+
+                            <strong id="fgPeriodicReadings">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="fg-stat-card">
+
+                        <div class="fg-stat-icon">
+                            ✓
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Closing
+                            </span>
+
+                            <strong id="fgClosingReadings">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <section class="fg-content-card">
+
+                    <div class="fg-toolbar">
+
+                        <div class="fg-search">
+
+                            <span>
+                                ⌕
+                            </span>
+
+                            <input
+                                type="search"
+                                id="fgReadingSearch"
+                                placeholder="Search readings..."
+                            >
+
+                        </div>
+
+
+                        <select
+                            id="fgTypeFilter"
+                            class="fg-select"
+                        >
+
+                            <option value="">
+                                All Reading Types
+                            </option>
+
+                            <option value="opening">
+                                Opening
+                            </option>
+
+                            <option value="periodic">
+                                Periodic
+                            </option>
+
+                            <option value="closing">
+                                Closing
+                            </option>
+
+                            <option value="correction">
+                                Correction
+                            </option>
+
+                        </select>
+
+
+                        <select
+                            id="fgStationFilter"
+                            class="fg-select"
+                        >
+
+                            <option value="">
+                                All Stations
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div
+                        class="fg-table-wrapper"
+                        id="fgReadingsTableArea"
+                    >
+
+                        <div class="fg-table-loading">
+
+                            <div class="fg-spinner"></div>
 
                             <p>
-                                Capture and monitor pump meter readings
-                                across your fuel stations.
+                                Loading meter readings...
                             </p>
 
                         </div>
 
+                    </div>
 
-                        <div class="fg-header-actions">
-
-                            <button
-                                type="button"
-                                class="fg-btn fg-btn-secondary"
-                                id="fgRefreshBtn"
-                            >
-                                ↻ Refresh
-                            </button>
-
-                            <button
-                                type="button"
-                                class="fg-btn fg-btn-primary"
-                                id="fgNewReadingBtn"
-                            >
-                                + New Reading
-                            </button>
-
-                        </div>
-
-                    </header>
-
-
-                    <section class="fg-stat-grid">
-
-                        <div class="fg-stat-card">
-
-                            <div class="fg-stat-icon">
-                                ▥
-                            </div>
-
-                            <div>
-                                <span>Total Readings</span>
-                                <strong id="fgTotalReadings">
-                                    0
-                                </strong>
-                            </div>
-
-                        </div>
-
-
-                        <div class="fg-stat-card">
-
-                            <div class="fg-stat-icon">
-                                ◷
-                            </div>
-
-                            <div>
-                                <span>Opening</span>
-                                <strong id="fgOpeningReadings">
-                                    0
-                                </strong>
-                            </div>
-
-                        </div>
-
-
-                        <div class="fg-stat-card">
-
-                            <div class="fg-stat-icon">
-                                ◉
-                            </div>
-
-                            <div>
-                                <span>Periodic</span>
-                                <strong id="fgPeriodicReadings">
-                                    0
-                                </strong>
-                            </div>
-
-                        </div>
-
-
-                        <div class="fg-stat-card">
-
-                            <div class="fg-stat-icon">
-                                ✓
-                            </div>
-
-                            <div>
-                                <span>Closing</span>
-                                <strong id="fgClosingReadings">
-                                    0
-                                </strong>
-                            </div>
-
-                        </div>
-
-                    </section>
-
-
-                    <section class="fg-content-card">
-
-
-                        <div class="fg-toolbar">
-
-                            <div class="fg-search">
-
-                                <span>⌕</span>
-
-                                <input
-                                    type="search"
-                                    id="fgReadingSearch"
-                                    placeholder="Search readings..."
-                                >
-
-                            </div>
-
-
-                            <select
-                                id="fgTypeFilter"
-                                class="fg-select"
-                            >
-
-                                <option value="">
-                                    All Reading Types
-                                </option>
-
-                                <option value="opening">
-                                    Opening
-                                </option>
-
-                                <option value="periodic">
-                                    Periodic
-                                </option>
-
-                                <option value="closing">
-                                    Closing
-                                </option>
-
-                                <option value="correction">
-                                    Correction
-                                </option>
-
-                            </select>
-
-
-                            <select
-                                id="fgStationFilter"
-                                class="fg-select"
-                            >
-
-                                <option value="">
-                                    All Stations
-                                </option>
-
-                            </select>
-
-                        </div>
-
-
-                        <div
-                            class="fg-table-wrapper"
-                            id="fgReadingsTableArea"
-                        >
-
-                            <div class="fg-table-loading">
-
-                                <div class="fg-spinner"></div>
-
-                                <p>
-                                    Loading meter readings...
-                                </p>
-
-                            </div>
-
-                        </div>
-
-                    </section>
-
-
-                </main>
+                </section>
 
             </div>
 
@@ -860,6 +810,7 @@
                             </h2>
 
                         </div>
+
 
                         <button
                             type="button"
@@ -1027,8 +978,8 @@
                                 >
 
                                 <small>
-                                    Leave as current time or select a historical
-                                    date/time.
+                                    Leave as current time or select a
+                                    historical date/time.
                                 </small>
 
                             </div>
@@ -1052,7 +1003,6 @@
 
                             </div>
 
-
                         </div>
 
 
@@ -1072,6 +1022,7 @@
                                 Cancel
                             </button>
 
+
                             <button
                                 type="submit"
                                 class="fg-btn fg-btn-primary"
@@ -1081,7 +1032,6 @@
                             </button>
 
                         </div>
-
 
                     </form>
 
@@ -1097,6 +1047,9 @@
 
         `;
 
+
+        return true;
+
     }
 
 
@@ -1106,18 +1059,11 @@
 
     const PAGE_CSS = `
 
-        * {
-            box-sizing: border-box;
-        }
-
-
         .fg-readings-page {
 
-            min-height: 100vh;
+            width: 100%;
 
-            display: flex;
-
-            background: #f7f7f4;
+            min-height: calc(100vh - 80px);
 
             color: #171717;
 
@@ -1126,278 +1072,6 @@
                 Arial,
                 Helvetica,
                 sans-serif;
-
-        }
-
-
-        /* =================================================
-           SIDEBAR
-        ================================================= */
-
-        .fg-reading-sidebar {
-
-            width: 250px;
-
-            min-height: 100vh;
-
-            background: #ffffff;
-
-            border-right: 1px solid #e9e9e4;
-
-            display: flex;
-
-            flex-direction: column;
-
-            position: sticky;
-
-            top: 0;
-
-            height: 100vh;
-
-            z-index: 20;
-
-        }
-
-
-        .fg-brand {
-
-            padding: 24px 20px;
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 12px;
-
-            border-bottom: 1px solid #eeeeea;
-
-        }
-
-
-        .fg-brand-mark {
-
-            width: 42px;
-
-            height: 42px;
-
-            border-radius: 12px;
-
-            background: #ffd400;
-
-            display: flex;
-
-            align-items: center;
-
-            justify-content: center;
-
-            font-size: 23px;
-
-            font-weight: 900;
-
-            color: #111;
-
-        }
-
-
-        .fg-brand strong {
-
-            display: block;
-
-            font-size: 21px;
-
-            font-weight: 900;
-
-            letter-spacing: -0.7px;
-
-        }
-
-
-        .fg-brand strong span {
-
-            color: #e2b900;
-
-        }
-
-
-        .fg-brand small {
-
-            display: block;
-
-            margin-top: 2px;
-
-            color: #888;
-
-            font-size: 8px;
-
-            font-weight: 700;
-
-            letter-spacing: 1px;
-
-        }
-
-
-        .fg-sidebar-section {
-
-            padding: 22px 20px 9px;
-
-            color: #999;
-
-            font-size: 10px;
-
-            font-weight: 800;
-
-            letter-spacing: 1.2px;
-
-        }
-
-
-        .fg-reading-nav {
-
-            padding: 0 12px;
-
-            display: flex;
-
-            flex-direction: column;
-
-            gap: 4px;
-
-            overflow-y: auto;
-
-        }
-
-
-        .fg-reading-nav a {
-
-            text-decoration: none;
-
-            color: #656565;
-
-            padding: 11px 13px;
-
-            border-radius: 10px;
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 11px;
-
-            font-size: 13px;
-
-            font-weight: 650;
-
-            transition: 0.2s ease;
-
-        }
-
-
-        .fg-reading-nav a span {
-
-            width: 20px;
-
-            text-align: center;
-
-            font-size: 16px;
-
-        }
-
-
-        .fg-reading-nav a:hover {
-
-            background: #fff9d9;
-
-            color: #111;
-
-        }
-
-
-        .fg-reading-nav a.active {
-
-            background: #ffd400;
-
-            color: #111;
-
-            font-weight: 800;
-
-        }
-
-
-        .fg-sidebar-bottom {
-
-            margin-top: auto;
-
-            padding: 18px;
-
-            border-top: 1px solid #eeeeea;
-
-        }
-
-
-        .fg-system-status {
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 9px;
-
-            padding: 11px;
-
-            border-radius: 10px;
-
-            background: #fafafa;
-
-        }
-
-
-        .status-dot {
-
-            width: 9px;
-
-            height: 9px;
-
-            border-radius: 50%;
-
-            background: #1bb56d;
-
-            box-shadow: 0 0 0 4px #e6f8ef;
-
-        }
-
-
-        .fg-system-status strong {
-
-            display: block;
-
-            font-size: 11px;
-
-        }
-
-
-        .fg-system-status small {
-
-            display: block;
-
-            margin-top: 2px;
-
-            color: #999;
-
-            font-size: 9px;
-
-        }
-
-
-        /* =================================================
-           MAIN
-        ================================================= */
-
-        .fg-reading-main {
-
-            flex: 1;
-
-            min-width: 0;
-
-            padding: 32px;
 
         }
 
@@ -1467,10 +1141,6 @@
         }
 
 
-        /* =================================================
-           BUTTONS
-        ================================================= */
-
         .fg-btn {
 
             border: 0;
@@ -1536,10 +1206,6 @@
 
         }
 
-
-        /* =================================================
-           STATS
-        ================================================= */
 
         .fg-stat-grid {
 
@@ -1625,10 +1291,6 @@
 
         }
 
-
-        /* =================================================
-           CONTENT
-        ================================================= */
 
         .fg-content-card {
 
@@ -1730,10 +1392,6 @@
 
         }
 
-
-        /* =================================================
-           TABLE
-        ================================================= */
 
         .fg-table-wrapper {
 
@@ -1901,10 +1559,6 @@
         }
 
 
-        /* =================================================
-           EMPTY / LOADING / ERROR
-        ================================================= */
-
         .fg-table-loading,
         .fg-table-empty,
         .fg-table-error {
@@ -1989,10 +1643,6 @@
         }
 
 
-        /* =================================================
-           MODAL
-        ================================================= */
-
         .fg-modal-overlay {
 
             position: fixed;
@@ -2010,7 +1660,7 @@
 
             padding: 20px;
 
-            z-index: 100;
+            z-index: 1000;
 
         }
 
@@ -2235,10 +1885,6 @@
         }
 
 
-        /* =================================================
-           TOAST
-        ================================================= */
-
         .fg-toast {
 
             position: fixed;
@@ -2267,7 +1913,7 @@
 
             transition: 0.25s ease;
 
-            z-index: 300;
+            z-index: 1200;
 
         }
 
@@ -2281,23 +1927,14 @@
         }
 
 
-        /* =================================================
-           MOBILE
-        ================================================= */
-
         @media (max-width: 1000px) {
 
-            .fg-reading-sidebar {
+            .fg-reading-header {
 
-                width: 215px;
-
-            }
-
-            .fg-reading-main {
-
-                padding: 22px;
+                flex-direction: column;
 
             }
+
 
             .fg-stat-grid {
 
@@ -2311,25 +1948,12 @@
 
         @media (max-width: 760px) {
 
-            .fg-reading-sidebar {
+            .fg-reading-header h1 {
 
-                display: none;
-
-            }
-
-            .fg-reading-main {
-
-                width: 100%;
-
-                padding: 17px;
+                font-size: 27px;
 
             }
 
-            .fg-reading-header {
-
-                flex-direction: column;
-
-            }
 
             .fg-stat-grid {
 
@@ -2337,11 +1961,13 @@
 
             }
 
+
             .fg-form-grid {
 
                 grid-template-columns: 1fr;
 
             }
+
 
             .fg-form-group.fg-full {
 
@@ -2360,17 +1986,13 @@
 
             }
 
-            .fg-reading-header h1 {
-
-                font-size: 26px;
-
-            }
 
             .fg-header-actions {
 
                 width: 100%;
 
             }
+
 
             .fg-header-actions .fg-btn {
 
@@ -2381,6 +2003,44 @@
         }
 
     `;
+
+
+    /* =====================================================
+       INJECT PAGE CSS
+    ===================================================== */
+
+    function injectPageCSS() {
+
+        if (
+            document.getElementById(
+                "fuelgap-readings-page-css"
+            )
+        ) {
+
+            return;
+
+        }
+
+
+        const style =
+            document.createElement(
+                "style"
+            );
+
+
+        style.id =
+            "fuelgap-readings-page-css";
+
+
+        style.textContent =
+            PAGE_CSS;
+
+
+        document.head.appendChild(
+            style
+        );
+
+    }
 
 
     /* =====================================================
@@ -2395,7 +2055,11 @@
             );
 
 
-        if (!area) return;
+        if (!area) {
+
+            return;
+
+        }
 
 
         updateStats();
@@ -2473,13 +2137,16 @@
 
                 </thead>
 
+
                 <tbody>
 
-                    ${filtered
-                        .map(
-                            renderReadingRow
-                        )
-                        .join("")}
+                    ${
+                        filtered
+                            .map(
+                                renderReadingRow
+                            )
+                            .join("")
+                    }
 
                 </tbody>
 
@@ -2494,25 +2161,39 @@
        READING ROW
     ===================================================== */
 
-    function renderReadingRow(reading) {
+    function renderReadingRow(
+        reading
+    ) {
 
         const station =
-            findStation(reading.station_id);
+            findStation(
+                reading.station_id
+            );
+
 
         const pump =
-            findPump(reading.pump_id);
+            findPump(
+                reading.pump_id
+            );
+
 
         const nozzle =
-            findNozzle(reading.nozzle_id);
+            findNozzle(
+                reading.nozzle_id
+            );
+
 
         const shift =
-            findShift(reading.shift_id);
+            findShift(
+                reading.shift_id
+            );
 
 
         const type =
             String(
                 reading.reading_type || ""
-            ).toLowerCase();
+            )
+                .toLowerCase();
 
 
         return `
@@ -2529,12 +2210,13 @@
 
                     </div>
 
+
                     <div class="fg-reading-meta">
 
                         ID:
                         ${escapeHTML(
                             String(
-                                reading.id
+                                reading.id || ""
                             ).slice(0, 8)
                         )}
 
@@ -2547,6 +2229,7 @@
 
                     ${escapeHTML(
                         station?.name ||
+                        station?.station_name ||
                         reading.station_id ||
                         "Unknown station"
                     )}
@@ -2607,7 +2290,9 @@
                     <span
                         class="
                             fg-type-badge
-                            fg-type-${escapeHTML(type)}
+                            fg-type-${escapeHTML(
+                                type
+                            )}
                         "
                     >
 
@@ -2655,11 +2340,9 @@
                     <button
                         type="button"
                         class="fg-action-delete"
-                        data-delete-reading="
-                            ${escapeHTML(
-                                reading.id
-                            )}
-                        "
+                        data-delete-reading="${escapeHTML(
+                            reading.id
+                        )}"
                     >
                         Delete
                     </button>
@@ -2691,12 +2374,14 @@
                 const type =
                     String(
                         reading.reading_type || ""
-                    ).toLowerCase();
+                    )
+                        .toLowerCase();
 
 
                 if (
                     state.readingType &&
-                    type !== state.readingType
+                    type !==
+                    state.readingType
                 ) {
 
                     return false;
@@ -2746,6 +2431,10 @@
                         reading.station_id
                     )?.name,
 
+                    findStation(
+                        reading.station_id
+                    )?.station_name,
+
                     findPump(
                         reading.pump_id
                     )?.pump_number,
@@ -2755,8 +2444,11 @@
                     )?.fuel_type
 
                 ]
+
                     .filter(Boolean)
+
                     .join(" ")
+
                     .toLowerCase();
 
 
@@ -2808,7 +2500,9 @@
             item =>
                 String(
                     item.reading_type || ""
-                ).toLowerCase() === type
+                )
+                    .toLowerCase() ===
+                type
         ).length;
 
     }
@@ -2818,7 +2512,9 @@
        CREATE READING
     ===================================================== */
 
-    async function createReading(event) {
+    async function createReading(
+        event
+    ) {
 
         event.preventDefault();
 
@@ -2831,28 +2527,51 @@
 
 
         const stationId =
-            getElement("fgStation")?.value;
+            getElement(
+                "fgStation"
+            )?.value;
+
 
         const pumpId =
-            getElement("fgPump")?.value;
+            getElement(
+                "fgPump"
+            )?.value;
+
 
         const nozzleId =
-            getElement("fgNozzle")?.value;
+            getElement(
+                "fgNozzle"
+            )?.value;
+
 
         const readingType =
-            getElement("fgReadingType")?.value;
+            getElement(
+                "fgReadingType"
+            )?.value;
+
 
         const readingValue =
-            getElement("fgReadingValue")?.value;
+            getElement(
+                "fgReadingValue"
+            )?.value;
+
 
         const shiftId =
-            getElement("fgShift")?.value;
+            getElement(
+                "fgShift"
+            )?.value;
+
 
         const capturedAt =
-            getElement("fgCapturedAt")?.value;
+            getElement(
+                "fgCapturedAt"
+            )?.value;
+
 
         const photoUrl =
-            getElement("fgPhotoUrl")?.value.trim();
+            getElement(
+                "fgPhotoUrl"
+            )?.value.trim();
 
 
         if (
@@ -2868,13 +2587,16 @@
                 "error"
             );
 
+
             return;
 
         }
 
 
         const numericReading =
-            Number(readingValue);
+            Number(
+                readingValue
+            );
 
 
         if (
@@ -2888,6 +2610,7 @@
                 "Enter a valid meter reading.",
                 "error"
             );
+
 
             return;
 
@@ -2912,10 +2635,12 @@
                 numericReading,
 
             shift_id:
-                shiftId || null,
+                shiftId ||
+                null,
 
             photo_url:
-                photoUrl || null,
+                photoUrl ||
+                null,
 
             captured_at:
                 capturedAt
@@ -2938,7 +2663,9 @@
 
         if (saveButton) {
 
-            saveButton.disabled = true;
+            saveButton.disabled =
+                true;
+
 
             saveButton.textContent =
                 "Saving...";
@@ -2953,7 +2680,8 @@
                     "/meter-readings",
                     {
 
-                        method: "POST",
+                        method:
+                            "POST",
 
                         body:
                             JSON.stringify(
@@ -2986,7 +2714,6 @@
 
             await loadReadings();
 
-
         } catch (error) {
 
             console.error(
@@ -3003,12 +2730,15 @@
 
         } finally {
 
-            state.saving = false;
+            state.saving =
+                false;
 
 
             if (saveButton) {
 
-                saveButton.disabled = false;
+                saveButton.disabled =
+                    false;
+
 
                 saveButton.textContent =
                     "Save Reading";
@@ -3024,9 +2754,14 @@
        DELETE
     ===================================================== */
 
-    async function deleteReading(id) {
+    async function deleteReading(
+        id
+    ) {
 
-        if (!id || state.deleting) {
+        if (
+            !id ||
+            state.deleting
+        ) {
 
             return;
 
@@ -3046,16 +2781,20 @@
         }
 
 
-        state.deleting = true;
+        state.deleting =
+            true;
 
 
         try {
 
             await apiRequest(
-                `/meter-readings/${encodeURIComponent(id)}`,
+                `/meter-readings/${encodeURIComponent(
+                    id
+                )}`,
                 {
 
-                    method: "DELETE"
+                    method:
+                        "DELETE"
 
                 }
             );
@@ -3064,8 +2803,12 @@
             state.readings =
                 state.readings.filter(
                     item =>
-                        String(item.id) !==
-                        String(id)
+                        String(
+                            item.id
+                        ) !==
+                        String(
+                            id
+                        )
                 );
 
 
@@ -3075,7 +2818,6 @@
             showToast(
                 "Meter reading deleted."
             );
-
 
         } catch (error) {
 
@@ -3092,7 +2834,8 @@
 
         } finally {
 
-            state.deleting = false;
+            state.deleting =
+                false;
 
         }
 
@@ -3111,7 +2854,11 @@
             );
 
 
-        if (!modal) return;
+        if (!modal) {
+
+            return;
+
+        }
 
 
         resetForm();
@@ -3132,7 +2879,11 @@
             );
 
 
-        if (!modal) return;
+        if (!modal) {
+
+            return;
+
+        }
 
 
         modal.classList.remove(
@@ -3220,75 +2971,83 @@
         ];
 
 
-        ids.forEach(id => {
+        ids.forEach(
+            id => {
 
-            const select =
-                getElement(id);
-
-
-            if (!select) return;
-
-
-            const current =
-                select.value;
-
-
-            const isFilter =
-                id ===
-                "fgStationFilter";
-
-
-            select.innerHTML =
-                isFilter
-
-                    ? `
-                        <option value="">
-                            All Stations
-                        </option>
-                    `
-
-                    : `
-                        <option value="">
-                            Select station
-                        </option>
-                    `;
-
-
-            state.stations.forEach(
-                station => {
-
-                    const option =
-                        document.createElement(
-                            "option"
-                        );
-
-
-                    option.value =
-                        station.id;
-
-
-                    option.textContent =
-                        station.name ||
-                        station.station_name ||
-                        station.id;
-
-
-                    select.appendChild(
-                        option
+                const select =
+                    getElement(
+                        id
                     );
 
+
+                if (!select) {
+
+                    return;
+
                 }
-            );
 
 
-            if (current) {
+                const current =
+                    select.value;
 
-                select.value =
-                    current;
+
+                const isFilter =
+                    id ===
+                    "fgStationFilter";
+
+
+                select.innerHTML =
+                    isFilter
+
+                        ? `
+                            <option value="">
+                                All Stations
+                            </option>
+                        `
+
+                        : `
+                            <option value="">
+                                Select station
+                            </option>
+                        `;
+
+
+                state.stations.forEach(
+                    station => {
+
+                        const option =
+                            document.createElement(
+                                "option"
+                            );
+
+
+                        option.value =
+                            station.id;
+
+
+                        option.textContent =
+                            station.name ||
+                            station.station_name ||
+                            station.id;
+
+
+                        select.appendChild(
+                            option
+                        );
+
+                    }
+                );
+
+
+                if (current) {
+
+                    select.value =
+                        current;
+
+                }
 
             }
-
-        });
+        );
 
     }
 
@@ -3301,7 +3060,11 @@
             );
 
 
-        if (!select) return;
+        if (!select) {
+
+            return;
+
+        }
 
 
         const stationId =
@@ -3320,6 +3083,7 @@
 
 
         state.pumps
+
             .filter(
                 pump => {
 
@@ -3328,6 +3092,7 @@
                         return true;
 
                     }
+
 
                     return String(
                         pump.station_id
@@ -3338,6 +3103,7 @@
 
                 }
             )
+
             .forEach(
                 pump => {
 
@@ -3380,7 +3146,11 @@
             );
 
 
-        if (!select) return;
+        if (!select) {
+
+            return;
+
+        }
 
 
         const pumpId =
@@ -3399,6 +3169,7 @@
 
 
         state.nozzles
+
             .filter(
                 nozzle => {
 
@@ -3407,6 +3178,7 @@
                         return true;
 
                     }
+
 
                     return String(
                         nozzle.pump_id
@@ -3417,6 +3189,7 @@
 
                 }
             )
+
             .forEach(
                 nozzle => {
 
@@ -3459,7 +3232,11 @@
             );
 
 
-        if (!select) return;
+        if (!select) {
+
+            return;
+
+        }
 
 
         const stationId =
@@ -3478,6 +3255,7 @@
 
 
         state.shifts
+
             .filter(
                 shift => {
 
@@ -3486,6 +3264,7 @@
                         return true;
 
                     }
+
 
                     return String(
                         shift.station_id
@@ -3496,6 +3275,7 @@
 
                 }
             )
+
             .forEach(
                 shift => {
 
@@ -3514,7 +3294,10 @@
                         shift.name ||
                         `Shift ${String(
                             shift.id
-                        ).slice(0, 8)}`;
+                        ).slice(
+                            0,
+                            8
+                        )}`;
 
 
                     select.appendChild(
@@ -3582,6 +3365,7 @@
                 state.search =
                     event.target.value;
 
+
                 renderReadings();
 
             }
@@ -3597,6 +3381,7 @@
                 state.readingType =
                     event.target.value;
 
+
                 renderReadings();
 
             }
@@ -3611,6 +3396,7 @@
 
                 state.stationId =
                     event.target.value;
+
 
                 renderReadings();
 
@@ -3656,7 +3442,11 @@
                     );
 
 
-                if (!button) return;
+                if (!button) {
+
+                    return;
+
+                }
 
 
                 const id =
@@ -3665,7 +3455,9 @@
                     );
 
 
-                deleteReading(id);
+                deleteReading(
+                    id
+                );
 
             }
         );
@@ -3708,7 +3500,11 @@
             );
 
 
-        if (!area) return;
+        if (!area) {
+
+            return;
+
+        }
 
 
         area.innerHTML = `
@@ -3732,7 +3528,9 @@
        ERROR STATE
     ===================================================== */
 
-    function showTableError(message) {
+    function showTableError(
+        message
+    ) {
 
         const area =
             getElement(
@@ -3740,7 +3538,11 @@
             );
 
 
-        if (!area) return;
+        if (!area) {
+
+            return;
+
+        }
 
 
         area.innerHTML = `
@@ -3752,8 +3554,11 @@
                 </strong>
 
                 <p>
-                    ${escapeHTML(message)}
+                    ${escapeHTML(
+                        message
+                    )}
                 </p>
+
 
                 <button
                     type="button"
@@ -3794,7 +3599,11 @@
             );
 
 
-        if (!element) return;
+        if (!element) {
+
+            return;
+
+        }
 
 
         element.textContent =
@@ -3815,7 +3624,11 @@
             );
 
 
-        if (!element) return;
+        if (!element) {
+
+            return;
+
+        }
 
 
         element.textContent =
@@ -3835,7 +3648,9 @@
     let toastTimer = null;
 
 
-    function showToast(message) {
+    function showToast(
+        message
+    ) {
 
         const toast =
             getElement(
@@ -3843,7 +3658,11 @@
             );
 
 
-        if (!toast) return;
+        if (!toast) {
+
+            return;
+
+        }
 
 
         toast.textContent =
@@ -3879,45 +3698,69 @@
        LOOKUPS
     ===================================================== */
 
-    function findStation(id) {
+    function findStation(
+        id
+    ) {
 
         return state.stations.find(
             item =>
-                String(item.id) ===
-                String(id)
+                String(
+                    item.id
+                ) ===
+                String(
+                    id
+                )
         );
 
     }
 
 
-    function findPump(id) {
+    function findPump(
+        id
+    ) {
 
         return state.pumps.find(
             item =>
-                String(item.id) ===
-                String(id)
+                String(
+                    item.id
+                ) ===
+                String(
+                    id
+                )
         );
 
     }
 
 
-    function findNozzle(id) {
+    function findNozzle(
+        id
+    ) {
 
         return state.nozzles.find(
             item =>
-                String(item.id) ===
-                String(id)
+                String(
+                    item.id
+                ) ===
+                String(
+                    id
+                )
         );
 
     }
 
 
-    function findShift(id) {
+    function findShift(
+        id
+    ) {
 
         return state.shifts.find(
             item =>
-                String(item.id) ===
-                String(id)
+                String(
+                    item.id
+                ) ===
+                String(
+                    id
+                )
         );
 
     }
@@ -3927,17 +3770,25 @@
        FORMATTING
     ===================================================== */
 
-    function formatNumber(value) {
+    function formatNumber(
+        value
+    ) {
 
         const number =
-            Number(value);
+            Number(
+                value
+            );
 
 
         if (
-            !Number.isFinite(number)
+            !Number.isFinite(
+                number
+            )
         ) {
 
-            return escapeHTML(value);
+            return escapeHTML(
+                value
+            );
 
         }
 
@@ -3945,15 +3796,20 @@
         return number.toLocaleString(
             "en-NG",
             {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2
+                minimumFractionDigits:
+                    0,
+
+                maximumFractionDigits:
+                    2
             }
         );
 
     }
 
 
-    function formatDate(value) {
+    function formatDate(
+        value
+    ) {
 
         if (!value) {
 
@@ -3963,7 +3819,9 @@
 
 
         const date =
-            new Date(value);
+            new Date(
+                value
+            );
 
 
         if (
@@ -3982,11 +3840,20 @@
         return date.toLocaleString(
             "en-NG",
             {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit"
+                year:
+                    "numeric",
+
+                month:
+                    "short",
+
+                day:
+                    "numeric",
+
+                hour:
+                    "2-digit",
+
+                minute:
+                    "2-digit"
             }
         );
 
@@ -4003,7 +3870,9 @@
     ) {
 
         const element =
-            getElement(id);
+            getElement(
+                id
+            );
 
 
         if (element) {
@@ -4022,34 +3891,73 @@
 
     async function init() {
 
+        if (
+            state.initialized
+        ) {
+
+            return;
+
+        }
+
+
         console.log(
             "FuelGap Meter Readings initializing..."
         );
 
 
         /*
-         * Render immediately.
-         *
-         * This is important because an API failure
-         * must NOT make the page disappear.
+         * app.js must finish first.
          */
 
-        renderPage();
+        const pageContent =
+            getElement(
+                "pageContent"
+            );
+
+
+        if (!pageContent) {
+
+            console.error(
+                "FuelGap: #pageContent is not ready."
+            );
+
+            return;
+
+        }
+
+
+        injectPageCSS();
+
+
+        /*
+         * Render only the page content.
+         * app.js owns the navbar/sidebar.
+         */
+
+        const rendered =
+            renderPage();
+
+
+        if (!rendered) {
+
+            console.error(
+                "FuelGap Meter Readings could not render."
+            );
+
+            return;
+
+        }
+
+
+        state.initialized =
+            true;
 
 
         bindEvents();
 
 
-        /*
-         * Load user without blocking UI.
-         */
-
         await loadCurrentUser();
 
-
-        /*
-         * Load supporting data and readings.
-         */
 
         await Promise.allSettled([
 
@@ -4060,8 +3968,69 @@
         ]);
 
 
+        /*
+         * Make sure Meter Readings remains
+         * the active sidebar item.
+         */
+
+        if (
+            typeof window.setActiveSidebarLink ===
+            "function"
+        ) {
+
+            window.setActiveSidebarLink(
+                "readings"
+            );
+
+        }
+
+
         console.log(
             "FuelGap Meter Readings initialized successfully."
+        );
+
+    }
+
+
+    /* =====================================================
+       WAIT FOR APPLICATION SHELL
+    ===================================================== */
+
+    function startWhenAppReady() {
+
+        /*
+         * If app.js has already completed
+         * before this script starts.
+         */
+
+        if (
+            window.FuelGapAppState &&
+            window.FuelGapAppState.currentUser &&
+            getElement("pageContent")
+        ) {
+
+            init();
+
+            return;
+
+        }
+
+
+        /*
+         * Normal path:
+         * Wait for app.js.
+         */
+
+        document.addEventListener(
+            "fuelgap:app-ready",
+            () => {
+
+                init();
+
+            },
+            {
+                once: true
+            }
         );
 
     }
@@ -4095,7 +4064,7 @@
 
         document.addEventListener(
             "DOMContentLoaded",
-            init,
+            startWhenAppReady,
             {
                 once: true
             }
@@ -4103,7 +4072,7 @@
 
     } else {
 
-        init();
+        startWhenAppReady();
 
     }
 
