@@ -1,5 +1,5 @@
 /* =========================================================
-   FUELGAP - METER READINGS V4
+   FUELGAP - METER READINGS V5
    =========================================================
    APPLICATION SHELL:
    - Uses app.js navbar
@@ -9,19 +9,17 @@
    - HttpOnly cookie authentication
    - No localStorage authentication
 
-   BACKEND:
-   GET    /api/meter-readings
-   POST   /api/meter-readings
-   DELETE /api/meter-readings/:id
-
    FEATURES:
    - Opening readings
    - Periodic readings
    - Closing readings
    - Correction readings
-   - Historical captured_at
-   - Optional photo evidence
-   - Station / pump / nozzle selection
+   - Historical records
+   - Current/live readings
+   - LIVE CAMERA evidence for current readings
+   - Existing image upload for historical readings
+   - Historical readings may have no image
+   - Station -> Pump -> Nozzle dependency
    - Shift selection
    - Search
    - Filters
@@ -34,10 +32,7 @@
 
     "use strict";
 
-    console.log(
-        "FuelGap readings.js V4 loaded successfully."
-    );
-
+    console.log("FuelGap readings.js V5 loaded successfully.");
 
     /* =====================================================
        CONFIGURATION
@@ -82,7 +77,17 @@
 
         stationId: "",
 
-        initialized: false
+        initialized: false,
+
+        cameraStream: null,
+
+        cameraReady: false,
+
+        cameraSnapshot: null,
+
+        evidenceFile: null,
+
+        evidenceMode: "current"
 
     };
 
@@ -115,30 +120,15 @@
 
         return String(value)
 
-            .replace(
-                /&/g,
-                "&amp;"
-            )
+            .replace(/&/g, "&amp;")
 
-            .replace(
-                /</g,
-                "&lt;"
-            )
+            .replace(/</g, "&lt;")
 
-            .replace(
-                />/g,
-                "&gt;"
-            )
+            .replace(/>/g, "&gt;")
 
-            .replace(
-                /"/g,
-                "&quot;"
-            )
+            .replace(/"/g, "&quot;")
 
-            .replace(
-                /'/g,
-                "&#039;"
-            );
+            .replace(/'/g, "&#039;");
 
     }
 
@@ -147,16 +137,12 @@
        API REQUEST
     ===================================================== */
 
-    async function apiRequest(
-        endpoint,
-        options = {}
-    ) {
+    async function apiRequest(endpoint, options = {}) {
 
         const url =
             endpoint.startsWith("http")
                 ? endpoint
                 : `${API_BASE_URL}${endpoint}`;
-
 
         const requestOptions = {
 
@@ -166,8 +152,12 @@
 
             headers: {
 
-                "Content-Type":
-                    "application/json",
+                ...(options.body instanceof FormData
+                    ? {}
+                    : {
+                        "Content-Type":
+                            "application/json"
+                    }),
 
                 ...(options.headers || {})
 
@@ -175,16 +165,13 @@
 
         };
 
-
         const response =
             await fetch(
                 url,
                 requestOptions
             );
 
-
         let result = null;
-
 
         try {
 
@@ -197,7 +184,6 @@
 
         }
 
-
         if (!response.ok) {
 
             const message =
@@ -205,11 +191,9 @@
                 result?.error ||
                 `Server returned HTTP ${response.status}`;
 
-
             throw new Error(message);
 
         }
-
 
         return result;
 
@@ -224,10 +208,6 @@
 
         try {
 
-            /*
-             * First use the application state.
-             */
-
             if (
                 window.FuelGapAppState &&
                 window.FuelGapAppState.currentUser
@@ -240,11 +220,6 @@
 
             }
 
-
-            /*
-             * Otherwise use FuelGapUtils.
-             */
-
             if (
                 window.FuelGapUtils &&
                 typeof window.FuelGapUtils.getCurrentUser ===
@@ -254,32 +229,23 @@
                 const user =
                     await window.FuelGapUtils.getCurrentUser();
 
-
                 state.currentUser =
                     user || null;
-
 
                 return state.currentUser;
 
             }
-
-
-            /*
-             * Final fallback.
-             */
 
             const result =
                 await apiRequest(
                     "/auth/me"
                 );
 
-
             state.currentUser =
                 result?.data?.user ||
                 result?.user ||
                 result?.data ||
                 null;
-
 
             return state.currentUser;
 
@@ -290,7 +256,6 @@
                 error
             );
 
-
             return null;
 
         }
@@ -299,16 +264,75 @@
 
 
     /* =====================================================
-       LOAD METER READINGS
+       NORMALIZE ARRAY
+       Handles different backend response structures
+    ===================================================== */
+
+    function normalizeArray(result) {
+
+        if (Array.isArray(result)) {
+
+            return result;
+
+        }
+
+        const possibleArrays = [
+
+            result?.data,
+
+            result?.items,
+
+            result?.data?.items,
+
+            result?.data?.stations,
+
+            result?.data?.pumps,
+
+            result?.data?.nozzles,
+
+            result?.data?.shifts,
+
+            result?.stations,
+
+            result?.pumps,
+
+            result?.nozzles,
+
+            result?.shifts,
+
+            result?.readings,
+
+            result?.data?.readings
+
+        ];
+
+        for (
+            const candidate
+            of possibleArrays
+        ) {
+
+            if (Array.isArray(candidate)) {
+
+                return candidate;
+
+            }
+
+        }
+
+        return [];
+
+    }
+
+
+    /* =====================================================
+       LOAD READINGS
     ===================================================== */
 
     async function loadReadings() {
 
         state.loading = true;
 
-
         showLoading();
-
 
         try {
 
@@ -317,16 +341,13 @@
                     "/meter-readings"
                 );
 
-
             state.readings =
                 normalizeArray(result);
-
 
             console.log(
                 "FuelGap meter readings loaded:",
                 state.readings.length
             );
-
 
             renderReadings();
 
@@ -336,7 +357,6 @@
                 "FuelGap meter readings load error:",
                 error
             );
-
 
             showTableError(
                 error.message ||
@@ -370,6 +390,14 @@
 
         ]);
 
+        populateStationSelect();
+
+        populatePumpSelect();
+
+        populateNozzleSelect();
+
+        populateShiftSelect();
+
     }
 
 
@@ -386,10 +414,14 @@
                     "/stations"
                 );
 
-
             state.stations =
                 normalizeArray(result);
 
+            console.log(
+                "FuelGap stations loaded:",
+                state.stations.length,
+                state.stations
+            );
 
             populateStationSelect();
 
@@ -399,6 +431,8 @@
                 "FuelGap stations could not be loaded:",
                 error.message
             );
+
+            state.stations = [];
 
         }
 
@@ -418,10 +452,14 @@
                     "/pumps"
                 );
 
-
             state.pumps =
                 normalizeArray(result);
 
+            console.log(
+                "FuelGap pumps loaded:",
+                state.pumps.length,
+                state.pumps
+            );
 
             populatePumpSelect();
 
@@ -431,6 +469,8 @@
                 "FuelGap pumps could not be loaded:",
                 error.message
             );
+
+            state.pumps = [];
 
         }
 
@@ -450,10 +490,14 @@
                     "/nozzles"
                 );
 
-
             state.nozzles =
                 normalizeArray(result);
 
+            console.log(
+                "FuelGap nozzles loaded:",
+                state.nozzles.length,
+                state.nozzles
+            );
 
             populateNozzleSelect();
 
@@ -463,6 +507,8 @@
                 "FuelGap nozzles could not be loaded:",
                 error.message
             );
+
+            state.nozzles = [];
 
         }
 
@@ -482,10 +528,8 @@
                     "/shifts"
                 );
 
-
             state.shifts =
                 normalizeArray(result);
-
 
             populateShiftSelect();
 
@@ -496,54 +540,9 @@
                 error.message
             );
 
-        }
-
-    }
-
-
-    /* =====================================================
-       NORMALIZE ARRAY
-    ===================================================== */
-
-    function normalizeArray(result) {
-
-        if (
-            Array.isArray(result)
-        ) {
-
-            return result;
+            state.shifts = [];
 
         }
-
-
-        if (
-            Array.isArray(result?.data)
-        ) {
-
-            return result.data;
-
-        }
-
-
-        if (
-            Array.isArray(result?.data?.items)
-        ) {
-
-            return result.data.items;
-
-        }
-
-
-        if (
-            Array.isArray(result?.items)
-        ) {
-
-            return result.items;
-
-        }
-
-
-        return [];
 
     }
 
@@ -555,10 +554,7 @@
     function renderPage() {
 
         const container =
-            getElement(
-                "pageContent"
-            );
-
+            getElement("pageContent");
 
         if (!container) {
 
@@ -569,7 +565,6 @@
             return false;
 
         }
-
 
         container.innerHTML = `
 
@@ -594,7 +589,6 @@
 
                     </div>
 
-
                     <div class="fg-header-actions">
 
                         <button
@@ -604,7 +598,6 @@
                         >
                             ↻ Refresh
                         </button>
-
 
                         <button
                             type="button"
@@ -790,6 +783,10 @@
             </div>
 
 
+            <!-- =================================================
+                 READING MODAL
+            ================================================== -->
+
             <div
                 class="fg-modal-overlay"
                 id="fgReadingModal"
@@ -811,7 +808,6 @@
 
                         </div>
 
-
                         <button
                             type="button"
                             class="fg-modal-close"
@@ -827,6 +823,8 @@
 
                         <div class="fg-form-grid">
 
+
+                            <!-- STATION -->
 
                             <div class="fg-form-group">
 
@@ -849,6 +847,8 @@
                             </div>
 
 
+                            <!-- PUMP -->
+
                             <div class="fg-form-group">
 
                                 <label>
@@ -859,16 +859,19 @@
                                 <select
                                     id="fgPump"
                                     required
+                                    disabled
                                 >
 
                                     <option value="">
-                                        Select pump
+                                        Select station first
                                     </option>
 
                                 </select>
 
                             </div>
 
+
+                            <!-- NOZZLE -->
 
                             <div class="fg-form-group">
 
@@ -880,16 +883,19 @@
                                 <select
                                     id="fgNozzle"
                                     required
+                                    disabled
                                 >
 
                                     <option value="">
-                                        Select nozzle
+                                        Select pump first
                                     </option>
 
                                 </select>
 
                             </div>
 
+
+                            <!-- READING TYPE -->
 
                             <div class="fg-form-group">
 
@@ -928,6 +934,8 @@
                             </div>
 
 
+                            <!-- METER -->
+
                             <div class="fg-form-group">
 
                                 <label>
@@ -946,6 +954,8 @@
 
                             </div>
 
+
+                            <!-- SHIFT -->
 
                             <div class="fg-form-group">
 
@@ -966,6 +976,86 @@
                             </div>
 
 
+                            <!-- RECORD MODE -->
+
+                            <div class="fg-form-group fg-full">
+
+                                <label>
+                                    Record Type
+                                    <span>*</span>
+                                </label>
+
+                                <div class="fg-evidence-mode-grid">
+
+                                    <label
+                                        class="fg-mode-card active"
+                                        id="fgCurrentModeCard"
+                                    >
+
+                                        <input
+                                            type="radio"
+                                            name="fgRecordMode"
+                                            value="current"
+                                            id="fgRecordModeCurrent"
+                                            checked
+                                        >
+
+                                        <span class="fg-mode-icon">
+                                            ●
+                                        </span>
+
+                                        <span>
+
+                                            <strong>
+                                                Current Reading
+                                            </strong>
+
+                                            <small>
+                                                Requires a live camera snapshot.
+                                            </small>
+
+                                        </span>
+
+                                    </label>
+
+
+                                    <label
+                                        class="fg-mode-card"
+                                        id="fgHistoricalModeCard"
+                                    >
+
+                                        <input
+                                            type="radio"
+                                            name="fgRecordMode"
+                                            value="historical"
+                                            id="fgRecordModeHistorical"
+                                        >
+
+                                        <span class="fg-mode-icon">
+                                            ◷
+                                        </span>
+
+                                        <span>
+
+                                            <strong>
+                                                Historical Record
+                                            </strong>
+
+                                            <small>
+                                                Image optional. Existing photo allowed.
+                                            </small>
+
+                                        </span>
+
+                                    </label>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- CAPTURED DATE -->
+
                             <div class="fg-form-group fg-full">
 
                                 <label>
@@ -977,29 +1067,222 @@
                                     id="fgCapturedAt"
                                 >
 
-                                <small>
-                                    Leave as current time or select a
-                                    historical date/time.
+                                <small id="fgCapturedAtHelp">
+                                    Current readings use the current time.
                                 </small>
 
                             </div>
 
 
-                            <div class="fg-form-group fg-full">
+                            <!-- =================================================
+                                 EVIDENCE ROOM
+                            ================================================== -->
 
-                                <label>
-                                    Evidence Photo URL
-                                </label>
+                            <div
+                                class="fg-form-group fg-full"
+                            >
 
-                                <input
-                                    type="url"
-                                    id="fgPhotoUrl"
-                                    placeholder="Optional photo URL"
-                                >
+                                <div class="fg-evidence-room">
 
-                                <small>
-                                    Evidence is optional.
-                                </small>
+                                    <div class="fg-evidence-header">
+
+                                        <div>
+
+                                            <span class="fg-evidence-kicker">
+                                                EVIDENCE ROOM
+                                            </span>
+
+                                            <h3>
+                                                Reading Evidence
+                                            </h3>
+
+                                            <p id="fgEvidenceDescription">
+                                                A live camera snapshot is required
+                                                for current readings.
+                                            </p>
+
+                                        </div>
+
+                                        <div
+                                            class="fg-evidence-status"
+                                            id="fgEvidenceStatus"
+                                        >
+                                            CAMERA REQUIRED
+                                        </div>
+
+                                    </div>
+
+
+                                    <!-- CAMERA -->
+
+                                    <div
+                                        class="fg-camera-area"
+                                        id="fgCameraArea"
+                                    >
+
+                                        <div
+                                            class="fg-camera-preview"
+                                            id="fgCameraPreview"
+                                        >
+
+                                            <video
+                                                id="fgCameraVideo"
+                                                autoplay
+                                                muted
+                                                playsinline
+                                            ></video>
+
+                                            <div
+                                                class="fg-camera-placeholder"
+                                                id="fgCameraPlaceholder"
+                                            >
+
+                                                <div class="fg-camera-symbol">
+                                                    ◉
+                                                </div>
+
+                                                <strong>
+                                                    Live camera is required
+                                                </strong>
+
+                                                <span>
+                                                    Allow camera access to capture
+                                                    current meter evidence.
+                                                </span>
+
+                                            </div>
+
+                                        </div>
+
+
+                                        <div class="fg-camera-actions">
+
+                                            <button
+                                                type="button"
+                                                class="fg-btn fg-btn-secondary"
+                                                id="fgStartCameraBtn"
+                                            >
+                                                Start Camera
+                                            </button>
+
+
+                                            <button
+                                                type="button"
+                                                class="fg-btn fg-btn-primary"
+                                                id="fgCaptureBtn"
+                                                disabled
+                                            >
+                                                Take Live Snapshot
+                                            </button>
+
+
+                                            <button
+                                                type="button"
+                                                class="fg-btn fg-btn-secondary"
+                                                id="fgRetakeBtn"
+                                                style="display:none;"
+                                            >
+                                                Retake
+                                            </button>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <!-- CAPTURED SNAPSHOT -->
+
+                                    <div
+                                        class="fg-snapshot-area"
+                                        id="fgSnapshotArea"
+                                        style="display:none;"
+                                    >
+
+                                        <div class="fg-snapshot-title">
+                                            ✓ Live Snapshot Captured
+                                        </div>
+
+                                        <img
+                                            id="fgSnapshotImage"
+                                            alt="Live meter evidence snapshot"
+                                        >
+
+                                        <div
+                                            class="fg-snapshot-meta"
+                                            id="fgSnapshotMeta"
+                                        ></div>
+
+                                    </div>
+
+
+                                    <!-- HISTORICAL UPLOAD -->
+
+                                    <div
+                                        class="fg-historical-upload"
+                                        id="fgHistoricalUpload"
+                                        style="display:none;"
+                                    >
+
+                                        <div class="fg-upload-info">
+
+                                            <strong>
+                                                Existing Evidence
+                                            </strong>
+
+                                            <span>
+                                                You may leave this empty or
+                                                upload an existing historical
+                                                meter photograph.
+                                            </span>
+
+                                        </div>
+
+
+                                        <input
+                                            type="file"
+                                            id="fgEvidenceFile"
+                                            accept="image/*"
+                                        >
+
+
+                                        <div
+                                            class="fg-upload-preview"
+                                            id="fgUploadPreview"
+                                            style="display:none;"
+                                        >
+
+                                            <img
+                                                id="fgUploadPreviewImage"
+                                                alt="Historical evidence preview"
+                                            >
+
+                                            <div>
+
+                                                <strong id="fgUploadFileName">
+                                                    Image selected
+                                                </strong>
+
+                                                <button
+                                                    type="button"
+                                                    class="fg-remove-upload"
+                                                    id="fgRemoveUpload"
+                                                >
+                                                    Remove
+                                                </button>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <canvas
+                                        id="fgEvidenceCanvas"
+                                        style="display:none;"
+                                    ></canvas>
+
+                                </div>
 
                             </div>
 
@@ -1047,7 +1330,6 @@
 
         `;
 
-
         return true;
 
     }
@@ -1060,944 +1342,802 @@
     const PAGE_CSS = `
 
         .fg-readings-page {
-
             width: 100%;
-
             min-height: calc(100vh - 80px);
-
             color: #171717;
-
-            font-family:
-                Inter,
-                Arial,
-                Helvetica,
-                sans-serif;
-
+            font-family: Inter, Arial, Helvetica, sans-serif;
         }
-
 
         .fg-reading-header {
-
             display: flex;
-
             align-items: flex-start;
-
             justify-content: space-between;
-
             gap: 20px;
-
             margin-bottom: 28px;
-
         }
-
 
         .fg-page-kicker {
-
             color: #b18d00;
-
             font-size: 10px;
-
             font-weight: 900;
-
             letter-spacing: 1.5px;
-
             text-transform: uppercase;
-
         }
-
 
         .fg-reading-header h1 {
-
-            margin: 5px 0 5px;
-
+            margin: 5px 0;
             font-size: 32px;
-
             line-height: 1.1;
-
             letter-spacing: -1.2px;
-
         }
-
 
         .fg-reading-header p {
-
             margin: 0;
-
             color: #777;
-
             font-size: 13px;
-
         }
-
 
         .fg-header-actions {
-
             display: flex;
-
             gap: 10px;
-
             flex-wrap: wrap;
-
         }
-
 
         .fg-btn {
-
             border: 0;
-
             border-radius: 9px;
-
             padding: 11px 17px;
-
             font-size: 12px;
-
             font-weight: 800;
-
             cursor: pointer;
-
-            transition: 0.2s ease;
-
+            transition: .2s ease;
         }
-
 
         .fg-btn-primary {
-
             background: #ffd400;
-
             color: #111;
-
         }
-
 
         .fg-btn-primary:hover {
-
             background: #efc600;
-
             transform: translateY(-1px);
-
         }
-
 
         .fg-btn-secondary {
-
             background: #fff;
-
             border: 1px solid #deded7;
-
             color: #333;
-
         }
-
 
         .fg-btn-secondary:hover {
-
             background: #f8f8f5;
-
         }
-
 
         .fg-btn:disabled {
-
-            opacity: 0.55;
-
+            opacity: .55;
             cursor: not-allowed;
-
             transform: none;
-
         }
-
 
         .fg-stat-grid {
-
             display: grid;
-
-            grid-template-columns:
-                repeat(4, minmax(0, 1fr));
-
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 15px;
-
             margin-bottom: 20px;
-
         }
-
 
         .fg-stat-card {
-
             background: #fff;
-
             border: 1px solid #e9e9e3;
-
             border-radius: 13px;
-
             padding: 17px;
-
             display: flex;
-
             align-items: center;
-
             gap: 13px;
-
-            box-shadow:
-                0 2px 10px rgba(0,0,0,0.025);
-
+            box-shadow: 0 2px 10px rgba(0,0,0,.025);
         }
-
 
         .fg-stat-icon {
-
             width: 42px;
-
             height: 42px;
-
             border-radius: 11px;
-
             background: #fff7c9;
-
             display: flex;
-
             align-items: center;
-
             justify-content: center;
-
             font-weight: 900;
-
             font-size: 17px;
-
         }
-
 
         .fg-stat-card span {
-
             display: block;
-
             color: #888;
-
             font-size: 10px;
-
             font-weight: 700;
-
             margin-bottom: 4px;
-
         }
-
 
         .fg-stat-card strong {
-
             display: block;
-
             font-size: 22px;
-
             font-weight: 900;
-
         }
-
 
         .fg-content-card {
-
             background: #fff;
-
             border: 1px solid #e8e8e2;
-
             border-radius: 14px;
-
             overflow: hidden;
-
-            box-shadow:
-                0 3px 15px rgba(0,0,0,0.025);
-
+            box-shadow: 0 3px 15px rgba(0,0,0,.025);
         }
-
 
         .fg-toolbar {
-
             padding: 16px;
-
             display: flex;
-
             align-items: center;
-
             gap: 10px;
-
             border-bottom: 1px solid #eeeeea;
-
             flex-wrap: wrap;
-
         }
-
 
         .fg-search {
-
             flex: 1;
-
             min-width: 220px;
-
             height: 40px;
-
             display: flex;
-
             align-items: center;
-
             gap: 8px;
-
             padding: 0 12px;
-
             border: 1px solid #dddcd5;
-
             border-radius: 9px;
-
             background: #fff;
-
         }
-
 
         .fg-search span {
-
             color: #999;
-
             font-size: 17px;
-
         }
-
 
         .fg-search input {
-
             width: 100%;
-
             border: 0;
-
             outline: none;
-
             font-size: 12px;
-
         }
-
 
         .fg-select {
-
             height: 40px;
-
             padding: 0 11px;
-
             border: 1px solid #dddcd5;
-
             border-radius: 9px;
-
             background: #fff;
-
             font-size: 11px;
-
             outline: none;
-
             min-width: 160px;
-
         }
-
 
         .fg-table-wrapper {
-
             width: 100%;
-
             overflow-x: auto;
-
         }
-
 
         .fg-readings-table {
-
             width: 100%;
-
             border-collapse: collapse;
-
-            min-width: 850px;
-
+            min-width: 900px;
         }
-
 
         .fg-readings-table th {
-
             padding: 13px 15px;
-
             text-align: left;
-
             background: #fafaf7;
-
             color: #888;
-
             font-size: 9px;
-
             font-weight: 900;
-
             text-transform: uppercase;
-
-            letter-spacing: 0.7px;
-
+            letter-spacing: .7px;
             border-bottom: 1px solid #eeeeea;
-
         }
-
 
         .fg-readings-table td {
-
             padding: 14px 15px;
-
             border-bottom: 1px solid #f0f0ec;
-
             font-size: 11px;
-
             vertical-align: middle;
-
         }
-
 
         .fg-readings-table tbody tr:hover {
-
             background: #fffdf0;
-
         }
-
 
         .fg-reading-number {
-
             font-weight: 900;
-
             font-size: 13px;
-
         }
-
 
         .fg-reading-meta {
-
             color: #999;
-
             font-size: 9px;
-
             margin-top: 3px;
-
         }
-
 
         .fg-type-badge {
-
             display: inline-flex;
-
             padding: 5px 8px;
-
             border-radius: 100px;
-
             font-size: 9px;
-
             font-weight: 900;
-
             text-transform: uppercase;
-
         }
-
 
         .fg-type-opening {
-
             background: #fff2b2;
-
             color: #806500;
-
         }
-
 
         .fg-type-periodic {
-
             background: #fff8d8;
-
             color: #786700;
-
         }
-
 
         .fg-type-closing {
-
             background: #eaf7ee;
-
             color: #217044;
-
         }
-
 
         .fg-type-correction {
-
             background: #f0f0f0;
-
             color: #555;
-
         }
-
 
         .fg-action-delete {
-
             border: 1px solid #eee;
-
             background: #fff;
-
             color: #777;
-
             border-radius: 7px;
-
             padding: 6px 9px;
-
             cursor: pointer;
-
             font-size: 10px;
-
         }
-
 
         .fg-action-delete:hover {
-
             background: #fff0f0;
-
             color: #b00000;
-
             border-color: #f2caca;
-
         }
-
 
         .fg-table-loading,
         .fg-table-empty,
         .fg-table-error {
-
             min-height: 260px;
-
             display: flex;
-
             flex-direction: column;
-
             align-items: center;
-
             justify-content: center;
-
             padding: 30px;
-
             text-align: center;
-
         }
-
 
         .fg-table-empty strong,
         .fg-table-error strong {
-
             font-size: 15px;
-
             margin-bottom: 7px;
-
         }
-
 
         .fg-table-empty p,
         .fg-table-error p {
-
             margin: 0;
-
             color: #888;
-
             font-size: 11px;
-
         }
-
 
         .fg-table-error {
-
             background: #fffafa;
-
         }
-
 
         .fg-table-error strong {
-
             color: #a10000;
-
         }
-
 
         .fg-spinner {
-
             width: 28px;
-
             height: 28px;
-
             border: 3px solid #eee;
-
             border-top-color: #ffd400;
-
             border-radius: 50%;
-
-            animation:
-                fgSpin 0.8s linear infinite;
-
+            animation: fgSpin .8s linear infinite;
         }
 
-
         @keyframes fgSpin {
-
             to {
                 transform: rotate(360deg);
             }
-
         }
-
 
         .fg-modal-overlay {
-
             position: fixed;
-
             inset: 0;
-
-            background:
-                rgba(0,0,0,0.48);
-
+            background: rgba(0,0,0,.48);
             display: none;
-
             align-items: center;
-
             justify-content: center;
-
             padding: 20px;
-
             z-index: 1000;
-
         }
-
 
         .fg-modal-overlay.open {
-
             display: flex;
-
         }
-
 
         .fg-modal {
-
-            width: min(700px, 100%);
-
-            max-height: 90vh;
-
+            width: min(760px, 100%);
+            max-height: 92vh;
             overflow-y: auto;
-
             background: #fff;
-
             border-radius: 16px;
-
-            box-shadow:
-                0 20px 70px rgba(0,0,0,0.2);
-
+            box-shadow: 0 20px 70px rgba(0,0,0,.2);
         }
-
 
         .fg-modal-header {
-
             padding: 22px;
-
             display: flex;
-
             align-items: flex-start;
-
             justify-content: space-between;
-
             border-bottom: 1px solid #eeeeea;
-
         }
-
 
         .fg-modal-header h2 {
-
             margin: 4px 0 0;
-
             font-size: 21px;
-
         }
-
 
         .fg-modal-close {
-
             border: 0;
-
             background: #f5f5f1;
-
             width: 32px;
-
             height: 32px;
-
             border-radius: 8px;
-
             font-size: 20px;
-
             cursor: pointer;
-
         }
-
 
         #fgReadingForm {
-
             padding: 22px;
-
         }
-
 
         .fg-form-grid {
-
             display: grid;
-
-            grid-template-columns:
-                repeat(2, minmax(0, 1fr));
-
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 17px;
-
         }
-
 
         .fg-form-group {
-
             display: flex;
-
             flex-direction: column;
-
             gap: 7px;
-
         }
-
 
         .fg-form-group.fg-full {
-
             grid-column: 1 / -1;
-
         }
-
 
         .fg-form-group label {
-
             font-size: 10px;
-
             font-weight: 900;
-
             color: #444;
-
         }
-
 
         .fg-form-group label span {
-
             color: #c49d00;
-
         }
-
 
         .fg-form-group input,
         .fg-form-group select {
-
             height: 42px;
-
             padding: 0 12px;
-
             border: 1px solid #deded7;
-
             border-radius: 9px;
-
             outline: none;
-
             font-size: 12px;
-
             background: #fff;
-
         }
-
 
         .fg-form-group input:focus,
         .fg-form-group select:focus {
-
             border-color: #e4bf00;
-
-            box-shadow:
-                0 0 0 3px #fff7c7;
-
+            box-shadow: 0 0 0 3px #fff7c7;
         }
-
 
         .fg-form-group small {
-
             color: #999;
-
             font-size: 9px;
-
         }
 
+        /* =================================================
+           EVIDENCE MODE
+        ================================================= */
+
+        .fg-evidence-mode-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .fg-mode-card {
+            border: 1px solid #deded7;
+            border-radius: 11px;
+            padding: 13px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            cursor: pointer;
+            background: #fff;
+            transition: .2s ease;
+        }
+
+        .fg-mode-card:hover {
+            border-color: #d4b300;
+            background: #fffdf0;
+        }
+
+        .fg-mode-card.active {
+            border-color: #e0bd00;
+            background: #fff9d9;
+            box-shadow: 0 0 0 2px #fff3a7;
+        }
+
+        .fg-mode-card input {
+            width: auto;
+            height: auto;
+            margin-top: 3px;
+            accent-color: #ffd400;
+        }
+
+        .fg-mode-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            background: #fff1a6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+        }
+
+        .fg-mode-card strong {
+            display: block;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+
+        .fg-mode-card small {
+            display: block;
+            line-height: 1.4;
+        }
+
+        /* =================================================
+           EVIDENCE ROOM
+        ================================================= */
+
+        .fg-evidence-room {
+            border: 1px solid #e5e3d8;
+            border-radius: 14px;
+            background: #fafaf7;
+            padding: 16px;
+        }
+
+        .fg-evidence-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 15px;
+            margin-bottom: 14px;
+        }
+
+        .fg-evidence-kicker {
+            color: #b18d00;
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: 1.4px;
+        }
+
+        .fg-evidence-header h3 {
+            margin: 3px 0 4px;
+            font-size: 16px;
+        }
+
+        .fg-evidence-header p {
+            margin: 0;
+            color: #888;
+            font-size: 10px;
+            line-height: 1.5;
+        }
+
+        .fg-evidence-status {
+            background: #fff1a6;
+            color: #735c00;
+            border-radius: 100px;
+            padding: 7px 10px;
+            font-size: 8px;
+            font-weight: 900;
+            white-space: nowrap;
+        }
+
+        .fg-camera-area {
+            background: #111;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .fg-camera-preview {
+            position: relative;
+            width: 100%;
+            min-height: 270px;
+            background: #151515;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .fg-camera-preview video {
+            width: 100%;
+            height: 100%;
+            min-height: 270px;
+            max-height: 420px;
+            object-fit: cover;
+            display: none;
+        }
+
+        .fg-camera-preview.camera-active video {
+            display: block;
+        }
+
+        .fg-camera-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #fff;
+            padding: 35px;
+            text-align: center;
+        }
+
+        .fg-camera-placeholder strong {
+            font-size: 13px;
+        }
+
+        .fg-camera-placeholder span {
+            color: #aaa;
+            font-size: 10px;
+            max-width: 280px;
+            line-height: 1.5;
+        }
+
+        .fg-camera-symbol {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            background: #ffd400;
+            color: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 23px;
+            font-weight: 900;
+            margin-bottom: 4px;
+        }
+
+        .fg-camera-actions {
+            display: flex;
+            gap: 9px;
+            padding: 12px;
+            flex-wrap: wrap;
+        }
+
+        .fg-camera-actions .fg-btn {
+            flex: 1;
+            min-width: 130px;
+        }
+
+        .fg-snapshot-area {
+            margin-top: 12px;
+            border: 1px solid #d9e7dc;
+            background: #f2faf4;
+            border-radius: 11px;
+            padding: 12px;
+        }
+
+        .fg-snapshot-title {
+            color: #217044;
+            font-size: 10px;
+            font-weight: 900;
+            margin-bottom: 8px;
+        }
+
+        .fg-snapshot-area img {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: #111;
+        }
+
+        .fg-snapshot-meta {
+            color: #777;
+            font-size: 9px;
+            margin-top: 7px;
+        }
+
+        .fg-historical-upload {
+            margin-top: 12px;
+            border: 1px dashed #d7d4c7;
+            border-radius: 11px;
+            padding: 14px;
+            background: #fff;
+        }
+
+        .fg-upload-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 10px;
+        }
+
+        .fg-upload-info strong {
+            font-size: 11px;
+        }
+
+        .fg-upload-info span {
+            color: #888;
+            font-size: 9px;
+        }
+
+        .fg-historical-upload input[type="file"] {
+            width: 100%;
+            height: auto;
+            padding: 10px;
+            border: 1px solid #deded7;
+            background: #fafaf7;
+        }
+
+        .fg-upload-preview {
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .fg-upload-preview img {
+            width: 75px;
+            height: 75px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+
+        .fg-upload-preview strong {
+            display: block;
+            font-size: 10px;
+            margin-bottom: 6px;
+        }
+
+        .fg-remove-upload {
+            border: 0;
+            background: none;
+            color: #a00000;
+            padding: 0;
+            cursor: pointer;
+            font-size: 9px;
+            font-weight: 800;
+        }
 
         .fg-modal-footer {
-
             margin-top: 22px;
-
             display: flex;
-
             justify-content: flex-end;
-
             gap: 9px;
-
             padding-top: 18px;
-
             border-top: 1px solid #eeeeea;
-
         }
-
 
         .fg-form-message {
-
             display: none;
-
             margin-top: 17px;
-
             padding: 11px;
-
             border-radius: 8px;
-
             font-size: 10px;
-
         }
-
 
         .fg-form-message.show {
-
             display: block;
-
         }
-
 
         .fg-form-message.error {
-
             background: #fff0f0;
-
             color: #9d0000;
-
         }
-
 
         .fg-form-message.success {
-
             background: #eefaf2;
-
             color: #23703c;
-
         }
-
 
         .fg-toast {
-
             position: fixed;
-
             right: 22px;
-
             bottom: 22px;
-
             background: #111;
-
             color: #fff;
-
             padding: 12px 16px;
-
             border-radius: 9px;
-
             font-size: 11px;
-
             font-weight: 700;
-
             opacity: 0;
-
             pointer-events: none;
-
             transform: translateY(10px);
-
-            transition: 0.25s ease;
-
+            transition: .25s ease;
             z-index: 1200;
-
         }
-
 
         .fg-toast.show {
-
             opacity: 1;
-
             transform: translateY(0);
-
         }
-
 
         @media (max-width: 1000px) {
 
             .fg-reading-header {
-
                 flex-direction: column;
-
             }
 
-
             .fg-stat-grid {
-
-                grid-template-columns:
-                    repeat(2, minmax(0, 1fr));
-
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
         }
-
 
         @media (max-width: 760px) {
 
             .fg-reading-header h1 {
-
                 font-size: 27px;
-
             }
-
 
             .fg-stat-grid {
-
                 grid-template-columns: 1fr 1fr;
-
             }
-
 
             .fg-form-grid {
-
                 grid-template-columns: 1fr;
-
             }
 
-
             .fg-form-group.fg-full {
-
                 grid-column: auto;
+            }
 
+            .fg-evidence-mode-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .fg-evidence-header {
+                flex-direction: column;
             }
 
         }
 
-
         @media (max-width: 480px) {
 
             .fg-stat-grid {
-
                 grid-template-columns: 1fr;
-
             }
-
 
             .fg-header-actions {
-
                 width: 100%;
-
             }
 
-
             .fg-header-actions .fg-btn {
-
                 flex: 1;
-
             }
 
         }
@@ -2006,7 +2146,7 @@
 
 
     /* =====================================================
-       INJECT PAGE CSS
+       INJECT CSS
     ===================================================== */
 
     function injectPageCSS() {
@@ -2021,24 +2161,16 @@
 
         }
 
-
         const style =
-            document.createElement(
-                "style"
-            );
-
+            document.createElement("style");
 
         style.id =
             "fuelgap-readings-page-css";
 
-
         style.textContent =
             PAGE_CSS;
 
-
-        document.head.appendChild(
-            style
-        );
+        document.head.appendChild(style);
 
     }
 
@@ -2054,20 +2186,16 @@
                 "fgReadingsTableArea"
             );
 
-
         if (!area) {
 
             return;
 
         }
 
-
         updateStats();
-
 
         const filtered =
             getFilteredReadings();
-
 
         if (!filtered.length) {
 
@@ -2092,7 +2220,6 @@
 
         }
 
-
         area.innerHTML = `
 
             <table class="fg-readings-table">
@@ -2101,50 +2228,24 @@
 
                     <tr>
 
-                        <th>
-                            Reading
-                        </th>
-
-                        <th>
-                            Station
-                        </th>
-
-                        <th>
-                            Pump
-                        </th>
-
-                        <th>
-                            Nozzle
-                        </th>
-
-                        <th>
-                            Type
-                        </th>
-
-                        <th>
-                            Shift
-                        </th>
-
-                        <th>
-                            Captured
-                        </th>
-
-                        <th>
-                            Action
-                        </th>
+                        <th>Reading</th>
+                        <th>Station</th>
+                        <th>Pump</th>
+                        <th>Nozzle</th>
+                        <th>Type</th>
+                        <th>Evidence</th>
+                        <th>Captured</th>
+                        <th>Action</th>
 
                     </tr>
 
                 </thead>
 
-
                 <tbody>
 
                     ${
                         filtered
-                            .map(
-                                renderReadingRow
-                            )
+                            .map(renderReadingRow)
                             .join("")
                     }
 
@@ -2161,40 +2262,37 @@
        READING ROW
     ===================================================== */
 
-    function renderReadingRow(
-        reading
-    ) {
+    function renderReadingRow(reading) {
 
         const station =
-            findStation(
-                reading.station_id
-            );
-
+            findStation(reading.station_id);
 
         const pump =
-            findPump(
-                reading.pump_id
-            );
-
+            findPump(reading.pump_id);
 
         const nozzle =
-            findNozzle(
-                reading.nozzle_id
-            );
-
-
-        const shift =
-            findShift(
-                reading.shift_id
-            );
-
+            findNozzle(reading.nozzle_id);
 
         const type =
             String(
                 reading.reading_type || ""
-            )
-                .toLowerCase();
+            ).toLowerCase();
 
+        const evidenceType =
+            reading.evidence_type ||
+            reading.photo_url
+                ? (
+                    reading.evidence_type ||
+                    "image"
+                )
+                : "none";
+
+        const evidenceLabel =
+            evidenceType === "live_camera"
+                ? "Live"
+                : evidenceType === "historical_upload"
+                    ? "Historical"
+                    : "None";
 
         return `
 
@@ -2209,7 +2307,6 @@
                         )}
 
                     </div>
-
 
                     <div class="fg-reading-meta">
 
@@ -2243,6 +2340,7 @@
                         pump
                             ? `#${escapeHTML(
                                 pump.pump_number ||
+                                pump.number ||
                                 pump.id
                             )}
                             ${
@@ -2267,6 +2365,7 @@
                         nozzle
                             ? `#${escapeHTML(
                                 nozzle.nozzle_number ||
+                                nozzle.number ||
                                 nozzle.id
                             )}
                             ${
@@ -2290,16 +2389,12 @@
                     <span
                         class="
                             fg-type-badge
-                            fg-type-${escapeHTML(
-                                type
-                            )}
+                            fg-type-${escapeHTML(type)}
                         "
                     >
-
                         ${escapeHTML(
                             type || "unknown"
                         )}
-
                     </span>
 
                 </td>
@@ -2307,21 +2402,19 @@
 
                 <td>
 
-                    ${
-                        shift
-                            ? escapeHTML(
-                                shift.shift_name ||
-                                shift.name ||
-                                shift.id
-                            )
-                            : reading.shift_id
-                                ? escapeHTML(
-                                    String(
-                                        reading.shift_id
-                                    ).slice(0, 8)
-                                )
-                                : "—"
-                    }
+                    <span
+                        class="fg-type-badge ${
+                            evidenceType === "live_camera"
+                                ? "fg-type-closing"
+                                : evidenceType === "historical_upload"
+                                    ? "fg-type-periodic"
+                                    : "fg-type-correction"
+                        }"
+                    >
+                        ${escapeHTML(
+                            evidenceLabel
+                        )}
+                    </span>
 
                 </td>
 
@@ -2367,27 +2460,22 @@
                 .trim()
                 .toLowerCase();
 
-
         return state.readings.filter(
             reading => {
 
                 const type =
                     String(
                         reading.reading_type || ""
-                    )
-                        .toLowerCase();
-
+                    ).toLowerCase();
 
                 if (
                     state.readingType &&
-                    type !==
-                    state.readingType
+                    type !== state.readingType
                 ) {
 
                     return false;
 
                 }
-
 
                 if (
                     state.stationId &&
@@ -2403,13 +2491,11 @@
 
                 }
 
-
                 if (!search) {
 
                     return true;
 
                 }
-
 
                 const searchable = [
 
@@ -2426,6 +2512,8 @@
                     reading.shift_id,
 
                     reading.captured_at,
+
+                    reading.evidence_type,
 
                     findStation(
                         reading.station_id
@@ -2444,17 +2532,11 @@
                     )?.fuel_type
 
                 ]
-
                     .filter(Boolean)
-
                     .join(" ")
-
                     .toLowerCase();
 
-
-                return searchable.includes(
-                    search
-                );
+                return searchable.includes(search);
 
             }
         );
@@ -2473,18 +2555,15 @@
             state.readings.length
         );
 
-
         setText(
             "fgOpeningReadings",
             countType("opening")
         );
 
-
         setText(
             "fgPeriodicReadings",
             countType("periodic")
         );
-
 
         setText(
             "fgClosingReadings",
@@ -2500,9 +2579,7 @@
             item =>
                 String(
                     item.reading_type || ""
-                )
-                    .toLowerCase() ===
-                type
+                ).toLowerCase() === type
         ).length;
 
     }
@@ -2512,12 +2589,9 @@
        CREATE READING
     ===================================================== */
 
-    async function createReading(
-        event
-    ) {
+    async function createReading(event) {
 
         event.preventDefault();
-
 
         if (state.saving) {
 
@@ -2525,54 +2599,31 @@
 
         }
 
-
         const stationId =
-            getElement(
-                "fgStation"
-            )?.value;
-
+            getElement("fgStation")?.value;
 
         const pumpId =
-            getElement(
-                "fgPump"
-            )?.value;
-
+            getElement("fgPump")?.value;
 
         const nozzleId =
-            getElement(
-                "fgNozzle"
-            )?.value;
-
+            getElement("fgNozzle")?.value;
 
         const readingType =
-            getElement(
-                "fgReadingType"
-            )?.value;
-
+            getElement("fgReadingType")?.value;
 
         const readingValue =
-            getElement(
-                "fgReadingValue"
-            )?.value;
-
+            getElement("fgReadingValue")?.value;
 
         const shiftId =
-            getElement(
-                "fgShift"
-            )?.value;
+            getElement("fgShift")?.value;
 
+        const capturedAtInput =
+            getElement("fgCapturedAt")?.value;
 
-        const capturedAt =
-            getElement(
-                "fgCapturedAt"
-            )?.value;
-
-
-        const photoUrl =
-            getElement(
-                "fgPhotoUrl"
-            )?.value.trim();
-
+        const recordMode =
+            document.querySelector(
+                'input[name="fgRecordMode"]:checked'
+            )?.value || "current";
 
         if (
             !stationId ||
@@ -2587,17 +2638,12 @@
                 "error"
             );
 
-
             return;
 
         }
 
-
         const numericReading =
-            Number(
-                readingValue
-            );
-
+            Number(readingValue);
 
         if (
             !Number.isFinite(
@@ -2611,8 +2657,85 @@
                 "error"
             );
 
+            return;
+
+        }
+
+
+        /* =================================================
+           CURRENT READING RULE
+           LIVE CAMERA IS REQUIRED
+        ================================================= */
+
+        if (
+            recordMode === "current" &&
+            !state.cameraSnapshot
+        ) {
+
+            showFormMessage(
+                "A live camera snapshot is required for every current reading.",
+                "error"
+            );
 
             return;
+
+        }
+
+
+        /* =================================================
+           CURRENT READING MUST USE CURRENT TIME
+        ================================================= */
+
+        let capturedAt;
+
+        if (
+            recordMode === "current"
+        ) {
+
+            capturedAt =
+                new Date().toISOString();
+
+        } else {
+
+            capturedAt =
+                capturedAtInput
+                    ? new Date(
+                        capturedAtInput
+                    ).toISOString()
+                    : new Date().toISOString();
+
+        }
+
+
+        /* =================================================
+           HISTORICAL EVIDENCE
+        ================================================= */
+
+        let evidenceType = "none";
+
+        let evidenceData = null;
+
+        if (
+            recordMode === "current"
+        ) {
+
+            evidenceType =
+                "live_camera";
+
+            evidenceData =
+                state.cameraSnapshot;
+
+        } else if (
+            state.evidenceFile
+        ) {
+
+            evidenceType =
+                "historical_upload";
+
+            evidenceData =
+                await fileToDataURL(
+                    state.evidenceFile
+                );
 
         }
 
@@ -2635,19 +2758,22 @@
                 numericReading,
 
             shift_id:
-                shiftId ||
-                null,
-
-            photo_url:
-                photoUrl ||
-                null,
+                shiftId || null,
 
             captured_at:
-                capturedAt
-                    ? new Date(
-                        capturedAt
-                    ).toISOString()
-                    : new Date().toISOString()
+                capturedAt,
+
+            record_mode:
+                recordMode,
+
+            evidence_type:
+                evidenceType,
+
+            evidence_data:
+                evidenceData,
+
+            photo_url:
+                null
 
         };
 
@@ -2656,16 +2782,11 @@
 
 
         const saveButton =
-            getElement(
-                "fgSaveReading"
-            );
-
+            getElement("fgSaveReading");
 
         if (saveButton) {
 
-            saveButton.disabled =
-                true;
-
+            saveButton.disabled = true;
 
             saveButton.textContent =
                 "Saving...";
@@ -2675,13 +2796,18 @@
 
         try {
 
+            console.log(
+                "FUELGAP CREATING METER READING:",
+                payload
+            );
+
+
             const result =
                 await apiRequest(
                     "/meter-readings",
                     {
 
-                        method:
-                            "POST",
+                        method: "POST",
 
                         body:
                             JSON.stringify(
@@ -2698,12 +2824,6 @@
             );
 
 
-            showFormMessage(
-                "Meter reading saved successfully.",
-                "success"
-            );
-
-
             showToast(
                 "Meter reading saved successfully."
             );
@@ -2714,13 +2834,13 @@
 
             await loadReadings();
 
+
         } catch (error) {
 
             console.error(
                 "Create meter reading error:",
                 error
             );
-
 
             showFormMessage(
                 error.message ||
@@ -2730,15 +2850,11 @@
 
         } finally {
 
-            state.saving =
-                false;
-
+            state.saving = false;
 
             if (saveButton) {
 
-                saveButton.disabled =
-                    false;
-
+                saveButton.disabled = false;
 
                 saveButton.textContent =
                     "Save Reading";
@@ -2751,12 +2867,42 @@
 
 
     /* =====================================================
+       FILE -> DATA URL
+    ===================================================== */
+
+    function fileToDataURL(file) {
+
+        return new Promise(
+            (resolve, reject) => {
+
+                const reader =
+                    new FileReader();
+
+                reader.onload =
+                    () => resolve(
+                        reader.result
+                    );
+
+                reader.onerror =
+                    () => reject(
+                        new Error(
+                            "Unable to read selected image."
+                        )
+                    );
+
+                reader.readAsDataURL(file);
+
+            }
+        );
+
+    }
+
+
+    /* =====================================================
        DELETE
     ===================================================== */
 
-    async function deleteReading(
-        id
-    ) {
+    async function deleteReading(id) {
 
         if (
             !id ||
@@ -2767,12 +2913,10 @@
 
         }
 
-
         const confirmed =
             window.confirm(
                 "Are you sure you want to delete this meter reading?"
             );
-
 
         if (!confirmed) {
 
@@ -2780,40 +2924,25 @@
 
         }
 
-
-        state.deleting =
-            true;
-
+        state.deleting = true;
 
         try {
 
             await apiRequest(
-                `/meter-readings/${encodeURIComponent(
-                    id
-                )}`,
+                `/meter-readings/${encodeURIComponent(id)}`,
                 {
-
-                    method:
-                        "DELETE"
-
+                    method: "DELETE"
                 }
             );
-
 
             state.readings =
                 state.readings.filter(
                     item =>
-                        String(
-                            item.id
-                        ) !==
-                        String(
-                            id
-                        )
+                        String(item.id) !==
+                        String(id)
                 );
 
-
             renderReadings();
-
 
             showToast(
                 "Meter reading deleted."
@@ -2826,7 +2955,6 @@
                 error
             );
 
-
             showToast(
                 error.message ||
                 "Unable to delete meter reading."
@@ -2834,8 +2962,7 @@
 
         } finally {
 
-            state.deleting =
-                false;
+            state.deleting = false;
 
         }
 
@@ -2849,10 +2976,7 @@
     function openModal() {
 
         const modal =
-            getElement(
-                "fgReadingModal"
-            );
-
+            getElement("fgReadingModal");
 
         if (!modal) {
 
@@ -2860,24 +2984,17 @@
 
         }
 
-
         resetForm();
 
-
-        modal.classList.add(
-            "open"
-        );
+        modal.classList.add("open");
 
     }
 
 
-    function closeModal() {
+    async function closeModal() {
 
         const modal =
-            getElement(
-                "fgReadingModal"
-            );
-
+            getElement("fgReadingModal");
 
         if (!modal) {
 
@@ -2885,24 +3002,23 @@
 
         }
 
+        await stopCamera();
 
-        modal.classList.remove(
-            "open"
-        );
-
+        modal.classList.remove("open");
 
         resetForm();
 
     }
 
+
+    /* =====================================================
+       RESET FORM
+    ===================================================== */
 
     function resetForm() {
 
         const form =
-            getElement(
-                "fgReadingForm"
-            );
-
+            getElement("fgReadingForm");
 
         if (form) {
 
@@ -2910,9 +3026,15 @@
 
         }
 
+        state.cameraSnapshot = null;
+
+        state.evidenceFile = null;
+
+        state.cameraReady = false;
+
+        state.evidenceMode = "current";
 
         clearFormMessage();
-
 
         populateStationSelect();
 
@@ -2922,143 +3044,138 @@
 
         populateShiftSelect();
 
+        setRecordMode("current");
 
-        const captured =
-            getElement(
-                "fgCapturedAt"
-            );
+        resetCameraUI();
 
+        resetUploadUI();
 
-        if (captured) {
-
-            const now =
-                new Date();
-
-
-            const local =
-                new Date(
-                    now.getTime() -
-                    now.getTimezoneOffset() *
-                    60000
-                )
-                    .toISOString()
-                    .slice(
-                        0,
-                        16
-                    );
-
-
-            captured.value =
-                local;
-
-        }
+        setCurrentDateTime();
 
     }
 
 
     /* =====================================================
-       SELECT HELPERS
+       CURRENT DATE/TIME
+    ===================================================== */
+
+    function setCurrentDateTime() {
+
+        const captured =
+            getElement("fgCapturedAt");
+
+        if (!captured) {
+
+            return;
+
+        }
+
+        const now =
+            new Date();
+
+        const local =
+            new Date(
+                now.getTime() -
+                now.getTimezoneOffset() *
+                60000
+            )
+                .toISOString()
+                .slice(0, 16);
+
+        captured.value =
+            local;
+
+    }
+
+
+    /* =====================================================
+       STATION SELECT
     ===================================================== */
 
     function populateStationSelect() {
 
         const ids = [
-
             "fgStation",
-
             "fgStationFilter"
-
         ];
 
+        ids.forEach(id => {
 
-        ids.forEach(
-            id => {
+            const select =
+                getElement(id);
 
-                const select =
-                    getElement(
-                        id
-                    );
+            if (!select) {
 
+                return;
 
-                if (!select) {
+            }
+
+            const current =
+                select.value;
+
+            const isFilter =
+                id === "fgStationFilter";
+
+            select.innerHTML =
+                isFilter
+                    ? `
+                        <option value="">
+                            All Stations
+                        </option>
+                    `
+                    : `
+                        <option value="">
+                            Select station
+                        </option>
+                    `;
+
+            state.stations.forEach(station => {
+
+                const stationId =
+                    station.id ||
+                    station.station_id;
+
+                if (!stationId) {
 
                     return;
 
                 }
 
+                const option =
+                    document.createElement("option");
 
-                const current =
-                    select.value;
+                option.value =
+                    stationId;
 
+                option.textContent =
+                    station.name ||
+                    station.station_name ||
+                    station.title ||
+                    `Station ${stationId}`;
 
-                const isFilter =
-                    id ===
-                    "fgStationFilter";
+                select.appendChild(option);
 
+            });
 
-                select.innerHTML =
-                    isFilter
+            if (current) {
 
-                        ? `
-                            <option value="">
-                                All Stations
-                            </option>
-                        `
-
-                        : `
-                            <option value="">
-                                Select station
-                            </option>
-                        `;
-
-
-                state.stations.forEach(
-                    station => {
-
-                        const option =
-                            document.createElement(
-                                "option"
-                            );
-
-
-                        option.value =
-                            station.id;
-
-
-                        option.textContent =
-                            station.name ||
-                            station.station_name ||
-                            station.id;
-
-
-                        select.appendChild(
-                            option
-                        );
-
-                    }
-                );
-
-
-                if (current) {
-
-                    select.value =
-                        current;
-
-                }
+                select.value = current;
 
             }
-        );
+
+        });
 
     }
 
+
+    /* =====================================================
+       PUMP SELECT
+    ===================================================== */
 
     function populatePumpSelect() {
 
         const select =
-            getElement(
-                "fgPump"
-            );
-
+            getElement("fgPump");
 
         if (!select) {
 
@@ -3066,85 +3183,111 @@
 
         }
 
-
         const stationId =
-            getElement(
-                "fgStation"
-            )?.value;
+            getElement("fgStation")?.value;
+
+        select.innerHTML = "";
+
+        const firstOption =
+            document.createElement("option");
+
+        firstOption.value = "";
+
+        if (!stationId) {
+
+            firstOption.textContent =
+                "Select station first";
+
+            select.disabled = true;
+
+        } else {
+
+            firstOption.textContent =
+                "Select pump";
+
+            select.disabled = false;
+
+        }
+
+        select.appendChild(firstOption);
 
 
-        select.innerHTML = `
+        if (!stationId) {
 
-            <option value="">
-                Select pump
-            </option>
+            return;
 
-        `;
+        }
 
 
-        state.pumps
+        const pumps =
+            state.pumps.filter(pump => {
 
-            .filter(
-                pump => {
+                const pumpStationId =
+                    pump.station_id ||
+                    pump.stationId ||
+                    pump.station?.id;
 
-                    if (!stationId) {
+                return String(
+                    pumpStationId
+                ) === String(
+                    stationId
+                );
 
-                        return true;
-
-                    }
-
-
-                    return String(
-                        pump.station_id
-                    ) ===
-                    String(
-                        stationId
-                    );
-
-                }
-            )
-
-            .forEach(
-                pump => {
-
-                    const option =
-                        document.createElement(
-                            "option"
-                        );
+            });
 
 
-                    option.value =
-                        pump.id;
+        console.log(
+            "FuelGap pumps for station:",
+            stationId,
+            pumps
+        );
 
 
-                    option.textContent =
-                        `Pump #${
-                            pump.pump_number ||
-                            pump.id
-                        }${
-                            pump.brand
-                                ? ` - ${pump.brand}`
-                                : ""
-                        }`;
+        pumps.forEach(pump => {
 
+            const pumpId =
+                pump.id ||
+                pump.pump_id;
 
-                    select.appendChild(
-                        option
-                    );
+            if (!pumpId) {
 
-                }
-            );
+                return;
+
+            }
+
+            const option =
+                document.createElement("option");
+
+            option.value =
+                pumpId;
+
+            option.textContent =
+                `Pump #${
+                    pump.pump_number ||
+                    pump.number ||
+                    pump.pump_no ||
+                    pumpId
+                }${
+                    pump.brand
+                        ? ` - ${pump.brand}`
+                        : ""
+                }`;
+
+            select.appendChild(option);
+
+        });
 
     }
 
+
+    /* =====================================================
+       NOZZLE SELECT
+    ===================================================== */
 
     function populateNozzleSelect() {
 
         const select =
-            getElement(
-                "fgNozzle"
-            );
-
+            getElement("fgNozzle");
 
         if (!select) {
 
@@ -3152,85 +3295,111 @@
 
         }
 
-
         const pumpId =
-            getElement(
-                "fgPump"
-            )?.value;
+            getElement("fgPump")?.value;
+
+        select.innerHTML = "";
+
+        const firstOption =
+            document.createElement("option");
+
+        firstOption.value = "";
+
+        if (!pumpId) {
+
+            firstOption.textContent =
+                "Select pump first";
+
+            select.disabled = true;
+
+        } else {
+
+            firstOption.textContent =
+                "Select nozzle";
+
+            select.disabled = false;
+
+        }
+
+        select.appendChild(firstOption);
 
 
-        select.innerHTML = `
+        if (!pumpId) {
 
-            <option value="">
-                Select nozzle
-            </option>
+            return;
 
-        `;
+        }
 
 
-        state.nozzles
+        const nozzles =
+            state.nozzles.filter(nozzle => {
 
-            .filter(
-                nozzle => {
+                const nozzlePumpId =
+                    nozzle.pump_id ||
+                    nozzle.pumpId ||
+                    nozzle.pump?.id;
 
-                    if (!pumpId) {
+                return String(
+                    nozzlePumpId
+                ) === String(
+                    pumpId
+                );
 
-                        return true;
-
-                    }
-
-
-                    return String(
-                        nozzle.pump_id
-                    ) ===
-                    String(
-                        pumpId
-                    );
-
-                }
-            )
-
-            .forEach(
-                nozzle => {
-
-                    const option =
-                        document.createElement(
-                            "option"
-                        );
+            });
 
 
-                    option.value =
-                        nozzle.id;
+        console.log(
+            "FuelGap nozzles for pump:",
+            pumpId,
+            nozzles
+        );
 
 
-                    option.textContent =
-                        `Nozzle #${
-                            nozzle.nozzle_number ||
-                            nozzle.id
-                        }${
-                            nozzle.fuel_type
-                                ? ` - ${nozzle.fuel_type}`
-                                : ""
-                        }`;
+        nozzles.forEach(nozzle => {
 
+            const nozzleId =
+                nozzle.id ||
+                nozzle.nozzle_id;
 
-                    select.appendChild(
-                        option
-                    );
+            if (!nozzleId) {
 
-                }
-            );
+                return;
+
+            }
+
+            const option =
+                document.createElement("option");
+
+            option.value =
+                nozzleId;
+
+            option.textContent =
+                `Nozzle #${
+                    nozzle.nozzle_number ||
+                    nozzle.number ||
+                    nozzle.nozzle_no ||
+                    nozzleId
+                }${
+                    nozzle.fuel_type
+                        ? ` - ${nozzle.fuel_type}`
+                        : ""
+                }`;
+
+            select.appendChild(option);
+
+        });
 
     }
 
 
+    /* =====================================================
+       SHIFT SELECT
+    ===================================================== */
+
     function populateShiftSelect() {
 
         const select =
-            getElement(
-                "fgShift"
-            );
-
+            getElement("fgShift");
 
         if (!select) {
 
@@ -3238,12 +3407,8 @@
 
         }
 
-
         const stationId =
-            getElement(
-                "fgStation"
-            )?.value;
-
+            getElement("fgStation")?.value;
 
         select.innerHTML = `
 
@@ -3253,59 +3418,745 @@
 
         `;
 
-
         state.shifts
+            .filter(shift => {
 
-            .filter(
-                shift => {
+                if (!stationId) {
 
-                    if (!stationId) {
-
-                        return true;
-
-                    }
-
-
-                    return String(
-                        shift.station_id
-                    ) ===
-                    String(
-                        stationId
-                    );
+                    return true;
 
                 }
-            )
 
-            .forEach(
-                shift => {
+                const shiftStationId =
+                    shift.station_id ||
+                    shift.stationId ||
+                    shift.station?.id;
 
-                    const option =
-                        document.createElement(
-                            "option"
-                        );
+                return String(
+                    shiftStationId
+                ) === String(
+                    stationId
+                );
 
+            })
+            .forEach(shift => {
 
-                    option.value =
-                        shift.id;
+                const shiftId =
+                    shift.id ||
+                    shift.shift_id;
 
+                if (!shiftId) {
 
-                    option.textContent =
-                        shift.shift_name ||
-                        shift.name ||
-                        `Shift ${String(
-                            shift.id
-                        ).slice(
-                            0,
-                            8
-                        )}`;
-
-
-                    select.appendChild(
-                        option
-                    );
+                    return;
 
                 }
+
+                const option =
+                    document.createElement(
+                        "option"
+                    );
+
+                option.value =
+                    shiftId;
+
+                option.textContent =
+                    shift.shift_name ||
+                    shift.name ||
+                    shift.title ||
+                    `Shift ${String(
+                        shiftId
+                    ).slice(0, 8)}`;
+
+                select.appendChild(option);
+
+            });
+
+    }
+
+
+    /* =====================================================
+       RECORD MODE
+    ===================================================== */
+
+    function setRecordMode(mode) {
+
+        state.evidenceMode =
+            mode;
+
+        const currentCard =
+            getElement(
+                "fgCurrentModeCard"
             );
+
+        const historicalCard =
+            getElement(
+                "fgHistoricalModeCard"
+            );
+
+        const cameraArea =
+            getElement(
+                "fgCameraArea"
+            );
+
+        const historicalUpload =
+            getElement(
+                "fgHistoricalUpload"
+            );
+
+        const status =
+            getElement(
+                "fgEvidenceStatus"
+            );
+
+        const description =
+            getElement(
+                "fgEvidenceDescription"
+            );
+
+        const capturedHelp =
+            getElement(
+                "fgCapturedAtHelp"
+            );
+
+
+        currentCard?.classList.toggle(
+            "active",
+            mode === "current"
+        );
+
+        historicalCard?.classList.toggle(
+            "active",
+            mode === "historical"
+        );
+
+
+        if (
+            mode === "current"
+        ) {
+
+            if (cameraArea) {
+
+                cameraArea.style.display =
+                    "block";
+
+            }
+
+            if (historicalUpload) {
+
+                historicalUpload.style.display =
+                    "none";
+
+            }
+
+            if (status) {
+
+                status.textContent =
+                    "CAMERA REQUIRED";
+
+            }
+
+            if (description) {
+
+                description.textContent =
+                    "A live camera snapshot is required for current readings.";
+
+            }
+
+            if (capturedHelp) {
+
+                capturedHelp.textContent =
+                    "Current readings automatically use the current date and time.";
+
+            }
+
+        } else {
+
+            if (cameraArea) {
+
+                cameraArea.style.display =
+                    "none";
+
+            }
+
+            if (historicalUpload) {
+
+                historicalUpload.style.display =
+                    "block";
+
+            }
+
+            if (status) {
+
+                status.textContent =
+                    "IMAGE OPTIONAL";
+
+            }
+
+            if (description) {
+
+                description.textContent =
+                    "Historical records may have no image or may include an existing photograph.";
+
+            }
+
+            if (capturedHelp) {
+
+                capturedHelp.textContent =
+                    "Choose the original date and time of the historical meter reading.";
+
+            }
+
+            stopCamera();
+
+        }
+
+    }
+
+
+    /* =====================================================
+       CAMERA
+    ===================================================== */
+
+    async function startCamera() {
+
+        const video =
+            getElement(
+                "fgCameraVideo"
+            );
+
+        const preview =
+            getElement(
+                "fgCameraPreview"
+            );
+
+        const placeholder =
+            getElement(
+                "fgCameraPlaceholder"
+            );
+
+        const captureButton =
+            getElement(
+                "fgCaptureBtn"
+            );
+
+        if (!video) {
+
+            return;
+
+        }
+
+
+        if (
+            !navigator.mediaDevices ||
+            !navigator.mediaDevices.getUserMedia
+        ) {
+
+            showFormMessage(
+                "Your browser does not support live camera access.",
+                "error"
+            );
+
+            return;
+
+        }
+
+
+        try {
+
+            await stopCamera();
+
+            state.cameraStream =
+                await navigator.mediaDevices.getUserMedia(
+                    {
+                        video: {
+                            facingMode: {
+                                ideal: "environment"
+                            },
+                            width: {
+                                ideal: 1280
+                            },
+                            height: {
+                                ideal: 720
+                            }
+                        },
+                        audio: false
+                    }
+                );
+
+
+            video.srcObject =
+                state.cameraStream;
+
+            await video.play();
+
+            state.cameraReady =
+                true;
+
+            preview?.classList.add(
+                "camera-active"
+            );
+
+            if (placeholder) {
+
+                placeholder.style.display =
+                    "none";
+
+            }
+
+            if (captureButton) {
+
+                captureButton.disabled =
+                    false;
+
+            }
+
+            showToast(
+                "Live camera is ready."
+            );
+
+        } catch (error) {
+
+            console.error(
+                "FuelGap camera error:",
+                error
+            );
+
+            state.cameraReady =
+                false;
+
+            showFormMessage(
+                "Camera access was not granted. Please allow camera access and try again.",
+                "error"
+            );
+
+        }
+
+    }
+
+
+    /* =====================================================
+       CAPTURE CAMERA SNAPSHOT
+    ===================================================== */
+
+    function captureSnapshot() {
+
+        const video =
+            getElement(
+                "fgCameraVideo"
+            );
+
+        const canvas =
+            getElement(
+                "fgEvidenceCanvas"
+            );
+
+        const image =
+            getElement(
+                "fgSnapshotImage"
+            );
+
+        const snapshotArea =
+            getElement(
+                "fgSnapshotArea"
+            );
+
+        const captureButton =
+            getElement(
+                "fgCaptureBtn"
+            );
+
+        const retakeButton =
+            getElement(
+                "fgRetakeBtn"
+            );
+
+        if (
+            !video ||
+            !canvas ||
+            !state.cameraReady
+        ) {
+
+            showFormMessage(
+                "Start the live camera before taking a snapshot.",
+                "error"
+            );
+
+            return;
+
+        }
+
+
+        if (
+            video.videoWidth <= 0 ||
+            video.videoHeight <= 0
+        ) {
+
+            showFormMessage(
+                "The camera is not ready yet. Please try again.",
+                "error"
+            );
+
+            return;
+
+        }
+
+
+        canvas.width =
+            video.videoWidth;
+
+        canvas.height =
+            video.videoHeight;
+
+
+        const context =
+            canvas.getContext(
+                "2d"
+            );
+
+
+        context.drawImage(
+            video,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+
+
+        state.cameraSnapshot =
+            canvas.toDataURL(
+                "image/jpeg",
+                0.88
+            );
+
+
+        if (image) {
+
+            image.src =
+                state.cameraSnapshot;
+
+        }
+
+        if (snapshotArea) {
+
+            snapshotArea.style.display =
+                "block";
+
+        }
+
+        if (captureButton) {
+
+            captureButton.disabled =
+                true;
+
+        }
+
+        if (retakeButton) {
+
+            retakeButton.style.display =
+                "inline-block";
+
+        }
+
+
+        const meta =
+            getElement(
+                "fgSnapshotMeta"
+            );
+
+        if (meta) {
+
+            meta.textContent =
+                `Captured live at ${new Date().toLocaleString(
+                    "en-NG"
+                )}`;
+
+        }
+
+
+        showFormMessage(
+            "Live snapshot captured successfully.",
+            "success"
+        );
+
+        stopCamera();
+
+    }
+
+
+    /* =====================================================
+       STOP CAMERA
+    ===================================================== */
+
+    async function stopCamera() {
+
+        if (state.cameraStream) {
+
+            state.cameraStream
+                .getTracks()
+                .forEach(track => {
+
+                    track.stop();
+
+                });
+
+            state.cameraStream =
+                null;
+
+        }
+
+        state.cameraReady =
+            false;
+
+        const video =
+            getElement(
+                "fgCameraVideo"
+            );
+
+        if (video) {
+
+            video.srcObject =
+                null;
+
+        }
+
+    }
+
+
+    /* =====================================================
+       RESET CAMERA UI
+    ===================================================== */
+
+    function resetCameraUI() {
+
+        const preview =
+            getElement(
+                "fgCameraPreview"
+            );
+
+        const placeholder =
+            getElement(
+                "fgCameraPlaceholder"
+            );
+
+        const snapshotArea =
+            getElement(
+                "fgSnapshotArea"
+            );
+
+        const captureButton =
+            getElement(
+                "fgCaptureBtn"
+            );
+
+        const retakeButton =
+            getElement(
+                "fgRetakeBtn"
+            );
+
+        const image =
+            getElement(
+                "fgSnapshotImage"
+            );
+
+
+        preview?.classList.remove(
+            "camera-active"
+        );
+
+
+        if (placeholder) {
+
+            placeholder.style.display =
+                "flex";
+
+        }
+
+
+        if (snapshotArea) {
+
+            snapshotArea.style.display =
+                "none";
+
+        }
+
+
+        if (captureButton) {
+
+            captureButton.disabled =
+                true;
+
+        }
+
+
+        if (retakeButton) {
+
+            retakeButton.style.display =
+                "none";
+
+        }
+
+
+        if (image) {
+
+            image.removeAttribute(
+                "src"
+            );
+
+        }
+
+    }
+
+
+    /* =====================================================
+       HISTORICAL FILE UPLOAD
+    ===================================================== */
+
+    function handleEvidenceFile(event) {
+
+        const file =
+            event.target.files?.[0];
+
+        if (!file) {
+
+            return;
+
+        }
+
+
+        if (
+            !file.type.startsWith(
+                "image/"
+            )
+        ) {
+
+            showFormMessage(
+                "Please select an image file.",
+                "error"
+            );
+
+            event.target.value =
+                "";
+
+            return;
+
+        }
+
+
+        state.evidenceFile =
+            file;
+
+
+        const preview =
+            getElement(
+                "fgUploadPreview"
+            );
+
+        const image =
+            getElement(
+                "fgUploadPreviewImage"
+            );
+
+        const name =
+            getElement(
+                "fgUploadFileName"
+            );
+
+
+        const reader =
+            new FileReader();
+
+
+        reader.onload =
+            () => {
+
+                if (image) {
+
+                    image.src =
+                        reader.result;
+
+                }
+
+                if (name) {
+
+                    name.textContent =
+                        file.name;
+
+                }
+
+                if (preview) {
+
+                    preview.style.display =
+                        "flex";
+
+                }
+
+            };
+
+
+        reader.readAsDataURL(
+            file
+        );
+
+    }
+
+
+    /* =====================================================
+       RESET UPLOAD
+    ===================================================== */
+
+    function resetUploadUI() {
+
+        const input =
+            getElement(
+                "fgEvidenceFile"
+            );
+
+        const preview =
+            getElement(
+                "fgUploadPreview"
+            );
+
+        const image =
+            getElement(
+                "fgUploadPreviewImage"
+            );
+
+        if (input) {
+
+            input.value =
+                "";
+
+        }
+
+        if (preview) {
+
+            preview.style.display =
+                "none";
+
+        }
+
+        if (image) {
+
+            image.removeAttribute(
+                "src"
+            );
+
+        }
+
+    }
+
+
+    /* =====================================================
+       REMOVE UPLOAD
+    ===================================================== */
+
+    function removeUpload() {
+
+        state.evidenceFile =
+            null;
+
+        resetUploadUI();
 
     }
 
@@ -3320,7 +4171,13 @@
             "fgRefreshBtn"
         )?.addEventListener(
             "click",
-            loadReadings
+            async () => {
+
+                await loadSupportingData();
+
+                await loadReadings();
+
+            }
         );
 
 
@@ -3365,7 +4222,6 @@
                 state.search =
                     event.target.value;
 
-
                 renderReadings();
 
             }
@@ -3381,7 +4237,6 @@
                 state.readingType =
                     event.target.value;
 
-
                 renderReadings();
 
             }
@@ -3396,7 +4251,6 @@
 
                 state.stationId =
                     event.target.value;
-
 
                 renderReadings();
 
@@ -3432,6 +4286,75 @@
         );
 
 
+        document.querySelectorAll(
+            'input[name="fgRecordMode"]'
+        ).forEach(
+            radio => {
+
+                radio.addEventListener(
+                    "change",
+                    event => {
+
+                        setRecordMode(
+                            event.target.value
+                        );
+
+                    }
+                );
+
+            }
+        );
+
+
+        getElement(
+            "fgStartCameraBtn"
+        )?.addEventListener(
+            "click",
+            startCamera
+        );
+
+
+        getElement(
+            "fgCaptureBtn"
+        )?.addEventListener(
+            "click",
+            captureSnapshot
+        );
+
+
+        getElement(
+            "fgRetakeBtn"
+        )?.addEventListener(
+            "click",
+            async () => {
+
+                state.cameraSnapshot =
+                    null;
+
+                resetCameraUI();
+
+                await startCamera();
+
+            }
+        );
+
+
+        getElement(
+            "fgEvidenceFile"
+        )?.addEventListener(
+            "change",
+            handleEvidenceFile
+        );
+
+
+        getElement(
+            "fgRemoveUpload"
+        )?.addEventListener(
+            "click",
+            removeUpload
+        );
+
+
         document.addEventListener(
             "click",
             event => {
@@ -3441,23 +4364,18 @@
                         "[data-delete-reading]"
                     );
 
-
                 if (!button) {
 
                     return;
 
                 }
 
-
                 const id =
                     button.getAttribute(
                         "data-delete-reading"
                     );
 
-
-                deleteReading(
-                    id
-                );
+                deleteReading(id);
 
             }
         );
@@ -3468,14 +4386,12 @@
                 "fgReadingModal"
             );
 
-
         modal?.addEventListener(
             "click",
             event => {
 
                 if (
-                    event.target ===
-                    modal
+                    event.target === modal
                 ) {
 
                     closeModal();
@@ -3499,13 +4415,11 @@
                 "fgReadingsTableArea"
             );
 
-
         if (!area) {
 
             return;
 
         }
-
 
         area.innerHTML = `
 
@@ -3528,22 +4442,18 @@
        ERROR STATE
     ===================================================== */
 
-    function showTableError(
-        message
-    ) {
+    function showTableError(message) {
 
         const area =
             getElement(
                 "fgReadingsTableArea"
             );
 
-
         if (!area) {
 
             return;
 
         }
-
 
         area.innerHTML = `
 
@@ -3554,11 +4464,8 @@
                 </strong>
 
                 <p>
-                    ${escapeHTML(
-                        message
-                    )}
+                    ${escapeHTML(message)}
                 </p>
-
 
                 <button
                     type="button"
@@ -3572,7 +4479,6 @@
             </div>
 
         `;
-
 
         getElement(
             "fgRetryReadings"
@@ -3598,17 +4504,14 @@
                 "fgFormMessage"
             );
 
-
         if (!element) {
 
             return;
 
         }
 
-
         element.textContent =
             message;
-
 
         element.className =
             `fg-form-message show ${type}`;
@@ -3623,17 +4526,14 @@
                 "fgFormMessage"
             );
 
-
         if (!element) {
 
             return;
 
         }
 
-
         element.textContent =
             "";
-
 
         element.className =
             "fg-form-message";
@@ -3647,16 +4547,12 @@
 
     let toastTimer = null;
 
-
-    function showToast(
-        message
-    ) {
+    function showToast(message) {
 
         const toast =
             getElement(
                 "fgToast"
             );
-
 
         if (!toast) {
 
@@ -3664,20 +4560,16 @@
 
         }
 
-
         toast.textContent =
             message;
-
 
         toast.classList.add(
             "show"
         );
 
-
         clearTimeout(
             toastTimer
         );
-
 
         toastTimer =
             setTimeout(
@@ -3698,69 +4590,57 @@
        LOOKUPS
     ===================================================== */
 
-    function findStation(
-        id
-    ) {
+    function findStation(id) {
 
         return state.stations.find(
             item =>
                 String(
-                    item.id
+                    item.id ||
+                    item.station_id
                 ) ===
-                String(
-                    id
-                )
+                String(id)
         );
 
     }
 
 
-    function findPump(
-        id
-    ) {
+    function findPump(id) {
 
         return state.pumps.find(
             item =>
                 String(
-                    item.id
+                    item.id ||
+                    item.pump_id
                 ) ===
-                String(
-                    id
-                )
+                String(id)
         );
 
     }
 
 
-    function findNozzle(
-        id
-    ) {
+    function findNozzle(id) {
 
         return state.nozzles.find(
             item =>
                 String(
-                    item.id
+                    item.id ||
+                    item.nozzle_id
                 ) ===
-                String(
-                    id
-                )
+                String(id)
         );
 
     }
 
 
-    function findShift(
-        id
-    ) {
+    function findShift(id) {
 
         return state.shifts.find(
             item =>
                 String(
-                    item.id
+                    item.id ||
+                    item.shift_id
                 ) ===
-                String(
-                    id
-                )
+                String(id)
         );
 
     }
@@ -3770,46 +4650,31 @@
        FORMATTING
     ===================================================== */
 
-    function formatNumber(
-        value
-    ) {
+    function formatNumber(value) {
 
         const number =
-            Number(
-                value
-            );
-
+            Number(value);
 
         if (
-            !Number.isFinite(
-                number
-            )
+            !Number.isFinite(number)
         ) {
 
-            return escapeHTML(
-                value
-            );
+            return escapeHTML(value);
 
         }
-
 
         return number.toLocaleString(
             "en-NG",
             {
-                minimumFractionDigits:
-                    0,
-
-                maximumFractionDigits:
-                    2
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2
             }
         );
 
     }
 
 
-    function formatDate(
-        value
-    ) {
+    function formatDate(value) {
 
         if (!value) {
 
@@ -3817,12 +4682,8 @@
 
         }
 
-
         const date =
-            new Date(
-                value
-            );
-
+            new Date(value);
 
         if (
             Number.isNaN(
@@ -3830,30 +4691,18 @@
             )
         ) {
 
-            return escapeHTML(
-                value
-            );
+            return escapeHTML(value);
 
         }
-
 
         return date.toLocaleString(
             "en-NG",
             {
-                year:
-                    "numeric",
-
-                month:
-                    "short",
-
-                day:
-                    "numeric",
-
-                hour:
-                    "2-digit",
-
-                minute:
-                    "2-digit"
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit"
             }
         );
 
@@ -3870,10 +4719,7 @@
     ) {
 
         const element =
-            getElement(
-                id
-            );
-
+            getElement(id);
 
         if (element) {
 
@@ -3899,21 +4745,14 @@
 
         }
 
-
         console.log(
             "FuelGap Meter Readings initializing..."
         );
-
-
-        /*
-         * app.js must finish first.
-         */
 
         const pageContent =
             getElement(
                 "pageContent"
             );
-
 
         if (!pageContent) {
 
@@ -3925,18 +4764,10 @@
 
         }
 
-
         injectPageCSS();
-
-
-        /*
-         * Render only the page content.
-         * app.js owns the navbar/sidebar.
-         */
 
         const rendered =
             renderPage();
-
 
         if (!rendered) {
 
@@ -3948,16 +4779,12 @@
 
         }
 
-
         state.initialized =
             true;
 
-
         bindEvents();
 
-
         await loadCurrentUser();
-
 
         await Promise.allSettled([
 
@@ -3966,12 +4793,6 @@
             loadReadings()
 
         ]);
-
-
-        /*
-         * Make sure Meter Readings remains
-         * the active sidebar item.
-         */
 
         if (
             typeof window.setActiveSidebarLink ===
@@ -3983,7 +4804,6 @@
             );
 
         }
-
 
         console.log(
             "FuelGap Meter Readings initialized successfully."
@@ -3998,11 +4818,6 @@
 
     function startWhenAppReady() {
 
-        /*
-         * If app.js has already completed
-         * before this script starts.
-         */
-
         if (
             window.FuelGapAppState &&
             window.FuelGapAppState.currentUser &&
@@ -4014,12 +4829,6 @@
             return;
 
         }
-
-
-        /*
-         * Normal path:
-         * Wait for app.js.
-         */
 
         document.addEventListener(
             "fuelgap:app-ready",
@@ -4048,7 +4857,11 @@
 
         openModal,
 
-        closeModal
+        closeModal,
+
+        startCamera,
+
+        captureSnapshot
 
     };
 
