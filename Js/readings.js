@@ -518,33 +518,90 @@
     /* =====================================================
        LOAD SHIFTS
     ===================================================== */
+       async function loadShifts() {
 
-    async function loadShifts() {
+    try {
 
-        try {
+        console.log("FUELGAP - LOADING SHIFTS...");
 
-            const result =
-                await apiRequest(
-                    "/shifts"
-                );
+        const result =
+            await apiRequest("/shifts");
 
-            state.shifts =
-                normalizeArray(result);
+       console.log(
+    "FUELGAP - RAW SHIFTS RESPONSE JSON:",
+    JSON.stringify(result, null, 2)
+      );
 
-            populateShiftSelect();
 
-        } catch (error) {
+        /* =================================================
+           HANDLE DIFFERENT API RESPONSE FORMATS
+        ================================================= */
 
-            console.warn(
-                "FuelGap shifts could not be loaded:",
-                error.message
-            );
+        let shifts = [];
 
-            state.shifts = [];
+        if (Array.isArray(result)) {
+
+            shifts = result;
+
+        } else if (
+            result &&
+            Array.isArray(result.data)
+        ) {
+
+            shifts = result.data;
+
+        } else if (
+            result &&
+            result.data &&
+            Array.isArray(result.data.data)
+        ) {
+
+            shifts = result.data.data;
+
+        } else if (
+            result &&
+            Array.isArray(result.shifts)
+        ) {
+
+            shifts = result.shifts;
+
+        } else if (
+            result &&
+            result.data &&
+            Array.isArray(result.data.shifts)
+        ) {
+
+            shifts = result.data.shifts;
 
         }
 
+
+        state.shifts = shifts;
+
+
+        console.log(
+            "FUELGAP - EXTRACTED SHIFTS:",
+            state.shifts
+        );
+
+
+        populateShiftSelect();
+
+
+    } catch (error) {
+
+        console.error(
+            "FuelGap shifts could not be loaded:",
+            error
+        );
+
+        state.shifts = [];
+
+        populateShiftSelect();
+
     }
+
+}
 
 
     /* =====================================================
@@ -2264,189 +2321,332 @@
 
     function renderReadingRow(reading) {
 
-        const station =
-            findStation(reading.station_id);
+    const station =
+        findStation(reading.station_id);
 
-        const pump =
-            findPump(reading.pump_id);
+    const pump =
+        findPump(reading.pump_id);
 
-        const nozzle =
-            findNozzle(reading.nozzle_id);
-
-        const type =
-            String(
-                reading.reading_type || ""
-            ).toLowerCase();
-
-        const evidenceType =
-            reading.evidence_type ||
-            reading.photo_url
-                ? (
-                    reading.evidence_type ||
-                    "image"
-                )
-                : "none";
-
-        const evidenceLabel =
-            evidenceType === "live_camera"
-                ? "Live"
-                : evidenceType === "historical_upload"
-                    ? "Historical"
-                    : "None";
-
-        return `
-
-            <tr>
-
-                <td>
-
-                    <div class="fg-reading-number">
-
-                        ${formatNumber(
-                            reading.reading
-                        )}
-
-                    </div>
-
-                    <div class="fg-reading-meta">
-
-                        ID:
-                        ${escapeHTML(
-                            String(
-                                reading.id || ""
-                            ).slice(0, 8)
-                        )}
-
-                    </div>
-
-                </td>
+    const nozzle =
+        findNozzle(reading.nozzle_id);
 
 
-                <td>
+    const type =
+        String(
+            reading.reading_type || ""
+        ).toLowerCase();
 
-                    ${escapeHTML(
-                        station?.name ||
-                        station?.station_name ||
-                        reading.station_id ||
-                        "Unknown station"
+
+    /*
+     * =========================================================
+     * EVIDENCE
+     * =========================================================
+     *
+     * Backend stores the uploaded/captured image URL in:
+     *
+     * reading.photo_url
+     *
+     * This can now be either:
+     *
+     * 1. Supabase Storage public URL
+     * 2. Existing data:image/... Base64 URL
+     *
+     * Evidence is optional.
+     */
+
+    const photoUrl =
+        reading.photo_url ||
+        reading.image_url ||
+        reading.evidence_url ||
+        "";
+
+
+    const evidenceType =
+        String(
+            reading.evidence_type || ""
+        ).toLowerCase();
+
+
+    let evidenceLabel = "None";
+
+
+    if (photoUrl) {
+
+        if (
+            evidenceType ===
+            "live_camera"
+        ) {
+
+            evidenceLabel = "Live Camera";
+
+        } else if (
+            evidenceType ===
+            "historical_upload"
+        ) {
+
+            evidenceLabel =
+                "Historical Upload";
+
+        } else {
+
+            evidenceLabel =
+                "Image";
+
+        }
+
+    }
+
+
+    /*
+     * =========================================================
+     * EVIDENCE DISPLAY
+     * =========================================================
+     */
+
+    let evidenceHTML = `
+        <div class="fg-no-evidence">
+            No image
+        </div>
+    `;
+
+
+    if (photoUrl) {
+
+        const safePhotoUrl =
+            escapeHTML(
+                String(photoUrl)
+            );
+
+
+        evidenceHTML = `
+            <div class="fg-evidence-wrapper">
+
+                <a
+                    href="${safePhotoUrl}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="fg-evidence-link"
+                    title="Open evidence image"
+                >
+
+                    <img
+                        src="${safePhotoUrl}"
+                        alt="Meter reading evidence"
+                        class="fg-evidence-image"
+                        loading="lazy"
+                        onerror="
+                            this.style.display='none';
+                            this.parentElement
+                                .nextElementSibling
+                                ?.classList
+                                .remove('fg-hidden');
+                        "
+                    >
+
+                </a>
+
+
+                <div
+                    class="fg-evidence-error fg-hidden"
+                >
+                    Image unavailable
+                </div>
+
+            </div>
+        `;
+
+    }
+
+
+    return `
+
+        <tr>
+
+            <!-- READING -->
+
+            <td>
+
+                <div class="fg-reading-number">
+
+                    ${formatNumber(
+                        reading.reading
                     )}
 
-                </td>
+                </div>
+
+                <div class="fg-reading-meta">
+
+                    ID:
+                    ${escapeHTML(
+                        String(
+                            reading.id || ""
+                        ).slice(0, 8)
+                    )}
+
+                </div>
+
+            </td>
 
 
-                <td>
+            <!-- STATION -->
 
-                    ${
-                        pump
-                            ? `#${escapeHTML(
+            <td>
+
+                ${escapeHTML(
+                    station?.name ||
+                    station?.station_name ||
+                    reading.station_id ||
+                    "Unknown station"
+                )}
+
+            </td>
+
+
+            <!-- PUMP -->
+
+            <td>
+
+                ${
+                    pump
+
+                        ? `
+
+                            #${escapeHTML(
                                 pump.pump_number ||
                                 pump.number ||
                                 pump.id
                             )}
+
                             ${
                                 pump.brand
                                     ? ` - ${escapeHTML(
                                         pump.brand
                                     )}`
                                     : ""
-                            }`
-                            : escapeHTML(
-                                reading.pump_id ||
-                                "Unknown pump"
-                            )
-                    }
+                            }
 
-                </td>
+                        `
+
+                        : escapeHTML(
+                            reading.pump_id ||
+                            "Unknown pump"
+                        )
+                }
+
+            </td>
 
 
-                <td>
+            <!-- NOZZLE -->
 
-                    ${
-                        nozzle
-                            ? `#${escapeHTML(
+            <td>
+
+                ${
+                    nozzle
+
+                        ? `
+
+                            #${escapeHTML(
                                 nozzle.nozzle_number ||
                                 nozzle.number ||
                                 nozzle.id
                             )}
+
                             ${
-                                nozzle.fuel_type
+                                nozzle.product
                                     ? ` - ${escapeHTML(
-                                        nozzle.fuel_type
+                                        nozzle.product
                                     )}`
-                                    : ""
-                            }`
-                            : escapeHTML(
-                                reading.nozzle_id ||
-                                "Unknown nozzle"
-                            )
-                    }
+                                    : nozzle.fuel_type
+                                        ? ` - ${escapeHTML(
+                                            nozzle.fuel_type
+                                        )}`
+                                        : ""
+                            }
 
-                </td>
+                        `
 
+                        : escapeHTML(
+                            reading.nozzle_id ||
+                            "Unknown nozzle"
+                        )
+                }
 
-                <td>
-
-                    <span
-                        class="
-                            fg-type-badge
-                            fg-type-${escapeHTML(type)}
-                        "
-                    >
-                        ${escapeHTML(
-                            type || "unknown"
-                        )}
-                    </span>
-
-                </td>
+            </td>
 
 
-                <td>
+            <!-- READING TYPE -->
 
-                    <span
-                        class="fg-type-badge ${
-                            evidenceType === "live_camera"
-                                ? "fg-type-closing"
-                                : evidenceType === "historical_upload"
-                                    ? "fg-type-periodic"
-                                    : "fg-type-correction"
-                        }"
-                    >
+            <td>
+
+                <span
+                    class="
+                        fg-type-badge
+                        fg-type-${escapeHTML(type)}
+                    "
+                >
+
+                    ${escapeHTML(
+                        type || "unknown"
+                    )}
+
+                </span>
+
+            </td>
+
+
+            <!-- EVIDENCE -->
+
+            <td>
+
+                <div class="fg-evidence-cell">
+
+                    ${evidenceHTML}
+
+                    <div class="fg-evidence-label">
+
                         ${escapeHTML(
                             evidenceLabel
                         )}
-                    </span>
 
-                </td>
+                    </div>
 
+                </div>
 
-                <td>
-
-                    ${formatDate(
-                        reading.captured_at
-                    )}
-
-                </td>
+            </td>
 
 
-                <td>
+            <!-- CAPTURED DATE -->
 
-                    <button
-                        type="button"
-                        class="fg-action-delete"
-                        data-delete-reading="${escapeHTML(
-                            reading.id
-                        )}"
-                    >
-                        Delete
-                    </button>
+            <td>
 
-                </td>
+                ${formatDate(
+                    reading.captured_at
+                )}
 
-            </tr>
+            </td>
 
-        `;
 
-    }
+            <!-- ACTION -->
+
+            <td>
+
+                <button
+                    type="button"
+                    class="fg-action-delete"
+                    data-delete-reading="${escapeHTML(
+                        reading.id
+                    )}"
+                >
+                    Delete
+                </button>
+
+            </td>
+
+        </tr>
+
+    `;
+
+}
 
 
     /* =====================================================
@@ -2589,281 +2789,344 @@
        CREATE READING
     ===================================================== */
 
-    async function createReading(event) {
+   async function createReading(event) {
 
-        event.preventDefault();
+    event.preventDefault();
 
-        if (state.saving) {
+    if (state.saving) {
+        return;
+    }
 
-            return;
 
-        }
+    /* =========================================================
+       GET FORM VALUES
+       ========================================================= */
 
-        const stationId =
-            getElement("fgStation")?.value;
+    const stationId =
+        getElement("fgStation")?.value;
 
-        const pumpId =
-            getElement("fgPump")?.value;
+    const pumpId =
+        getElement("fgPump")?.value;
 
-        const nozzleId =
-            getElement("fgNozzle")?.value;
+    const nozzleId =
+        getElement("fgNozzle")?.value;
 
-        const readingType =
-            getElement("fgReadingType")?.value;
+    const readingType =
+        getElement("fgReadingType")?.value;
 
-        const readingValue =
-            getElement("fgReadingValue")?.value;
+    const readingValue =
+        getElement("fgReadingValue")?.value;
 
-        const shiftId =
-            getElement("fgShift")?.value;
+    const shiftId =
+        getElement("fgShift")?.value;
 
-        const capturedAtInput =
-            getElement("fgCapturedAt")?.value;
+    const capturedAtInput =
+        getElement("fgCapturedAt")?.value;
 
-        const recordMode =
-            document.querySelector(
-                'input[name="fgRecordMode"]:checked'
-            )?.value || "current";
+    const recordMode =
+        document.querySelector(
+            'input[name="fgRecordMode"]:checked'
+        )?.value || "current";
 
-        if (
-            !stationId ||
-            !pumpId ||
-            !nozzleId ||
-            !readingType ||
-            readingValue === ""
-        ) {
 
-            showFormMessage(
-                "Please complete all required fields.",
-                "error"
+    /* =========================================================
+       REQUIRED FIELD VALIDATION
+       ========================================================= */
+
+    if (
+        !stationId ||
+        !pumpId ||
+        !nozzleId ||
+        !readingType ||
+        readingValue === "" ||
+        !shiftId
+    ) {
+
+        showFormMessage(
+            "Please complete all required fields, including the shift.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    /* =========================================================
+       VALIDATE READING
+       ========================================================= */
+
+    const numericReading =
+        Number(readingValue);
+
+    if (
+        !Number.isFinite(
+            numericReading
+        ) ||
+        numericReading < 0
+    ) {
+
+        showFormMessage(
+            "Enter a valid meter reading.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    /* =========================================================
+       CAPTURE DATE/TIME
+       ========================================================= */
+
+    let capturedAt;
+
+    if (
+        recordMode === "current"
+    ) {
+
+        capturedAt =
+            new Date().toISOString();
+
+    } else {
+
+        capturedAt =
+            capturedAtInput
+                ? new Date(
+                    capturedAtInput
+                ).toISOString()
+                : new Date().toISOString();
+
+    }
+
+
+    /* =========================================================
+       EVIDENCE
+       
+       Evidence is OPTIONAL.
+       
+       Current:
+       - Camera image if available
+       - No image is also allowed
+       
+       Historical:
+       - Uploaded image if available
+       - No image is also allowed
+       ========================================================= */
+
+    let evidenceType = "none";
+
+    let evidenceData = null;
+
+
+    /* =========================================================
+       CURRENT READING CAMERA EVIDENCE
+       ========================================================= */
+
+    if (
+        recordMode === "current" &&
+        state.cameraSnapshot
+    ) {
+
+        evidenceType =
+            "live_camera";
+
+        evidenceData =
+            state.cameraSnapshot;
+
+    }
+
+
+    /* =========================================================
+       HISTORICAL UPLOAD EVIDENCE
+       ========================================================= */
+
+    else if (
+        recordMode !== "current" &&
+        state.evidenceFile
+    ) {
+
+        evidenceType =
+            "historical_upload";
+
+        evidenceData =
+            await fileToDataURL(
+                state.evidenceFile
             );
 
-            return;
+    }
 
-        }
 
-        const numericReading =
-            Number(readingValue);
+    /* =========================================================
+       IMPORTANT
+       
+       Your current backend stores photo_url.
+       
+       Until we add Supabase Storage upload handling,
+       send the evidence data through photo_url so the
+       backend actually receives the image.
+       
+       If there is no evidence, photo_url remains null.
+       ========================================================= */
 
-        if (
-            !Number.isFinite(
-                numericReading
-            ) ||
-            numericReading < 0
-        ) {
+    const photoUrl =
+        evidenceData || null;
 
-            showFormMessage(
-                "Enter a valid meter reading.",
-                "error"
+
+    /* =========================================================
+       BUILD PAYLOAD
+       ========================================================= */
+
+    const payload = {
+
+        station_id:
+            stationId,
+
+        pump_id:
+            pumpId,
+
+        nozzle_id:
+            nozzleId,
+
+        reading_type:
+            readingType,
+
+        reading:
+            numericReading,
+
+        /*
+         * SHIFT IS NOW REQUIRED
+         */
+        shift_id:
+            shiftId,
+
+        captured_at:
+            capturedAt,
+
+        record_mode:
+            recordMode,
+
+        evidence_type:
+            evidenceType,
+
+        /*
+         * Keep this too because it is useful
+         * for the frontend/debugging.
+         */
+        evidence_data:
+            evidenceData,
+
+        /*
+         * IMPORTANT:
+         * Do NOT send null when an image exists.
+         */
+        photo_url:
+            photoUrl
+
+    };
+
+
+    /* =========================================================
+       SAVE
+       ========================================================= */
+
+    state.saving = true;
+
+
+    const saveButton =
+        getElement("fgSaveReading");
+
+
+    if (saveButton) {
+
+        saveButton.disabled = true;
+
+        saveButton.textContent =
+            "Saving...";
+
+    }
+
+
+    try {
+
+        console.log(
+            "FUELGAP CREATING METER READING:",
+            payload
+        );
+
+
+        const result =
+            await apiRequest(
+                "/meter-readings",
+                {
+
+                    method: "POST",
+
+                    body:
+                        JSON.stringify(
+                            payload
+                        )
+
+                }
             );
 
-            return;
 
-        }
-
-
-        /* =================================================
-           CURRENT READING RULE
-           LIVE CAMERA IS REQUIRED
-        ================================================= */
-
-        if (
-            recordMode === "current" &&
-            !state.cameraSnapshot
-        ) {
-
-            showFormMessage(
-                "A live camera snapshot is required for every current reading.",
-                "error"
-            );
-
-            return;
-
-        }
+        console.log(
+            "Meter reading created:",
+            result
+        );
 
 
-        /* =================================================
-           CURRENT READING MUST USE CURRENT TIME
-        ================================================= */
-
-        let capturedAt;
-
-        if (
-            recordMode === "current"
-        ) {
-
-            capturedAt =
-                new Date().toISOString();
-
-        } else {
-
-            capturedAt =
-                capturedAtInput
-                    ? new Date(
-                        capturedAtInput
-                    ).toISOString()
-                    : new Date().toISOString();
-
-        }
+        showToast(
+            "Meter reading saved successfully."
+        );
 
 
-        /* =================================================
-           HISTORICAL EVIDENCE
-        ================================================= */
+        /*
+         * Clear evidence state after successful save.
+         */
+        state.cameraSnapshot = null;
 
-        let evidenceType = "none";
-
-        let evidenceData = null;
-
-        if (
-            recordMode === "current"
-        ) {
-
-            evidenceType =
-                "live_camera";
-
-            evidenceData =
-                state.cameraSnapshot;
-
-        } else if (
-            state.evidenceFile
-        ) {
-
-            evidenceType =
-                "historical_upload";
-
-            evidenceData =
-                await fileToDataURL(
-                    state.evidenceFile
-                );
-
-        }
+        state.evidenceFile = null;
 
 
-        const payload = {
-
-            station_id:
-                stationId,
-
-            pump_id:
-                pumpId,
-
-            nozzle_id:
-                nozzleId,
-
-            reading_type:
-                readingType,
-
-            reading:
-                numericReading,
-
-            shift_id:
-                shiftId || null,
-
-            captured_at:
-                capturedAt,
-
-            record_mode:
-                recordMode,
-
-            evidence_type:
-                evidenceType,
-
-            evidence_data:
-                evidenceData,
-
-            photo_url:
-                null
-
-        };
+        closeModal();
 
 
-        state.saving = true;
+        await loadReadings();
 
 
-        const saveButton =
-            getElement("fgSaveReading");
+    } catch (error) {
+
+        console.error(
+            "Create meter reading error:",
+            error
+        );
+
+
+        showFormMessage(
+            error.message ||
+            "Failed to save meter reading.",
+            "error"
+        );
+
+
+    } finally {
+
+        state.saving = false;
+
 
         if (saveButton) {
 
-            saveButton.disabled = true;
+            saveButton.disabled = false;
 
             saveButton.textContent =
-                "Saving...";
-
-        }
-
-
-        try {
-
-            console.log(
-                "FUELGAP CREATING METER READING:",
-                payload
-            );
-
-
-            const result =
-                await apiRequest(
-                    "/meter-readings",
-                    {
-
-                        method: "POST",
-
-                        body:
-                            JSON.stringify(
-                                payload
-                            )
-
-                    }
-                );
-
-
-            console.log(
-                "Meter reading created:",
-                result
-            );
-
-
-            showToast(
-                "Meter reading saved successfully."
-            );
-
-
-            closeModal();
-
-
-            await loadReadings();
-
-
-        } catch (error) {
-
-            console.error(
-                "Create meter reading error:",
-                error
-            );
-
-            showFormMessage(
-                error.message ||
-                "Failed to save meter reading.",
-                "error"
-            );
-
-        } finally {
-
-            state.saving = false;
-
-            if (saveButton) {
-
-                saveButton.disabled = false;
-
-                saveButton.textContent =
-                    "Save Reading";
-
-            }
+                "Save Reading";
 
         }
 
     }
+
+}
 
 
     /* =====================================================
@@ -3396,82 +3659,210 @@
        SHIFT SELECT
     ===================================================== */
 
-    function populateShiftSelect() {
+       function populateShiftSelect() {
 
-        const select =
-            getElement("fgShift");
+    const select =
+        getElement("fgShift");
 
-        if (!select) {
+    if (!select) {
+        console.warn(
+            "FUELGAP: Shift dropdown #fgShift not found"
+        );
+        return;
+    }
+
+    const stationId =
+        getElement("fgStation")?.value;
+
+    console.log(
+        "FUELGAP: Selected station for shifts:",
+        stationId
+    );
+
+    console.log(
+        "FUELGAP: All loaded shifts:",
+        state.shifts
+    );
+
+
+    /* =================================================
+       RESET DROPDOWN
+    ================================================= */
+
+    select.innerHTML = "";
+
+    const defaultOption =
+        document.createElement("option");
+
+    defaultOption.value = "";
+
+    defaultOption.textContent =
+        stationId
+            ? "Select a shift"
+            : "Select station first";
+
+    select.appendChild(defaultOption);
+
+
+    /* =================================================
+       NO SHIFTS
+    ================================================= */
+
+    if (!Array.isArray(state.shifts) ||
+        state.shifts.length === 0) {
+
+        console.warn(
+            "FUELGAP: No shifts available"
+        );
+
+        return;
+    }
+
+
+    /* =================================================
+       FILTER SHIFTS BY STATION
+    ================================================= */
+
+    const stationShifts =
+        state.shifts.filter(shift => {
+
+            if (!stationId) {
+                return true;
+            }
+
+            /*
+             * Support all possible station ID formats
+             */
+            const shiftStationId =
+                shift.station_id ??
+                shift.stationId ??
+                shift.station?.id ??
+                shift.stations?.id;
+
+            console.log(
+                "FUELGAP: Checking shift:",
+                shift,
+                "Station:",
+                shiftStationId
+            );
+
+            return String(
+                shiftStationId
+            ) === String(
+                stationId
+            );
+
+        });
+
+
+    console.log(
+        "FUELGAP: Shifts matching selected station:",
+        stationShifts
+    );
+
+
+    /* =================================================
+       ADD SHIFTS
+    ================================================= */
+
+    stationShifts.forEach(shift => {
+
+        const shiftId =
+            shift.id ??
+            shift.shift_id;
+
+        if (!shiftId) {
+
+            console.warn(
+                "FUELGAP: Shift has no ID:",
+                shift
+            );
 
             return;
-
         }
 
-        const stationId =
-            getElement("fgStation")?.value;
 
-        select.innerHTML = `
+        const option =
+            document.createElement("option");
 
-            <option value="">
-                No shift selected
-            </option>
+        option.value =
+            String(shiftId);
 
-        `;
 
-        state.shifts
-            .filter(shift => {
+        /* -------------------------------------------------
+           SHIFT NAME
+        ------------------------------------------------- */
 
-                if (!stationId) {
+        const shiftName =
+            shift.shift_name ??
+            shift.name ??
+            shift.title ??
+            `Shift ${String(
+                shiftId
+            ).slice(0, 8)}`;
 
-                    return true;
 
-                }
+        /* -------------------------------------------------
+           SHIFT STATUS
+        ------------------------------------------------- */
 
-                const shiftStationId =
-                    shift.station_id ||
-                    shift.stationId ||
-                    shift.station?.id;
+        const status =
+            shift.status
+                ? String(
+                    shift.status
+                ).trim().toLowerCase()
+                : "";
 
-                return String(
-                    shiftStationId
-                ) === String(
-                    stationId
-                );
 
-            })
-            .forEach(shift => {
+        const statusText =
+            status
+                ? ` — ${status.toUpperCase()}`
+                : "";
 
-                const shiftId =
-                    shift.id ||
-                    shift.shift_id;
 
-                if (!shiftId) {
+        option.textContent =
+            `${shiftName}${statusText}`;
 
-                    return;
 
-                }
+        /*
+         * Store useful information on the option
+         */
+        option.dataset.shiftId =
+            String(shiftId);
 
-                const option =
-                    document.createElement(
-                        "option"
-                    );
+        option.dataset.stationId =
+            String(
+                shift.station_id ??
+                shift.stationId ??
+                shift.station?.id ??
+                shift.stations?.id ??
+                ""
+            );
 
-                option.value =
-                    shiftId;
+        option.dataset.status =
+            status;
 
-                option.textContent =
-                    shift.shift_name ||
-                    shift.name ||
-                    shift.title ||
-                    `Shift ${String(
-                        shiftId
-                    ).slice(0, 8)}`;
 
-                select.appendChild(option);
+        select.appendChild(option);
 
-            });
+    });
 
-    }
+
+    /* =================================================
+       FINAL CHECK
+    ================================================= */
+
+    console.log(
+        "FUELGAP: Final shift dropdown options:",
+        Array.from(
+            select.options
+        ).map(option => ({
+            text: option.textContent,
+            value: option.value
+        }))
+    );
+
+}
 
 
     /* =====================================================

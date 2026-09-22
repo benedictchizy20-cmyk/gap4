@@ -2359,3 +2359,62 @@ input[type="number"]::-webkit-outer-spin-button {
     }
 
 }
+.fg-evidence-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 90px;
+}
+
+.fg-evidence-wrapper {
+    width: 72px;
+    height: 54px;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background: #f7f7f7;
+}
+
+.fg-evidence-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.fg-evidence-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    cursor: pointer;
+}
+
+.fg-evidence-label {
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.fg-no-evidence {
+    width: 72px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px dashed rgba(0, 0, 0, 0.18);
+    background: #fafafa;
+    font-size: 10px;
+    text-align: center;
+}
+
+.fg-evidence-error {
+    font-size: 10px;
+    padding: 5px;
+    text-align: center;
+}
+
+.fg-hidden {
+    display: none;
+}
