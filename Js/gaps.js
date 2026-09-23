@@ -1,6 +1,7 @@
 /* =========================================================
    FUELGAP - GAPS & VARIANCE
-   COMPLETE BACKEND CONNECTED VERSION
+   BACKEND CONNECTED VERSION
+   METER READING GAP SYSTEM
    INLINE CSS
    NO LOCALSTORAGE
 ========================================================= */
@@ -8,6 +9,7 @@
 (function () {
 
     "use strict";
+
 
     /* =====================================================
        STATE
@@ -45,19 +47,21 @@
 
     function injectGapsStyles() {
 
-        if (document.getElementById("fuelgap-gaps-inline-css")) {
+        if (
+            document.getElementById(
+                "fuelgap-gaps-inline-css"
+            )
+        ) {
             return;
         }
 
-        const style = document.createElement("style");
+        const style =
+            document.createElement("style");
 
-        style.id = "fuelgap-gaps-inline-css";
+        style.id =
+            "fuelgap-gaps-inline-css";
 
         style.textContent = `
-
-        /* ================================================
-           GAPS PAGE
-        ================================================ */
 
         .fg-gaps-page {
             width: 100%;
@@ -146,10 +150,6 @@
             border-color: #eab900;
         }
 
-        /* ================================================
-           STAT CARDS
-        ================================================ */
-
         .fg-gaps-stats {
             display: grid;
             grid-template-columns:
@@ -204,10 +204,6 @@
             color: #8a8a8a;
         }
 
-        /* ================================================
-           CARDS
-        ================================================ */
-
         .fg-gaps-card {
             background: #ffffff;
             border: 1px solid #e8e8e8;
@@ -216,10 +212,6 @@
                 0 3px 12px rgba(0,0,0,.04);
             overflow: hidden;
         }
-
-        /* ================================================
-           FILTER HEADER
-        ================================================ */
 
         .fg-filter-header {
             padding: 18px 20px;
@@ -246,10 +238,6 @@
                 repeat(5, minmax(0, 1fr));
             gap: 12px;
         }
-
-        /* ================================================
-           FORM FIELDS
-        ================================================ */
 
         .fg-field {
             display: flex;
@@ -290,17 +278,13 @@
             cursor: not-allowed;
         }
 
-        /* ================================================
-           TABLE
-        ================================================ */
-
         .fg-table-wrap {
             overflow-x: auto;
         }
 
         .fg-table {
             width: 100%;
-            min-width: 1050px;
+            min-width: 1100px;
             border-collapse: collapse;
         }
 
@@ -342,10 +326,6 @@
             font-size: 15px;
         }
 
-        /* ================================================
-           BADGES
-        ================================================ */
-
         .fg-badge {
             display: inline-flex;
             align-items: center;
@@ -385,10 +365,6 @@
             color: #555555;
             font-weight: 800;
         }
-
-        /* ================================================
-           MODAL
-        ================================================ */
 
         .fg-modal-overlay {
             position: fixed;
@@ -469,10 +445,6 @@
             font-size: 11px;
         }
 
-        /* ================================================
-           LOADING
-        ================================================ */
-
         .fg-loading {
             padding: 60px 20px;
             text-align: center;
@@ -494,10 +466,6 @@
                 transform: rotate(360deg);
             }
         }
-
-        /* ================================================
-           ALERT
-        ================================================ */
 
         .fg-alert {
             margin-bottom: 18px;
@@ -522,10 +490,6 @@
             border: 1px solid #c9efd9;
             color: #176b3a;
         }
-
-        /* ================================================
-           RESPONSIVE
-        ================================================ */
 
         @media (max-width: 1100px) {
 
@@ -604,7 +568,9 @@
 
         const n = Number(value);
 
-        return Number.isFinite(n) ? n : 0;
+        return Number.isFinite(n)
+            ? n
+            : 0;
     }
 
 
@@ -619,25 +585,20 @@
     }
 
 
-    function formatMoney(value) {
-
-        return "₦" + number(value).toLocaleString(
-            "en-NG",
-            {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            }
-        );
-    }
-
-
     function formatDate(value) {
 
-        if (!value) return "—";
+        if (!value) {
+            return "—";
+        }
 
-        const date = new Date(value);
+        const date =
+            new Date(value);
 
-        if (Number.isNaN(date.getTime())) {
+        if (
+            Number.isNaN(
+                date.getTime()
+            )
+        ) {
             return escapeHTML(value);
         }
 
@@ -653,7 +614,9 @@
 
     function getId(item, type) {
 
-        if (!item) return "";
+        if (!item) {
+            return "";
+        }
 
         return String(
             item.id ||
@@ -664,9 +627,14 @@
     }
 
 
-    function extractData(response, keys = []) {
+    function extractData(
+        response,
+        keys = []
+    ) {
 
-        if (!response) return [];
+        if (!response) {
+            return [];
+        }
 
         if (Array.isArray(response)) {
             return response;
@@ -674,14 +642,22 @@
 
         for (const key of keys) {
 
-            if (Array.isArray(response[key])) {
+            if (
+                Array.isArray(
+                    response[key]
+                )
+            ) {
                 return response[key];
             }
         }
 
         if (response.data) {
 
-            if (Array.isArray(response.data)) {
+            if (
+                Array.isArray(
+                    response.data
+                )
+            ) {
                 return response.data;
             }
 
@@ -689,7 +665,9 @@
 
                 if (
                     response.data &&
-                    Array.isArray(response.data[key])
+                    Array.isArray(
+                        response.data[key]
+                    )
                 ) {
                     return response.data[key];
                 }
@@ -704,7 +682,8 @@
 
         if (
             window.FuelGapUtils &&
-            typeof FuelGapUtils.getCurrentUser === "function"
+            typeof FuelGapUtils.getCurrentUser ===
+                "function"
         ) {
             return FuelGapUtils.getCurrentUser();
         }
@@ -721,7 +700,8 @@
 
         if (
             !window.FuelGapAPI ||
-            typeof FuelGapAPI.getStations !== "function"
+            typeof FuelGapAPI.getStations !==
+                "function"
         ) {
             throw new Error(
                 "FuelGapAPI.getStations() is unavailable."
@@ -734,7 +714,11 @@
         GapsState.stations =
             extractData(
                 response,
-                ["stations", "data", "records"]
+                [
+                    "stations",
+                    "data",
+                    "records"
+                ]
             );
 
         console.log(
@@ -748,7 +732,8 @@
 
         if (
             !window.FuelGapAPI ||
-            typeof FuelGapAPI.getPumps !== "function"
+            typeof FuelGapAPI.getPumps !==
+                "function"
         ) {
             throw new Error(
                 "FuelGapAPI.getPumps() is unavailable."
@@ -761,7 +746,11 @@
         GapsState.pumps =
             extractData(
                 response,
-                ["pumps", "data", "records"]
+                [
+                    "pumps",
+                    "data",
+                    "records"
+                ]
             );
 
         console.log(
@@ -775,7 +764,8 @@
 
         if (
             !window.FuelGapAPI ||
-            typeof FuelGapAPI.getNozzles !== "function"
+            typeof FuelGapAPI.getNozzles !==
+                "function"
         ) {
             throw new Error(
                 "FuelGapAPI.getNozzles() is unavailable."
@@ -788,7 +778,11 @@
         GapsState.nozzles =
             extractData(
                 response,
-                ["nozzles", "data", "records"]
+                [
+                    "nozzles",
+                    "data",
+                    "records"
+                ]
             );
 
         console.log(
@@ -802,7 +796,8 @@
 
         if (
             !window.FuelGapAPI ||
-            typeof FuelGapAPI.getShifts !== "function"
+            typeof FuelGapAPI.getShifts !==
+                "function"
         ) {
             throw new Error(
                 "FuelGapAPI.getShifts() is unavailable."
@@ -815,7 +810,11 @@
         GapsState.shifts =
             extractData(
                 response,
-                ["shifts", "data", "records"]
+                [
+                    "shifts",
+                    "data",
+                    "records"
+                ]
             );
 
         console.log(
@@ -829,7 +828,8 @@
 
         if (
             !window.FuelGapAPI ||
-            typeof FuelGapAPI.getGaps !== "function"
+            typeof FuelGapAPI.getGaps !==
+                "function"
         ) {
             throw new Error(
                 "FuelGapAPI.getGaps() is unavailable."
@@ -842,19 +842,53 @@
         GapsState.gaps =
             extractData(
                 response,
-                ["gaps", "records", "data"]
+                [
+                    "gaps",
+                    "records",
+                    "data"
+                ]
             );
 
         console.log(
             "Gaps Records:",
             GapsState.gaps
         );
+
+        /*
+         * Debug the exact values coming from backend.
+         */
+        GapsState.gaps.forEach(
+            record => {
+
+                console.log(
+                    "GAP RECORD:",
+                    {
+                        id:
+                            record.id,
+
+                        opening_reading:
+                            record.opening_reading,
+
+                        closing_reading:
+                            record.closing_reading,
+
+                        gap_amount:
+                            record.gap_amount,
+
+                        status:
+                            record.status
+                    }
+                );
+
+            }
+        );
     }
 
 
     async function loadAllData() {
 
-        GapsState.isLoading = true;
+        GapsState.isLoading =
+            true;
 
         try {
 
@@ -867,11 +901,13 @@
             ]);
 
             populateAllSelects();
+
             applyFilters();
 
         } finally {
 
-            GapsState.isLoading = false;
+            GapsState.isLoading =
+                false;
         }
     }
 
@@ -880,57 +916,87 @@
        RELATION HELPERS
     ===================================================== */
 
-    function getPumpsForStation(stationId) {
+    function getPumpsForStation(
+        stationId
+    ) {
 
-        if (!stationId) return [];
+        if (!stationId) {
+            return [];
+        }
 
-        return GapsState.pumps.filter(pump => {
+        return GapsState.pumps.filter(
+            pump => {
 
-            const id = String(
-                pump.station_id ||
-                pump.stationId ||
-                pump.station?.id ||
-                ""
-            );
+                const id =
+                    String(
+                        pump.station_id ||
+                        pump.stationId ||
+                        pump.station?.id ||
+                        ""
+                    );
 
-            return id === String(stationId);
-        });
+                return (
+                    id ===
+                    String(stationId)
+                );
+            }
+        );
     }
 
 
-    function getNozzlesForPump(pumpId) {
+    function getNozzlesForPump(
+        pumpId
+    ) {
 
-        if (!pumpId) return [];
+        if (!pumpId) {
+            return [];
+        }
 
-        return GapsState.nozzles.filter(nozzle => {
+        return GapsState.nozzles.filter(
+            nozzle => {
 
-            const id = String(
-                nozzle.pump_id ||
-                nozzle.pumpId ||
-                nozzle.pump?.id ||
-                ""
-            );
+                const id =
+                    String(
+                        nozzle.pump_id ||
+                        nozzle.pumpId ||
+                        nozzle.pump?.id ||
+                        ""
+                    );
 
-            return id === String(pumpId);
-        });
+                return (
+                    id ===
+                    String(pumpId)
+                );
+            }
+        );
     }
 
 
-    function getShiftsForStation(stationId) {
+    function getShiftsForStation(
+        stationId
+    ) {
 
-        if (!stationId) return [];
+        if (!stationId) {
+            return [];
+        }
 
-        return GapsState.shifts.filter(shift => {
+        return GapsState.shifts.filter(
+            shift => {
 
-            const id = String(
-                shift.station_id ||
-                shift.stationId ||
-                shift.station?.id ||
-                ""
-            );
+                const id =
+                    String(
+                        shift.station_id ||
+                        shift.stationId ||
+                        shift.station?.id ||
+                        ""
+                    );
 
-            return id === String(stationId);
-        });
+                return (
+                    id ===
+                    String(stationId)
+                );
+            }
+        );
     }
 
 
@@ -938,39 +1004,52 @@
        OPTION BUILDERS
     ===================================================== */
 
-    function stationOptions(selected = "") {
+    function stationOptions(
+        selected = ""
+    ) {
 
         let html =
             `<option value="">All stations</option>`;
 
-        GapsState.stations.forEach(station => {
+        GapsState.stations.forEach(
+            station => {
 
-            const id =
-                getId(station, "station");
+                const id =
+                    getId(
+                        station,
+                        "station"
+                    );
 
-            const name =
-                station.name ||
-                station.station_name ||
-                station.stationName ||
-                `Station ${id}`;
+                const name =
+                    station.name ||
+                    station.station_name ||
+                    station.stationName ||
+                    `Station ${id}`;
 
-            html += `
-                <option
-                    value="${escapeHTML(id)}"
-                    ${String(id) === String(selected)
-                        ? "selected"
-                        : ""}
-                >
-                    ${escapeHTML(name)}
-                </option>
-            `;
-        });
+                html += `
+                    <option
+                        value="${escapeHTML(id)}"
+                        ${
+                            String(id) ===
+                            String(selected)
+                                ? "selected"
+                                : ""
+                        }
+                    >
+                        ${escapeHTML(name)}
+                    </option>
+                `;
+            }
+        );
 
         return html;
     }
 
 
-    function pumpOptions(stationId, selected = "") {
+    function pumpOptions(
+        stationId,
+        selected = ""
+    ) {
 
         if (!stationId) {
 
@@ -982,7 +1061,9 @@
         }
 
         const pumps =
-            getPumpsForStation(stationId);
+            getPumpsForStation(
+                stationId
+            );
 
         if (!pumps.length) {
 
@@ -996,50 +1077,64 @@
         let html =
             `<option value="">All pumps</option>`;
 
-        pumps.forEach(pump => {
+        pumps.forEach(
+            pump => {
 
-            const id =
-                getId(pump, "pump");
+                const id =
+                    getId(
+                        pump,
+                        "pump"
+                    );
 
-            const pumpNumber =
-                pump.pump_number ||
-                pump.pumpNumber ||
-                pump.number ||
-                id;
+                const pumpNumber =
+                    pump.pump_number ||
+                    pump.pumpNumber ||
+                    pump.number ||
+                    id;
 
-            const brand =
-                pump.brand || "";
+                const brand =
+                    pump.brand || "";
 
-            const model =
-                pump.model || "";
+                const model =
+                    pump.model || "";
 
-            const details =
-                [brand, model]
+                const details =
+                    [
+                        brand,
+                        model
+                    ]
                     .filter(Boolean)
                     .join(" ");
 
-            const label =
-                details
-                    ? `Pump ${pumpNumber} - ${details}`
-                    : `Pump ${pumpNumber}`;
+                const label =
+                    details
+                        ? `Pump ${pumpNumber} - ${details}`
+                        : `Pump ${pumpNumber}`;
 
-            html += `
-                <option
-                    value="${escapeHTML(id)}"
-                    ${String(id) === String(selected)
-                        ? "selected"
-                        : ""}
-                >
-                    ${escapeHTML(label)}
-                </option>
-            `;
-        });
+                html += `
+                    <option
+                        value="${escapeHTML(id)}"
+                        ${
+                            String(id) ===
+                            String(selected)
+                                ? "selected"
+                                : ""
+                        }
+                    >
+                        ${escapeHTML(label)}
+                    </option>
+                `;
+            }
+        );
 
         return html;
     }
 
 
-    function nozzleOptions(pumpId, selected = "") {
+    function nozzleOptions(
+        pumpId,
+        selected = ""
+    ) {
 
         if (!pumpId) {
 
@@ -1051,7 +1146,9 @@
         }
 
         const nozzles =
-            getNozzlesForPump(pumpId);
+            getNozzlesForPump(
+                pumpId
+            );
 
         if (!nozzles.length) {
 
@@ -1065,58 +1162,70 @@
         let html =
             `<option value="">All nozzles</option>`;
 
-        nozzles.forEach(nozzle => {
+        nozzles.forEach(
+            nozzle => {
 
-            const id =
-                getId(nozzle, "nozzle");
+                const id =
+                    getId(
+                        nozzle,
+                        "nozzle"
+                    );
 
-            const nozzleNumber =
-                nozzle.nozzle_number ||
-                nozzle.nozzleNumber ||
-                nozzle.number ||
-                id;
+                const nozzleNumber =
+                    nozzle.nozzle_number ||
+                    nozzle.nozzleNumber ||
+                    nozzle.number ||
+                    id;
 
-            const product =
-                nozzle.product ||
-                nozzle.product_name ||
-                nozzle.productName ||
-                "";
+                const product =
+                    nozzle.product ||
+                    nozzle.product_name ||
+                    nozzle.productName ||
+                    "";
 
-            const price =
-                nozzle.price_per_litre ||
-                nozzle.pricePerLitre ||
-                nozzle.price ||
-                "";
+                const price =
+                    nozzle.price_per_litre ||
+                    nozzle.pricePerLitre ||
+                    nozzle.price ||
+                    "";
 
-            let label =
-                `Nozzle ${nozzleNumber}`;
+                let label =
+                    `Nozzle ${nozzleNumber}`;
 
-            if (product) {
-                label += ` - ${product}`;
+                if (product) {
+                    label +=
+                        ` - ${product}`;
+                }
+
+                if (price) {
+                    label +=
+                        ` - ₦${formatNumber(price)}/L`;
+                }
+
+                html += `
+                    <option
+                        value="${escapeHTML(id)}"
+                        ${
+                            String(id) ===
+                            String(selected)
+                                ? "selected"
+                                : ""
+                        }
+                    >
+                        ${escapeHTML(label)}
+                    </option>
+                `;
             }
-
-            if (price) {
-                label +=
-                    ` - ₦${formatNumber(price)}/L`;
-            }
-
-            html += `
-                <option
-                    value="${escapeHTML(id)}"
-                    ${String(id) === String(selected)
-                        ? "selected"
-                        : ""}
-                >
-                    ${escapeHTML(label)}
-                </option>
-            `;
-        });
+        );
 
         return html;
     }
 
 
-    function shiftOptions(stationId, selected = "") {
+    function shiftOptions(
+        stationId,
+        selected = ""
+    ) {
 
         if (!stationId) {
 
@@ -1128,7 +1237,9 @@
         }
 
         const shifts =
-            getShiftsForStation(stationId);
+            getShiftsForStation(
+                stationId
+            );
 
         if (!shifts.length) {
 
@@ -1142,48 +1253,58 @@
         let html =
             `<option value="">All shifts</option>`;
 
-        shifts.forEach(shift => {
+        shifts.forEach(
+            shift => {
 
-            const id =
-                getId(shift, "shift");
+                const id =
+                    getId(
+                        shift,
+                        "shift"
+                    );
 
-            const name =
-                shift.name ||
-                shift.shift_name ||
-                shift.shiftName ||
-                "";
+                const name =
+                    shift.name ||
+                    shift.shift_name ||
+                    shift.shiftName ||
+                    "";
 
-            const date =
-                shift.shift_date ||
-                shift.shiftDate ||
-                shift.date ||
-                "";
+                const date =
+                    shift.shift_date ||
+                    shift.shiftDate ||
+                    shift.date ||
+                    "";
 
-            let label =
-                name || `Shift ${id}`;
+                let label =
+                    name ||
+                    `Shift ${id}`;
 
-            if (date) {
-                label += ` - ${date}`;
+                if (date) {
+                    label +=
+                        ` - ${date}`;
+                }
+
+                html += `
+                    <option
+                        value="${escapeHTML(id)}"
+                        ${
+                            String(id) ===
+                            String(selected)
+                                ? "selected"
+                                : ""
+                        }
+                    >
+                        ${escapeHTML(label)}
+                    </option>
+                `;
             }
-
-            html += `
-                <option
-                    value="${escapeHTML(id)}"
-                    ${String(id) === String(selected)
-                        ? "selected"
-                        : ""}
-                >
-                    ${escapeHTML(label)}
-                </option>
-            `;
-        });
+        );
 
         return html;
     }
 
 
     /* =====================================================
-       POPULATE ALL SELECTS
+       POPULATE SELECTS
     ===================================================== */
 
     function populateAllSelects() {
@@ -1304,23 +1425,30 @@
                 </option>
             `;
 
-            GapsState.stations.forEach(item => {
+            GapsState.stations.forEach(
+                item => {
 
-                const id =
-                    getId(item, "station");
+                    const id =
+                        getId(
+                            item,
+                            "station"
+                        );
 
-                const name =
-                    item.name ||
-                    item.station_name ||
-                    item.stationName ||
-                    `Station ${id}`;
+                    const name =
+                        item.name ||
+                        item.station_name ||
+                        item.stationName ||
+                        `Station ${id}`;
 
-                station.innerHTML += `
-                    <option value="${escapeHTML(id)}">
-                        ${escapeHTML(name)}
-                    </option>
-                `;
-            });
+                    station.innerHTML += `
+                        <option
+                            value="${escapeHTML(id)}"
+                        >
+                            ${escapeHTML(name)}
+                        </option>
+                    `;
+                }
+            );
         }
 
 
@@ -1400,85 +1528,97 @@
 
         if (station) {
 
-            station.onchange = function () {
+            station.onchange =
+                function () {
 
-                GapsState.selectedStation =
-                    this.value;
+                    GapsState.selectedStation =
+                        this.value;
 
-                GapsState.selectedPump = "";
-                GapsState.selectedNozzle = "";
-                GapsState.selectedShift = "";
+                    GapsState.selectedPump =
+                        "";
 
-                populateAllSelects();
+                    GapsState.selectedNozzle =
+                        "";
 
-                applyFilters();
-            };
+                    GapsState.selectedShift =
+                        "";
+
+                    populateAllSelects();
+
+                    applyFilters();
+                };
         }
 
 
         if (pump) {
 
-            pump.onchange = function () {
+            pump.onchange =
+                function () {
 
-                GapsState.selectedPump =
-                    this.value;
+                    GapsState.selectedPump =
+                        this.value;
 
-                GapsState.selectedNozzle = "";
+                    GapsState.selectedNozzle =
+                        "";
 
-                populateAllSelects();
+                    populateAllSelects();
 
-                applyFilters();
-            };
+                    applyFilters();
+                };
         }
 
 
         if (nozzle) {
 
-            nozzle.onchange = function () {
+            nozzle.onchange =
+                function () {
 
-                GapsState.selectedNozzle =
-                    this.value;
+                    GapsState.selectedNozzle =
+                        this.value;
 
-                applyFilters();
-            };
+                    applyFilters();
+                };
         }
 
 
         if (shift) {
 
-            shift.onchange = function () {
+            shift.onchange =
+                function () {
 
-                GapsState.selectedShift =
-                    this.value;
+                    GapsState.selectedShift =
+                        this.value;
 
-                applyFilters();
-            };
+                    applyFilters();
+                };
         }
 
 
         if (status) {
 
-            status.onchange = function () {
+            status.onchange =
+                function () {
 
-                GapsState.status =
-                    this.value;
+                    GapsState.status =
+                        this.value;
 
-                applyFilters();
-            };
+                    applyFilters();
+                };
         }
 
 
         if (search) {
 
-            search.oninput = function () {
+            search.oninput =
+                function () {
 
-                GapsState.search =
-                    this.value
-                        .trim()
-                        .toLowerCase();
+                    GapsState.search =
+                        this.value
+                            .trim()
+                            .toLowerCase();
 
-                applyFilters();
-            };
+                    applyFilters();
+                };
         }
     }
 
@@ -1493,66 +1633,78 @@
             [...GapsState.gaps];
 
 
-        if (GapsState.selectedStation) {
+        if (
+            GapsState.selectedStation
+        ) {
 
             records =
-                records.filter(record =>
-                    String(
-                        record.station_id ||
-                        record.stationId ||
-                        ""
-                    ) ===
-                    String(
-                        GapsState.selectedStation
-                    )
+                records.filter(
+                    record =>
+                        String(
+                            record.station_id ||
+                            record.stationId ||
+                            ""
+                        ) ===
+                        String(
+                            GapsState.selectedStation
+                        )
                 );
         }
 
 
-        if (GapsState.selectedPump) {
+        if (
+            GapsState.selectedPump
+        ) {
 
             records =
-                records.filter(record =>
-                    String(
-                        record.pump_id ||
-                        record.pumpId ||
-                        ""
-                    ) ===
-                    String(
-                        GapsState.selectedPump
-                    )
+                records.filter(
+                    record =>
+                        String(
+                            record.pump_id ||
+                            record.pumpId ||
+                            ""
+                        ) ===
+                        String(
+                            GapsState.selectedPump
+                        )
                 );
         }
 
 
-        if (GapsState.selectedNozzle) {
+        if (
+            GapsState.selectedNozzle
+        ) {
 
             records =
-                records.filter(record =>
-                    String(
-                        record.nozzle_id ||
-                        record.nozzleId ||
-                        ""
-                    ) ===
-                    String(
-                        GapsState.selectedNozzle
-                    )
+                records.filter(
+                    record =>
+                        String(
+                            record.nozzle_id ||
+                            record.nozzleId ||
+                            ""
+                        ) ===
+                        String(
+                            GapsState.selectedNozzle
+                        )
                 );
         }
 
 
-        if (GapsState.selectedShift) {
+        if (
+            GapsState.selectedShift
+        ) {
 
             records =
-                records.filter(record =>
-                    String(
-                        record.shift_id ||
-                        record.shiftId ||
-                        ""
-                    ) ===
-                    String(
-                        GapsState.selectedShift
-                    )
+                records.filter(
+                    record =>
+                        String(
+                            record.shift_id ||
+                            record.shiftId ||
+                            ""
+                        ) ===
+                        String(
+                            GapsState.selectedShift
+                        )
                 );
         }
 
@@ -1560,12 +1712,14 @@
         if (GapsState.status) {
 
             records =
-                records.filter(record =>
-                    String(
-                        record.status || ""
-                    ).toLowerCase() ===
-                    GapsState.status
-                        .toLowerCase()
+                records.filter(
+                    record =>
+                        String(
+                            record.status ||
+                            ""
+                        ).toLowerCase() ===
+                        GapsState.status
+                            .toLowerCase()
                 );
         }
 
@@ -1573,16 +1727,19 @@
         if (GapsState.search) {
 
             records =
-                records.filter(record => {
+                records.filter(
+                    record => {
 
-                    const text =
-                        JSON.stringify(record)
-                            .toLowerCase();
+                        const text =
+                            JSON.stringify(
+                                record
+                            ).toLowerCase();
 
-                    return text.includes(
-                        GapsState.search
-                    );
-                });
+                        return text.includes(
+                            GapsState.search
+                        );
+                    }
+                );
         }
 
 
@@ -1590,6 +1747,7 @@
             records;
 
         renderStats();
+
         renderTable();
     }
 
@@ -1604,8 +1762,12 @@
             GapsState.stations.find(
                 item =>
                     String(
-                        getId(item, "station")
-                    ) === String(id)
+                        getId(
+                            item,
+                            "station"
+                        )
+                    ) ===
+                    String(id)
             );
 
         return station
@@ -1624,21 +1786,25 @@
             GapsState.pumps.find(
                 item =>
                     String(
-                        getId(item, "pump")
-                    ) === String(id)
+                        getId(
+                            item,
+                            "pump"
+                        )
+                    ) ===
+                    String(id)
             );
 
         if (!pump) {
             return "Unknown pump";
         }
 
-        const number =
+        const pumpNumber =
             pump.pump_number ||
             pump.pumpNumber ||
             pump.number ||
             id;
 
-        return `Pump ${number}`;
+        return `Pump ${pumpNumber}`;
     }
 
 
@@ -1648,8 +1814,12 @@
             GapsState.nozzles.find(
                 item =>
                     String(
-                        getId(item, "nozzle")
-                    ) === String(id)
+                        getId(
+                            item,
+                            "nozzle"
+                        )
+                    ) ===
+                    String(id)
             );
 
         if (!nozzle) {
@@ -1665,6 +1835,7 @@
         const product =
             nozzle.product ||
             nozzle.product_name ||
+            nozzle.productName ||
             "";
 
         return product
@@ -1679,8 +1850,12 @@
             GapsState.shifts.find(
                 item =>
                     String(
-                        getId(item, "shift")
-                    ) === String(id)
+                        getId(
+                            item,
+                            "shift"
+                        )
+                    ) ===
+                    String(id)
             );
 
         if (!shift) {
@@ -1696,55 +1871,125 @@
     }
 
 
+    /* =====================================================
+       IMPORTANT:
+       GET THE REAL METER GAP
+    ===================================================== */
+
+    function getGapAmount(record) {
+
+        /*
+         * PRIMARY SOURCE:
+         * Backend generated column.
+         */
+        if (
+            record.gap_amount !==
+                undefined &&
+            record.gap_amount !== null
+        ) {
+
+            return number(
+                record.gap_amount
+            );
+        }
+
+
+        /*
+         * FALLBACK:
+         * Calculate directly from
+         * opening and closing readings.
+         */
+        const opening =
+            number(
+                record.opening_reading
+            );
+
+        const closing =
+            number(
+                record.closing_reading
+            );
+
+        return Number(
+            (
+                closing -
+                opening
+            ).toFixed(2)
+        );
+    }
+
+
+    /* =====================================================
+       STATUS
+    ===================================================== */
+
     function getStatus(record) {
-
-        const expected =
-            number(
-                record.expected_litres
-            );
-
-        const actual =
-            number(
-                record.actual_litres
-            );
-
-        const variance =
-            record.variance_litres !== undefined
-                ? number(
-                    record.variance_litres
-                )
-                : actual - expected;
 
         const stored =
             String(
-                record.status || ""
+                record.status ||
+                ""
             ).toLowerCase();
 
 
+        /*
+         * Trust backend status first.
+         */
         if (
             stored === "normal" ||
             stored === "warning" ||
-            stored === "critical"
+            stored === "critical" ||
+            stored === "variance"
         ) {
+
+            /*
+             * A negative meter movement is
+             * a variance condition.
+             */
+            if (
+                stored === "variance"
+            ) {
+                return "critical";
+            }
+
             return stored;
         }
 
 
-        const absolute =
-            Math.abs(variance);
+        const gap =
+            getGapAmount(record);
 
 
-        if (absolute <= 0.01) {
+        /*
+         * Zero meter movement.
+         */
+        if (
+            Math.abs(gap) <= 0.01
+        ) {
             return "normal";
         }
 
 
-        if (absolute <= 5) {
+        /*
+         * Negative meter movement.
+         */
+        if (gap < 0) {
+            return "critical";
+        }
+
+
+        /*
+         * Positive meter movement.
+         */
+        if (gap >= 500) {
+            return "critical";
+        }
+
+        if (gap >= 100) {
             return "warning";
         }
 
 
-        return "critical";
+        return "normal";
     }
 
 
@@ -1774,47 +2019,53 @@
         const records =
             GapsState.filteredGaps;
 
+
         const total =
             records.length;
 
+
         const normal =
             records.filter(
-                r => getStatus(r) === "normal"
+                record =>
+                    getStatus(record) ===
+                    "normal"
             ).length;
+
 
         const warning =
             records.filter(
-                r => getStatus(r) === "warning"
+                record =>
+                    getStatus(record) ===
+                    "warning"
             ).length;
+
 
         const critical =
             records.filter(
-                r => getStatus(r) === "critical"
+                record =>
+                    getStatus(record) ===
+                    "critical"
             ).length;
 
 
+        /*
+         * IMPORTANT:
+         * Sum gap_amount instead of the
+         * old variance_litres field.
+         */
         const totalVariance =
             records.reduce(
-                (sum, record) => {
+                (
+                    sum,
+                    record
+                ) => {
 
-                    const expected =
-                        number(
-                            record.expected_litres
-                        );
-
-                    const actual =
-                        number(
-                            record.actual_litres
-                        );
-
-                    const variance =
-                        record.variance_litres !== undefined
-                            ? number(
-                                record.variance_litres
-                            )
-                            : actual - expected;
-
-                    return sum + variance;
+                    return (
+                        sum +
+                        getGapAmount(
+                            record
+                        )
+                    );
 
                 },
                 0
@@ -1848,24 +2099,32 @@
 
 
         if (totalEl) {
+
             totalEl.textContent =
                 formatNumber(total);
         }
 
+
         if (normalEl) {
+
             normalEl.textContent =
                 formatNumber(normal);
         }
 
+
         if (warningEl) {
+
             warningEl.textContent =
                 formatNumber(warning);
         }
 
+
         if (criticalEl) {
+
             criticalEl.textContent =
                 formatNumber(critical);
         }
+
 
         if (varianceEl) {
 
@@ -1888,12 +2147,17 @@
                 "gapsTableBody"
             );
 
-        if (!body) return;
+        if (!body) {
+            return;
+        }
 
 
-        if (!GapsState.filteredGaps.length) {
+        if (
+            !GapsState.filteredGaps.length
+        ) {
 
             body.innerHTML = `
+
                 <tr>
 
                     <td colspan="10">
@@ -1912,6 +2176,7 @@
                     </td>
 
                 </tr>
+
             `;
 
             return;
@@ -1920,140 +2185,167 @@
 
         body.innerHTML =
             GapsState.filteredGaps
-                .map(record => {
+                .map(
+                    record => {
 
-                    const expected =
-                        number(
-                            record.expected_litres
-                        );
+                        /*
+                         * REAL METER VALUES
+                         */
+                        const opening =
+                            number(
+                                record.opening_reading
+                            );
 
-                    const actual =
-                        number(
-                            record.actual_litres
-                        );
+                        const closing =
+                            number(
+                                record.closing_reading
+                            );
 
-                    const variance =
-                        record.variance_litres !== undefined
-                            ? number(
-                                record.variance_litres
-                            )
-                            : actual - expected;
+                        /*
+                         * REAL GAP
+                         */
+                        const gap =
+                            getGapAmount(
+                                record
+                            );
 
-                    const status =
-                        getStatus(record);
-
-
-                    const varianceClass =
-                        variance > 0
-                            ? "fg-number-positive"
-                            : variance < 0
-                                ? "fg-number-negative"
-                                : "fg-number-zero";
-
-
-                    const stationId =
-                        record.station_id ||
-                        record.stationId;
-
-                    const pumpId =
-                        record.pump_id ||
-                        record.pumpId;
-
-                    const nozzleId =
-                        record.nozzle_id ||
-                        record.nozzleId;
-
-                    const shiftId =
-                        record.shift_id ||
-                        record.shiftId;
+                        const status =
+                            getStatus(
+                                record
+                            );
 
 
-                    return `
-                        <tr>
+                        const gapClass =
+                            gap > 0
+                                ? "fg-number-positive"
+                                : gap < 0
+                                    ? "fg-number-negative"
+                                    : "fg-number-zero";
 
-                            <td>
-                                ${escapeHTML(
-                                    stationName(
-                                        stationId
-                                    )
-                                )}
-                            </td>
 
-                            <td>
-                                ${escapeHTML(
-                                    pumpName(
-                                        pumpId
-                                    )
-                                )}
-                            </td>
+                        const stationId =
+                            record.station_id ||
+                            record.stationId;
 
-                            <td>
-                                ${escapeHTML(
-                                    nozzleName(
-                                        nozzleId
-                                    )
-                                )}
-                            </td>
+                        const pumpId =
+                            record.pump_id ||
+                            record.pumpId;
 
-                            <td>
-                                ${escapeHTML(
-                                    shiftName(
-                                        shiftId
-                                    )
-                                )}
-                            </td>
+                        const nozzleId =
+                            record.nozzle_id ||
+                            record.nozzleId;
 
-                            <td>
-                                ${formatNumber(
-                                    expected
-                                )} L
-                            </td>
+                        const shiftId =
+                            record.shift_id ||
+                            record.shiftId;
 
-                            <td>
-                                ${formatNumber(
-                                    actual
-                                )} L
-                            </td>
 
-                            <td>
+                        return `
 
-                                <span
-                                    class="${varianceClass}"
-                                >
-                                    ${variance > 0 ? "+" : ""}
+                            <tr>
+
+                                <td>
+                                    ${escapeHTML(
+                                        stationName(
+                                            stationId
+                                        )
+                                    )}
+                                </td>
+
+
+                                <td>
+                                    ${escapeHTML(
+                                        pumpName(
+                                            pumpId
+                                        )
+                                    )}
+                                </td>
+
+
+                                <td>
+                                    ${escapeHTML(
+                                        nozzleName(
+                                            nozzleId
+                                        )
+                                    )}
+                                </td>
+
+
+                                <td>
+                                    ${escapeHTML(
+                                        shiftName(
+                                            shiftId
+                                        )
+                                    )}
+                                </td>
+
+
+                                <td>
                                     ${formatNumber(
-                                        variance
+                                        opening
                                     )} L
-                                </span>
+                                </td>
 
-                            </td>
 
-                            <td>
-                                ${statusBadge(status)}
-                            </td>
+                                <td>
+                                    ${formatNumber(
+                                        closing
+                                    )} L
+                                </td>
 
-                            <td>
-                                ${formatDate(
-                                    record.created_at ||
-                                    record.createdAt ||
-                                    record.recorded_at ||
-                                    record.recordedAt
-                                )}
-                            </td>
 
-                            <td>
-                                ${escapeHTML(
-                                    record.recorded_by_name ||
-                                    record.recordedByName ||
-                                    record.recorded_by ||
-                                    "—"
-                                )}
-                            </td>
+                                <td>
 
-                        </tr>
-                    `;
+                                    <span
+                                        class="${gapClass}"
+                                    >
 
-                })
+                                        ${
+                                            gap > 0
+                                                ? "+"
+                                                : ""
+                                        }
+
+                                        ${formatNumber(
+                                            gap
+                                        )} L
+
+                                    </span>
+
+                                </td>
+
+
+                                <td>
+                                    ${statusBadge(
+                                        status
+                                    )}
+                                </td>
+
+
+                                <td>
+                                    ${formatDate(
+                                        record.created_at ||
+                                        record.createdAt ||
+                                        record.recorded_at ||
+                                        record.recordedAt
+                                    )}
+                                </td>
+
+
+                                <td>
+                                    ${escapeHTML(
+                                        record.recorded_by_name ||
+                                        record.recordedByName ||
+                                        record.recorded_by ||
+                                        "—"
+                                    )}
+                                </td>
+
+                            </tr>
+
+                        `;
+                    }
+                )
                 .join("");
     }
 
@@ -2091,8 +2383,6 @@
                     ></div>
 
 
-                    <!-- HEADER -->
-
                     <div class="fg-gaps-header">
 
                         <div
@@ -2104,9 +2394,9 @@
                             </h1>
 
                             <p>
-                                Monitor fuel movement,
-                                meter differences and
-                                station variances.
+                                Monitor meter movement,
+                                differences and station
+                                variances.
                             </p>
 
                         </div>
@@ -2189,7 +2479,7 @@
                             </div>
 
                             <div class="fg-stat-sub">
-                                Within expected range
+                                Normal meter movement
                             </div>
 
                         </div>
@@ -2269,7 +2559,8 @@
                                     color:#888;
                                 "
                             >
-                                Total variance:
+
+                                Total meter gap:
 
                                 <strong
                                     id="gapsVariance"
@@ -2296,9 +2587,11 @@
                                         id="gapsStationFilter"
                                         class="fg-select"
                                     >
+
                                         <option>
                                             Loading...
                                         </option>
+
                                     </select>
 
                                 </div>
@@ -2315,9 +2608,11 @@
                                         class="fg-select"
                                         disabled
                                     >
+
                                         <option>
                                             Select station first
                                         </option>
+
                                     </select>
 
                                 </div>
@@ -2334,9 +2629,11 @@
                                         class="fg-select"
                                         disabled
                                     >
+
                                         <option>
                                             Select pump first
                                         </option>
+
                                     </select>
 
                                 </div>
@@ -2353,9 +2650,11 @@
                                         class="fg-select"
                                         disabled
                                     >
+
                                         <option>
                                             Select station first
                                         </option>
+
                                     </select>
 
                                 </div>
@@ -2462,11 +2761,11 @@
                                         </th>
 
                                         <th>
-                                            Expected
+                                            Opening Meter
                                         </th>
 
                                         <th>
-                                            Actual
+                                            Closing Meter
                                         </th>
 
                                         <th>
@@ -2522,247 +2821,251 @@
 
                     </div>
 
-                </div>
+
+                    <!-- =================================================
+                         RECORD GAP MODAL
+                    ================================================== -->
+
+                    <div
+                        class="fg-modal-overlay"
+                        id="gapsModal"
+                    >
+
+                        <div class="fg-modal">
+
+                            <div class="fg-modal-header">
+
+                                <h3>
+                                    Record Meter Gap
+                                </h3>
+
+                                <button
+                                    class="fg-modal-close"
+                                    id="gapsModalClose"
+                                    type="button"
+                                >
+                                    ×
+                                </button>
+
+                            </div>
 
 
-                <!-- =================================================
-                     RECORD GAP MODAL
-                ================================================== -->
-
-                <div
-                    class="fg-modal-overlay"
-                    id="gapsModal"
-                >
-
-                    <div class="fg-modal">
-
-                        <div class="fg-modal-header">
-
-                            <h3>
-                                Record Fuel Gap
-                            </h3>
-
-                            <button
-                                class="fg-modal-close"
-                                id="gapsModalClose"
-                                type="button"
+                            <form
+                                id="gapForm"
                             >
-                                ×
-                            </button>
 
-                        </div>
+                                <div class="fg-modal-body">
 
-
-                        <form
-                            id="gapForm"
-                        >
-
-                            <div class="fg-modal-body">
-
-                                <div class="fg-form-grid">
+                                    <div class="fg-form-grid">
 
 
-                                    <!-- STATION -->
+                                        <!-- STATION -->
 
-                                    <div class="fg-field">
+                                        <div class="fg-field">
 
-                                        <label>
-                                            Station *
-                                        </label>
+                                            <label>
+                                                Station *
+                                            </label>
 
-                                        <select
-                                            id="gapFormStation"
-                                            class="fg-select"
-                                            required
-                                        >
+                                            <select
+                                                id="gapFormStation"
+                                                class="fg-select"
+                                                required
+                                            >
 
-                                            <option value="">
-                                                Select station
-                                            </option>
+                                                <option value="">
+                                                    Select station
+                                                </option>
 
-                                        </select>
+                                            </select>
 
-                                    </div>
-
-
-                                    <!-- PUMP -->
-
-                                    <div class="fg-field">
-
-                                        <label>
-                                            Pump *
-                                        </label>
-
-                                        <select
-                                            id="gapFormPump"
-                                            class="fg-select"
-                                            required
-                                            disabled
-                                        >
-
-                                            <option value="">
-                                                Select station first
-                                            </option>
-
-                                        </select>
-
-                                    </div>
-
-
-                                    <!-- NOZZLE -->
-
-                                    <div class="fg-field">
-
-                                        <label>
-                                            Nozzle *
-                                        </label>
-
-                                        <select
-                                            id="gapFormNozzle"
-                                            class="fg-select"
-                                            required
-                                            disabled
-                                        >
-
-                                            <option value="">
-                                                Select pump first
-                                            </option>
-
-                                        </select>
-
-                                    </div>
-
-
-                                    <!-- SHIFT -->
-
-                                    <div class="fg-field">
-
-                                        <label>
-                                            Shift *
-                                        </label>
-
-                                        <select
-                                            id="gapFormShift"
-                                            class="fg-select"
-                                            required
-                                            disabled
-                                        >
-
-                                            <option value="">
-                                                Select station first
-                                            </option>
-
-                                        </select>
-
-                                    </div>
-
-
-                                    <!-- EXPECTED -->
-
-                                    <div class="fg-field">
-
-                                        <label>
-                                            Expected Litres *
-                                        </label>
-
-                                        <input
-                                            id="gapExpected"
-                                            class="fg-input"
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            placeholder="0.00"
-                                            required
-                                        >
-
-                                        <div class="fg-help">
-                                            Expected fuel volume.
                                         </div>
 
-                                    </div>
 
+                                        <!-- PUMP -->
 
-                                    <!-- ACTUAL -->
+                                        <div class="fg-field">
 
-                                    <div class="fg-field">
+                                            <label>
+                                                Pump *
+                                            </label>
 
-                                        <label>
-                                            Actual Litres *
-                                        </label>
+                                            <select
+                                                id="gapFormPump"
+                                                class="fg-select"
+                                                required
+                                                disabled
+                                            >
 
-                                        <input
-                                            id="gapActual"
-                                            class="fg-input"
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            placeholder="0.00"
-                                            required
-                                        >
+                                                <option value="">
+                                                    Select station first
+                                                </option>
 
-                                        <div class="fg-help">
-                                            Actual measured volume.
+                                            </select>
+
                                         </div>
 
-                                    </div>
+
+                                        <!-- NOZZLE -->
+
+                                        <div class="fg-field">
+
+                                            <label>
+                                                Nozzle *
+                                            </label>
+
+                                            <select
+                                                id="gapFormNozzle"
+                                                class="fg-select"
+                                                required
+                                                disabled
+                                            >
+
+                                                <option value="">
+                                                    Select pump first
+                                                </option>
+
+                                            </select>
+
+                                        </div>
 
 
-                                    <!-- PREVIEW -->
+                                        <!-- SHIFT -->
 
-                                    <div class="fg-field fg-full">
+                                        <div class="fg-field">
 
-                                        <div
-                                            id="gapPreview"
-                                            style="
-                                                padding:14px;
-                                                background:#fafafa;
-                                                border:1px solid #eee;
-                                                border-radius:9px;
-                                                font-size:13px;
-                                            "
-                                        >
-                                            Variance will be calculated
-                                            automatically.
+                                            <label>
+                                                Shift *
+                                            </label>
+
+                                            <select
+                                                id="gapFormShift"
+                                                class="fg-select"
+                                                required
+                                                disabled
+                                            >
+
+                                                <option value="">
+                                                    Select station first
+                                                </option>
+
+                                            </select>
+
+                                        </div>
+
+
+                                        <!-- OPENING -->
+
+                                        <div class="fg-field">
+
+                                            <label>
+                                                Opening Meter Reading *
+                                            </label>
+
+                                            <input
+                                                id="gapOpening"
+                                                class="fg-input"
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                placeholder="10000.00"
+                                                required
+                                            >
+
+                                            <div class="fg-help">
+                                                Meter reading at the beginning
+                                                of the shift.
+                                            </div>
+
+                                        </div>
+
+
+                                        <!-- CLOSING -->
+
+                                        <div class="fg-field">
+
+                                            <label>
+                                                Closing Meter Reading *
+                                            </label>
+
+                                            <input
+                                                id="gapClosing"
+                                                class="fg-input"
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                placeholder="10250.00"
+                                                required
+                                            >
+
+                                            <div class="fg-help">
+                                                Meter reading at the end
+                                                of the shift.
+                                            </div>
+
+                                        </div>
+
+
+                                        <!-- PREVIEW -->
+
+                                        <div class="fg-field fg-full">
+
+                                            <div
+                                                id="gapPreview"
+                                                style="
+                                                    padding:14px;
+                                                    background:#fafafa;
+                                                    border:1px solid #eee;
+                                                    border-radius:9px;
+                                                    font-size:13px;
+                                                "
+                                            >
+                                                Meter gap will be calculated
+                                                automatically.
+                                            </div>
+
                                         </div>
 
                                     </div>
 
                                 </div>
 
-                            </div>
 
+                                <div class="fg-modal-footer">
 
-                            <div class="fg-modal-footer">
+                                    <button
+                                        type="button"
+                                        class="fg-btn"
+                                        id="gapsCancelBtn"
+                                    >
+                                        Cancel
+                                    </button>
 
-                                <button
-                                    type="button"
-                                    class="fg-btn"
-                                    id="gapsCancelBtn"
-                                >
-                                    Cancel
-                                </button>
+                                    <button
+                                        type="submit"
+                                        class="fg-btn fg-btn-primary"
+                                        id="gapsSubmitBtn"
+                                    >
+                                        Save Gap
+                                    </button>
 
-                                <button
-                                    type="submit"
-                                    class="fg-btn fg-btn-primary"
-                                    id="gapsSubmitBtn"
-                                >
-                                    Save Gap
-                                </button>
+                                </div>
 
-                            </div>
+                            </form>
 
-                        </form>
+                        </div>
 
                     </div>
 
                 </div>
 
             </div>
+
         `;
 
 
         setupFilterEvents();
+
         setupModalEvents();
     }
 
@@ -2778,11 +3081,15 @@
                 "gapsModal"
             );
 
-        if (!modal) return;
+        if (!modal) {
+            return;
+        }
 
         resetGapForm();
 
-        modal.classList.add("active");
+        modal.classList.add(
+            "active"
+        );
     }
 
 
@@ -2912,138 +3219,148 @@
                 "gapFormNozzle"
             );
 
-        const expected =
+        const opening =
             document.getElementById(
-                "gapExpected"
+                "gapOpening"
             );
 
-        const actual =
+        const closing =
             document.getElementById(
-                "gapActual"
+                "gapClosing"
             );
 
 
         if (open) {
-            open.onclick = openModal;
+            open.onclick =
+                openModal;
         }
 
 
         if (close) {
-            close.onclick = closeModal;
+            close.onclick =
+                closeModal;
         }
 
 
         if (cancel) {
-            cancel.onclick = closeModal;
+            cancel.onclick =
+                closeModal;
         }
 
 
         if (modal) {
 
-            modal.onclick = function (event) {
+            modal.onclick =
+                function (event) {
 
-                if (event.target === modal) {
-                    closeModal();
-                }
+                    if (
+                        event.target ===
+                        modal
+                    ) {
+                        closeModal();
+                    }
 
-            };
+                };
         }
 
 
         /* ==============================================
-           MODAL STATION
+           STATION
         ============================================== */
 
         if (station) {
 
-            station.onchange = function () {
+            station.onchange =
+                function () {
 
-                const stationId =
-                    this.value;
+                    const stationId =
+                        this.value;
 
 
-                if (pump) {
+                    if (pump) {
 
-                    pump.innerHTML =
-                        pumpOptions(
-                            stationId
+                        pump.innerHTML =
+                            pumpOptions(
+                                stationId
+                            );
+
+                        pump.disabled =
+                            !stationId;
+                    }
+
+
+                    if (nozzle) {
+
+                        nozzle.innerHTML = `
+                            <option value="">
+                                Select pump first
+                            </option>
+                        `;
+
+                        nozzle.disabled =
+                            true;
+                    }
+
+
+                    const shift =
+                        document.getElementById(
+                            "gapFormShift"
                         );
 
-                    pump.disabled =
-                        !stationId;
-                }
 
+                    if (shift) {
 
-                if (nozzle) {
+                        shift.innerHTML =
+                            shiftOptions(
+                                stationId
+                            );
 
-                    nozzle.innerHTML = `
-                        <option value="">
-                            Select pump first
-                        </option>
-                    `;
+                        shift.disabled =
+                            !stationId;
+                    }
 
-                    nozzle.disabled = true;
-                }
-
-
-                const shift =
-                    document.getElementById(
-                        "gapFormShift"
-                    );
-
-
-                if (shift) {
-
-                    shift.innerHTML =
-                        shiftOptions(
-                            stationId
-                        );
-
-                    shift.disabled =
-                        !stationId;
-                }
-
-            };
+                };
         }
 
 
         /* ==============================================
-           MODAL PUMP
+           PUMP
         ============================================== */
 
         if (pump) {
 
-            pump.onchange = function () {
+            pump.onchange =
+                function () {
 
-                const pumpId =
-                    this.value;
+                    const pumpId =
+                        this.value;
 
 
-                if (nozzle) {
+                    if (nozzle) {
 
-                    nozzle.innerHTML =
-                        nozzleOptions(
-                            pumpId
-                        );
+                        nozzle.innerHTML =
+                            nozzleOptions(
+                                pumpId
+                            );
 
-                    nozzle.disabled =
-                        !pumpId;
-                }
+                        nozzle.disabled =
+                            !pumpId;
+                    }
 
-            };
+                };
         }
 
 
-        if (expected) {
+        if (opening) {
 
-            expected.oninput =
+            opening.oninput =
                 updateVariancePreview;
         }
 
 
-        if (actual) {
+        if (closing) {
 
-            actual.oninput =
+            closing.oninput =
                 updateVariancePreview;
         }
 
@@ -3062,32 +3379,68 @@
 
     function updateVariancePreview() {
 
-        const expected =
+        const opening =
             number(
                 document.getElementById(
-                    "gapExpected"
+                    "gapOpening"
                 )?.value
             );
 
 
-        const actual =
+        const closing =
             number(
                 document.getElementById(
-                    "gapActual"
+                    "gapClosing"
                 )?.value
             );
 
 
-        const variance =
-            actual - expected;
+        const gap =
+            Number(
+                (
+                    closing -
+                    opening
+                ).toFixed(2)
+            );
 
 
-        const status =
-            Math.abs(variance) <= 0.01
-                ? "normal"
-                : Math.abs(variance) <= 5
-                    ? "warning"
-                    : "critical";
+        let status;
+
+
+        if (
+            Math.abs(gap) <=
+            0.01
+        ) {
+
+            status =
+                "normal";
+
+        } else if (
+            gap < 0
+        ) {
+
+            status =
+                "critical";
+
+        } else if (
+            gap >= 500
+        ) {
+
+            status =
+                "critical";
+
+        } else if (
+            gap >= 100
+        ) {
+
+            status =
+                "warning";
+
+        } else {
+
+            status =
+                "normal";
+        }
 
 
         const preview =
@@ -3096,13 +3449,15 @@
             );
 
 
-        if (!preview) return;
+        if (!preview) {
+            return;
+        }
 
 
         preview.innerHTML = `
 
             <strong>
-                Variance:
+                Meter Gap:
             </strong>
 
             <span
@@ -3111,17 +3466,31 @@
                     font-weight:800;
                 "
             >
-                ${variance > 0 ? "+" : ""}
-                ${formatNumber(variance)}
+
+                ${
+                    gap > 0
+                        ? "+"
+                        : ""
+                }
+
+                ${formatNumber(
+                    gap
+                )}
                 L
+
             </span>
+
 
             <span
                 style="
                     margin-left:15px;
                 "
             >
-                ${statusBadge(status)}
+
+                ${statusBadge(
+                    status
+                )}
+
             </span>
 
         `;
@@ -3137,7 +3506,9 @@
         event.preventDefault();
 
 
-        if (GapsState.isSubmitting) {
+        if (
+            GapsState.isSubmitting
+        ) {
             return;
         }
 
@@ -3166,18 +3537,18 @@
             )?.value;
 
 
-        const expected =
+        const opening =
             number(
                 document.getElementById(
-                    "gapExpected"
+                    "gapOpening"
                 )?.value
             );
 
 
-        const actual =
+        const closing =
             number(
                 document.getElementById(
-                    "gapActual"
+                    "gapClosing"
                 )?.value
             );
 
@@ -3199,12 +3570,12 @@
 
 
         if (
-            expected < 0 ||
-            actual < 0
+            opening < 0 ||
+            closing < 0
         ) {
 
             showAlert(
-                "Litres cannot be negative.",
+                "Meter readings cannot be negative.",
                 "error"
             );
 
@@ -3212,16 +3583,17 @@
         }
 
 
-        const variance =
-            actual - expected;
-
-
-        const status =
-            Math.abs(variance) <= 0.01
-                ? "normal"
-                : Math.abs(variance) <= 5
-                    ? "warning"
-                    : "critical";
+        /*
+         * Closing meter should not be
+         * lower than opening meter for
+         * a normal meter movement.
+         *
+         * Negative movement can still be
+         * recorded by the backend when
+         * processing historical/corrective
+         * records, but we allow it here so
+         * the system can flag it as variance.
+         */
 
 
         const payload = {
@@ -3238,18 +3610,19 @@
             shift_id:
                 shiftId,
 
-            expected_litres:
-                expected,
+            opening_reading:
+                opening,
 
-            actual_litres:
-                actual,
+            closing_reading:
+                closing
 
-            variance_litres:
-                variance,
-
-            status:
-                status
         };
+
+
+        console.log(
+            "CREATING GAP PAYLOAD:",
+            payload
+        );
 
 
         const button =
@@ -3266,7 +3639,8 @@
 
             if (button) {
 
-                button.disabled = true;
+                button.disabled =
+                    true;
 
                 button.textContent =
                     "Saving...";
@@ -3294,7 +3668,7 @@
 
 
             showAlert(
-                "Gap record saved successfully.",
+                "Meter gap saved successfully.",
                 "success"
             );
 
@@ -3312,7 +3686,7 @@
 
             showAlert(
                 error.message ||
-                "Unable to save gap record.",
+                "Unable to save meter gap.",
                 "error"
             );
 
@@ -3325,12 +3699,12 @@
 
             if (button) {
 
-                button.disabled = false;
+                button.disabled =
+                    false;
 
                 button.textContent =
                     "Save Gap";
             }
-
         }
     }
 
@@ -3350,7 +3724,9 @@
             );
 
 
-        if (!alert) return;
+        if (!alert) {
+            return;
+        }
 
 
         alert.className =
@@ -3361,13 +3737,16 @@
             message;
 
 
-        setTimeout(() => {
+        setTimeout(
+            () => {
 
-            alert.classList.remove(
-                "show"
-            );
+                alert.classList.remove(
+                    "show"
+                );
 
-        }, 4000);
+            },
+            4000
+        );
     }
 
 
@@ -3387,7 +3766,8 @@
 
             if (button) {
 
-                button.disabled = true;
+                button.disabled =
+                    true;
 
                 button.textContent =
                     "Refreshing...";
@@ -3428,12 +3808,12 @@
 
             if (button) {
 
-                button.disabled = false;
+                button.disabled =
+                    false;
 
                 button.textContent =
                     "↻ Refresh";
             }
-
         }
     }
 
@@ -3445,7 +3825,15 @@
     async function initGapsPage() {
 
         console.log(
-            "OPENING GAPS PAGE..."
+            "=============================================="
+        );
+
+        console.log(
+            "FUELGAP GAPS & VARIANCE - INITIALIZING"
+        );
+
+        console.log(
+            "=============================================="
         );
 
 
