@@ -3659,7 +3659,7 @@
        SHIFT SELECT
     ===================================================== */
 
-       function populateShiftSelect() {
+function populateShiftSelect() {
 
     const select =
         getElement("fgShift");
@@ -3677,6 +3677,11 @@
     console.log(
         "FUELGAP: Selected station for shifts:",
         stationId
+    );
+
+    console.log(
+        "FUELGAP: Current application user:",
+        state.currentUser
     );
 
     console.log(
@@ -3708,8 +3713,10 @@
        NO SHIFTS
     ================================================= */
 
-    if (!Array.isArray(state.shifts) ||
-        state.shifts.length === 0) {
+    if (
+        !Array.isArray(state.shifts) ||
+        state.shifts.length === 0
+    ) {
 
         console.warn(
             "FUELGAP: No shifts available"
@@ -3720,132 +3727,290 @@
 
 
     /* =================================================
-       FILTER SHIFTS BY STATION
+       GET CURRENT USER
     ================================================= */
 
-    const stationShifts =
-        state.shifts.filter(shift => {
+    const user =
+        state.currentUser || {};
 
-            if (!stationId) {
-                return true;
-            }
-
-            /*
-             * Support all possible station ID formats
-             */
-            const shiftStationId =
-                shift.station_id ??
-                shift.stationId ??
-                shift.station?.id ??
-                shift.stations?.id;
-
-            console.log(
-                "FUELGAP: Checking shift:",
-                shift,
-                "Station:",
-                shiftStationId
-            );
-
-            return String(
-                shiftStationId
-            ) === String(
-                stationId
-            );
-
-        });
+    const currentUserIds =
+        [
+            user.id,
+            user.user_id,
+            user.userId,
+            user.profile_id,
+            user.profileId,
+            user.auth_user_id,
+            user.authUserId
+        ]
+        .filter(Boolean)
+        .map(id => String(id));
 
 
     console.log(
-        "FUELGAP: Shifts matching selected station:",
-        stationShifts
+        "FUELGAP: Current user IDs available:",
+        currentUserIds
+    );
+
+
+    if (
+        currentUserIds.length === 0
+    ) {
+
+        console.warn(
+            "FUELGAP: Could not determine current application user ID."
+        );
+
+        return;
+    }
+
+
+    /* =================================================
+       FILTER SHIFTS
+       
+       RULE:
+       
+       1. Same station
+       2. Created/opened by current user
+       3. OPEN or CLOSED are both allowed
+    ================================================= */
+
+    const userStationShifts =
+        state.shifts.filter(
+            shift => {
+
+                const shiftStationId =
+                    shift.station_id ??
+                    shift.stationId ??
+                    shift.station?.id ??
+                    shift.stations?.id;
+
+                const openedBy =
+                    shift.opened_by ??
+                    shift.openedBy ??
+                    shift.user_id ??
+                    shift.userId;
+
+
+                const sameStation =
+                    !stationId ||
+                    String(
+                        shiftStationId
+                    ) === String(
+                        stationId
+                    );
+
+
+                const sameUser =
+                    openedBy &&
+                    currentUserIds.includes(
+                        String(openedBy)
+                    );
+
+
+                console.log(
+                    "FUELGAP: Checking shift ownership:",
+                    {
+                        shiftId:
+                            shift.id ??
+                            shift.shift_id,
+
+                        openedBy,
+
+                        currentUserIds,
+
+                        sameUser,
+
+                        sameStation,
+
+                        status:
+                            shift.status,
+
+                        createdAt:
+                            shift.created_at
+                    }
+                );
+
+
+                return (
+                    sameStation &&
+                    sameUser
+                );
+
+            }
+        );
+
+
+    console.log(
+        "FUELGAP: Shifts belonging to current user:",
+        userStationShifts
     );
 
 
     /* =================================================
-       ADD SHIFTS
+       FIND NEWEST SHIFT
+       
+       IMPORTANT:
+       
+       Use created_at.
+       
+       NOT shift_date.
+       NOT start_time.
+       
+       A CLOSED shift remains visible until
+       this same user creates a newer shift.
     ================================================= */
 
-    stationShifts.forEach(shift => {
+    const latestShift =
+        [...userStationShifts]
+            .sort(
+                (a, b) => {
 
-        const shiftId =
-            shift.id ??
-            shift.shift_id;
+                    const dateA =
+                        new Date(
+                            a.created_at ||
+                            a.createdAt ||
+                            0
+                        ).getTime();
 
-        if (!shiftId) {
+                    const dateB =
+                        new Date(
+                            b.created_at ||
+                            b.createdAt ||
+                            0
+                        ).getTime();
 
-            console.warn(
-                "FUELGAP: Shift has no ID:",
-                shift
-            );
+                    return dateB - dateA;
 
-            return;
-        }
-
-
-        const option =
-            document.createElement("option");
-
-        option.value =
-            String(shiftId);
-
-
-        /* -------------------------------------------------
-           SHIFT NAME
-        ------------------------------------------------- */
-
-        const shiftName =
-            shift.shift_name ??
-            shift.name ??
-            shift.title ??
-            `Shift ${String(
-                shiftId
-            ).slice(0, 8)}`;
+                }
+            )[0];
 
 
-        /* -------------------------------------------------
-           SHIFT STATUS
-        ------------------------------------------------- */
+    if (!latestShift) {
 
-        const status =
-            shift.status
-                ? String(
-                    shift.status
-                ).trim().toLowerCase()
-                : "";
+        console.warn(
+            "FUELGAP: No shift found for current user and selected station."
+        );
+
+        return;
+    }
 
 
-        const statusText =
-            status
-                ? ` — ${status.toUpperCase()}`
-                : "";
+    console.log(
+        "FUELGAP: Latest shift for current user:",
+        latestShift
+    );
 
 
-        option.textContent =
-            `${shiftName}${statusText}`;
+    /* =================================================
+       GET SHIFT ID
+    ================================================= */
+
+    const shiftId =
+        latestShift.id ??
+        latestShift.shift_id;
 
 
-        /*
-         * Store useful information on the option
-         */
-        option.dataset.shiftId =
-            String(shiftId);
+    if (!shiftId) {
 
-        option.dataset.stationId =
-            String(
-                shift.station_id ??
-                shift.stationId ??
-                shift.station?.id ??
-                shift.stations?.id ??
-                ""
-            );
+        console.warn(
+            "FUELGAP: Latest shift has no ID:",
+            latestShift
+        );
 
-        option.dataset.status =
-            status;
+        return;
+    }
 
 
-        select.appendChild(option);
+    /* =================================================
+       CREATE OPTION
+    ================================================= */
 
-    });
+    const option =
+        document.createElement("option");
+
+    option.value =
+        String(shiftId);
+
+
+    /* =================================================
+       SHIFT NAME
+    ================================================= */
+
+    const shiftName =
+        latestShift.shift_name ??
+        latestShift.name ??
+        latestShift.title ??
+        `Shift ${String(
+            shiftId
+        ).slice(0, 8)}`;
+
+
+    /* =================================================
+       SHIFT STATUS
+       
+       CLOSED IS ALLOWED.
+    ================================================= */
+
+    const status =
+        latestShift.status
+            ? String(
+                latestShift.status
+            ).trim().toLowerCase()
+            : "";
+
+
+    const statusText =
+        status
+            ? ` — ${status.toUpperCase()}`
+            : "";
+
+
+    option.textContent =
+        `${shiftName}${statusText}`;
+
+
+    /* =================================================
+       STORE SHIFT INFORMATION
+    ================================================= */
+
+    option.dataset.shiftId =
+        String(shiftId);
+
+    option.dataset.stationId =
+        String(
+            latestShift.station_id ??
+            latestShift.stationId ??
+            latestShift.station?.id ??
+            latestShift.stations?.id ??
+            ""
+        );
+
+    option.dataset.status =
+        status;
+
+    option.dataset.openedBy =
+        String(
+            latestShift.opened_by ??
+            latestShift.openedBy ??
+            ""
+        );
+
+    option.dataset.createdAt =
+        String(
+            latestShift.created_at ??
+            latestShift.createdAt ??
+            ""
+        );
+
+
+    /* =================================================
+       ADD ONLY LATEST SHIFT
+    ================================================= */
+
+    select.appendChild(
+        option
+    );
 
 
     /* =================================================
@@ -3857,8 +4022,20 @@
         Array.from(
             select.options
         ).map(option => ({
-            text: option.textContent,
-            value: option.value
+            text:
+                option.textContent,
+
+            value:
+                option.value,
+
+            status:
+                option.dataset.status,
+
+            openedBy:
+                option.dataset.openedBy,
+
+            createdAt:
+                option.dataset.createdAt
         }))
     );
 
